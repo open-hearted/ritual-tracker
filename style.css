@@ -54,6 +54,10 @@ input::placeholder{color:#9fb0ff99}
 .stats{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px}
 .stats.tiny{gap:6px;margin-top:4px}
 .stat{background:#0d1a3a; border:1px solid rgba(255,255,255,0.08); padding:6px 10px; border-radius:10px; font-size:13px}
+/* finance summary bar */
+.fin-summary-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11px;line-height:1.2}
+.fin-chip{background:#14224e;padding:4px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:16px;display:flex;align-items:center;gap:4px}
+.fin-chip b{font-weight:600;color:var(--ok)}
 
 .footer{display:none}
 .row.tight{gap:6px}
