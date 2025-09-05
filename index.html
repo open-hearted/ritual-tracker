@@ -23,81 +23,53 @@
         <button id="clearMonthBtn" title="この月をクリア">♻</button>
       </div>
     </div>
-
-    <div class="card" style="margin-top:14px">
+    <div class="card cal-card">
       <div class="cal-head">
         <div class="controls">
           <button id="prevBtn">◀ 前月</button>
           <div class="cal-title" id="monthLabel"></div>
           <button id="nextBtn">次月 ▶</button>
-        <!-- 旧ボタン群はトップバーへ移動 -->
         </div>
-      <!-- S3 同期 UI は領域節約のため下部へ移動 -->
-          <input id="s3Password" placeholder="APP_PASSWORD (API用)" type="password" style="min-width:220px" />
-      <!-- フッター情報削減 -->
-
-      <div class="card mini" id="financeCard">
-        <details>
-          <summary>💰 コスト計算</summary>
-          <div class="row tight" style="margin-top:4px; gap:6px">
-            <input id="feeMonthly" placeholder="月額" inputmode="numeric" />
-            <input id="priceDay" placeholder="1回" inputmode="numeric" />
-            <input id="costTransit" placeholder="交通" inputmode="numeric" />
-            <input id="otherPer" placeholder="他" inputmode="numeric" />
-            <button id="saveFinance">保存</button>
-          </div>
-          <div class="stats tiny" id="financeStats"></div>
-        </details>
-      </div>
-
-      <div class="card mini" id="s3Card">
-        <details>
-          <summary>🪣 S3 同期</summary>
-          <div class="row tight" style="margin-top:4px; gap:6px">
-            <input id="s3DocId" placeholder="docId" />
-            <input id="s3Passphrase" placeholder="E2E pass" type="password" />
-            <input id="s3Password" placeholder="APP_PASSWORD" type="password" />
-          </div>
-          <div class="row tight" style="margin-top:4px; gap:6px">
-            <button id="s3Push">保存</button>
-            <button id="s3Pull">復元</button>
-            <label class="auto-restore"><input type="checkbox" id="s3AutoRestore" />自動</label>
-          </div>
-        </details>
-      </div>
-        <div style="margin-top:8px">
-          
-          <ol>
-            <li>Supabase でプロジェクト作成 → Auth（Magic Link/メール認証）を有効化。</li>
-            <li>フロントに supabase-js を追加し、ログイン状態の uid をキーにして <code>localStorage</code> ではなく Supabase の <code>row level security</code> 付きテーブルへ保存。</li>
-            <li>Vercel 環境変数に Supabase URL/Anon Key を設定。</li>
-          </ol>
-          まずはこのローカル保存版で運用を開始し、必要に応じて同期を追加するのが簡単です。
+        <div class="legend">
+          <span class="badge badge-on"></span> 行った
+          <span class="badge badge-off"></span> 未記録
         </div>
-      </details>
-    </div> -->
+      </div>
+      <div class="grid" id="dowRow"></div>
+      <div class="grid" id="calGrid" aria-live="polite"></div>
+      <div id="debug" style="margin-top:6px;font-size:11px;color:#ffdede"></div>
+      <div class="stats" id="stats"></div>
+    </div>
 
-    <!-- Supabase クラウド同期ブロック（無効化要求によりコメントアウト）
-    <div class="card" style="margin-top:14px">
+    <div class="card mini" id="financeCard">
       <details>
-        <summary>☁️ クラウド同期（任意・端末間で自動復元したい人向け／E2E暗号化対応）</summary>
-        <div class="notice" style="margin-top:6px">Supabaseを使った<strong>任意同期</strong>です。暗号化してから保存するので、サーバー側は中身を読めません（E2E）。設定が揃っていれば<em>ページ読み込み時に自動復元</em>します。</div>
-        <div class="row" style="margin-top:10px; gap:8px">
-          <input id="spUrl" placeholder="SUPABASE_URL" style="min-width:220px" />
-          <input id="spAnon" placeholder="SUPABASE_ANON_KEY" style="min-width:260px" />
-          <input id="spBucket" placeholder="バケット名 (例: cw-sync)" style="width:160px" />
-          <input id="docId" placeholder="ドキュメントID (例: my-notes)" style="width:170px" />
-          <input id="passphrase" placeholder="パスフレーズ (E2E)" type="password" style="min-width:200px" />
+        <summary>💰 コスト計算</summary>
+        <div class="row tight" style="margin-top:4px; gap:6px">
+          <input id="feeMonthly" placeholder="月額" inputmode="numeric" />
+          <input id="priceDay" placeholder="1回" inputmode="numeric" />
+          <input id="costTransit" placeholder="交通" inputmode="numeric" />
+          <input id="otherPer" placeholder="他" inputmode="numeric" />
+          <button id="saveFinance">保存</button>
         </div>
-        <div class="row" style="margin-top:8px">
-          <button id="saveCloudCfg">設定を保存</button>
-          <button id="pushCloud">クラウドへ保存</button>
-          <button id="pullCloud">クラウドから復元</button>
-        </div>
-        <div class="notice" style="margin-top:6px">※ 先にSupabaseでStorageバケットを作成しておき、<code>RLS: Public</code> か適切なポリシーを設定してください（Anonキーでアップ/ダウンロード可能に）。</div>
+        <div class="stats tiny" id="financeStats"></div>
       </details>
     </div>
-    -->
+
+    <div class="card mini" id="s3Card">
+      <details>
+        <summary>🪣 S3 同期</summary>
+        <div class="row tight" style="margin-top:4px; gap:6px">
+          <input id="s3DocId" placeholder="docId" />
+          <input id="s3Passphrase" placeholder="E2E pass" type="password" />
+          <input id="s3Password" placeholder="APP_PASSWORD" type="password" />
+        </div>
+        <div class="row tight" style="margin-top:4px; gap:6px">
+          <button id="s3Push">保存</button>
+          <button id="s3Pull">復元</button>
+          <label class="auto-restore"><input type="checkbox" id="s3AutoRestore" />自動</label>
+        </div>
+      </details>
+    </div>
   </div>
 </body>
 </html>
