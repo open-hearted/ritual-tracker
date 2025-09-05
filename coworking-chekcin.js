@@ -137,18 +137,6 @@ function renderStats(){
   );
   renderFinanceStats(attended);
 }
-  const md = readMonth(state.uid, state.year, state.month);
-  const keys = Object.keys(md);
-  const attended = keys.filter(k => md[k] === 1).length;
-  const total = daysInMonth(state.year, state.month);
-  const rate = total ? Math.round(attended*100/total) : 0;
-  const streak = calcStreak(md);
-
-  box.append(
-    makeStat(`今月の出席日数: <b>${attended}</b> / ${total}日 (${rate}%)`),
-    makeStat(`連続出席（今月内）: <b>${streak}</b> 日`),
-  );
-}
 
 function makeStat(html){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=html; return d; }
 
@@ -177,13 +165,6 @@ function doExport(){
   a.download = `coworking-${state.uid}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-} };
-  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `coworking-${state.uid}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
 }
 
 function doImport(file){
@@ -201,9 +182,6 @@ function doImport(file){
       renderAll(); renderFinanceInputs();
       alert('インポート完了');
     } catch(e){ alert('JSON の読み込みに失敗しました'); }
-  };
-  reader.readAsText(file);
-} catch(e){ alert('JSON の読み込みに失敗しました'); }
   };
   reader.readAsText(file);
 }

@@ -4,7 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ワークトラッカー</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="style.css" />
+  <!-- 互換性/タイプミス由来の 404 回避用（styles.css を要求されても同じ内容を提供） -->
+  <link rel="stylesheet" href="styles.css" disabled />
+  <!-- favicon 404 回避（ダミー） -->
+  <link rel="icon" href="data:,">
   <!-- Supabase JS (任意同期で使用) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="coworking-chekcin.js"></script>
