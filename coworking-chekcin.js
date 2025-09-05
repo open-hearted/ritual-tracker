@@ -284,16 +284,10 @@ function renderFinanceStats(attendedOverride){
   // inline finance chips inside global stats row
   const globalStats = $('stats');
   if(globalStats){
-    let row = document.getElementById('finChipsRow');
-    if(!row){
-      row = document.createElement('div');
-      row.id='finChipsRow';
-      row.className='fin-chips-row';
-      globalStats.appendChild(row);
-    }
-    row.innerHTML='';
+    // 既存 finance チップ除去
+    [...globalStats.querySelectorAll('.fin-chip')].forEach(n=>n.remove());
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
-    row.append(
+    globalStats.append(
       mkChip('出席', `${attended}`),
       mkChip('分岐', be?`${be}`:'-'),
       mkChip('残り', remaining),

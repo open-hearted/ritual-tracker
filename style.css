@@ -51,18 +51,15 @@ input::placeholder{color:#9fb0ff99}
 .badge-on{background:var(--ok)}
 .badge-off{background:#7c88b5}
 
-.stats{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px}
-.stats.tiny{gap:6px;margin-top:4px}
-.stat{background:#0d1a3a; border:1px solid rgba(255,255,255,0.08); padding:6px 10px; border-radius:10px; font-size:13px}
+.stats{display:flex; gap:6px; flex-wrap:nowrap; margin-top:6px; overflow-x:auto; scrollbar-width:thin; scrollbar-color:#1f2f55 transparent}
+.stats::-webkit-scrollbar{height:6px}
+.stats::-webkit-scrollbar-track{background:transparent}
+.stats::-webkit-scrollbar-thumb{background:#1f2f55;border-radius:4px}
+.stats.tiny{gap:4px;margin-top:4px}
+.stat, .fin-chip{background:#0d1a3a; border:1px solid rgba(255,255,255,0.08); padding:5px 9px; border-radius:14px; font-size:12px; line-height:1.1; white-space:nowrap; display:flex; align-items:center; gap:4px}
+.fin-chip b, .stat b{font-weight:600;color:var(--ok)}
 /* finance summary bar */
-.fin-summary-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11px;line-height:1.2}
-.fin-chip{background:#14224e;padding:4px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:16px;display:flex;align-items:center;gap:4px}
-.fin-chip b{font-weight:600;color:var(--ok)}
-/* single row chips inside stats */
-.fin-chips-row{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding:2px 0;margin-top:4px}
-.fin-chips-row::-webkit-scrollbar{height:6px}
-.fin-chips-row::-webkit-scrollbar-track{background:transparent}
-.fin-chips-row::-webkit-scrollbar-thumb{background:#1f2f55;border-radius:4px}
+/* (unified chips now placed directly inside #stats) */
 
 .footer{display:none}
 .row.tight{gap:6px}
