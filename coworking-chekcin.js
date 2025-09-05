@@ -210,23 +210,26 @@ function renderAll(){
 }
 
 // ===== Events =====
+// 安全なイベント登録ヘルパー (要素が無ければ無視)
+function on(id, ev, handler){ const el=$(id); if(el) el.addEventListener(ev, handler); }
 
-
-$('prevBtn').addEventListener('click', ()=>{ state.month--; if(state.month<0){ state.month=11; state.year--; } renderCalendar(); });
-$('nextBtn').addEventListener('click', ()=>{ state.month++; if(state.month>11){ state.month=0; state.year++; } renderCalendar(); });
-$('exportBtn').addEventListener('click', doExport);
-$('saveFinance').addEventListener('click', ()=>{
+on('prevBtn','click', ()=>{ state.month--; if(state.month<0){ state.month=11; state.year--; } renderCalendar(); });
+on('nextBtn','click', ()=>{ state.month++; if(state.month>11){ state.month=0; state.year++; } renderCalendar(); });
+on('exportBtn','click', doExport);
+on('saveFinance','click', ()=>{
+  const fee = $('feeMonthly');
+  if(!fee) return; // meditation 等 finance 無しページ
   const fin = {
-    monthly: parseInt($('feeMonthly').value||'0',10)||0,
-    day: parseInt($('priceDay').value||'0',10)||0,
-    transit: parseInt($('costTransit').value||'0',10)||0,
-    other: parseInt($('otherPer').value||'0',10)||0,
+    monthly: parseInt(fee.value||'0',10)||0,
+    day: parseInt(($('priceDay')?.value)||'0',10)||0,
+    transit: parseInt(($('costTransit')?.value)||'0',10)||0,
+    other: parseInt(($('otherPer')?.value)||'0',10)||0,
   };
   saveFinance(fin);
   renderFinanceStats();
 });
-$('importFile').addEventListener('change', (e)=> doImport(e.target.files[0]));
-$('clearMonthBtn').addEventListener('click', clearThisMonth);
+on('importFile','change', (e)=>{ const f=e.target.files && e.target.files[0]; if(f) doImport(f); });
+on('clearMonthBtn','click', clearThisMonth);
 
 // init (run after DOM ready)
 if(document.readyState==='loading'){
