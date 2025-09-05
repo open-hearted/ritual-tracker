@@ -251,14 +251,19 @@ window.addEventListener('resize', ()=>{ clearTimeout(window.__cw_resize); window
 
 // ===== Finance rendering =====
 function renderFinanceInputs(){
+  // ページに finance 入力が無い場合 (meditation.html など) はスキップ
+  const fee = $('feeMonthly');
+  if(!fee) return;
   const f = getFinance();
-  $('feeMonthly').value = f.monthly ?? '';
-  $('priceDay').value = f.day ?? '';
-  $('costTransit').value = f.transit ?? '';
-  $('otherPer').value = f.other ?? '';
+  fee.value = f.monthly ?? '';
+  const pd = $('priceDay'); if(pd) pd.value = f.day ?? '';
+  const ct = $('costTransit'); if(ct) ct.value = f.transit ?? '';
+  const ot = $('otherPer'); if(ot) ot.value = f.other ?? '';
 }
 
 function renderFinanceStats(attendedOverride){
+  // finance UI が存在しなければ何もしない
+  if(!$('feeMonthly')) return;
   const f = getFinance();
   const monthly = Number(f.monthly)||0;
   const perVisit = (Number(f.day)||0) + (Number(f.transit)||0) + (Number(f.other)||0);
@@ -272,18 +277,20 @@ function renderFinanceStats(attendedOverride){
   const delta = attended*perVisit - monthly; // +なら日割より損、-なら得
 
   const box = $('financeStats');
-  box.innerHTML = '';
-  box.append(
-    makeStat(`想定1回コスト: <b>${perVisit.toLocaleString()}円</b>`),
-    makeStat(`損益分岐の回数: <b>${be}</b> 回 / 今月の出席: <b>${attended}</b> 回`),
-    makeStat(`分岐まで残り: <b>${remaining}</b> 回`),
-    makeStat(`現在の実質1回単価(月額/出席): <b>${eff.toLocaleString()}円</b>`),
-    makeStat(`${delta>=0?'日割より割高':'日割より割安'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
-  );
+  if(box){
+    box.innerHTML = '';
+    box.append(
+      makeStat(`想定1回コスト: <b>${perVisit.toLocaleString()}円</b>`),
+      makeStat(`損益分岐の回数: <b>${be}</b> 回 / 今月の出席: <b>${attended}</b> 回`),
+      makeStat(`分岐まで残り: <b>${remaining}</b> 回`),
+      makeStat(`現在の実質1回単価(月額/出席): <b>${eff.toLocaleString()}円</b>`),
+      makeStat(`${delta>=0?'日割より割高':'日割より割安'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
+    );
+  }
 
   // inline finance chips inside global stats row
   const globalStats = $('stats');
-  if(globalStats){
+  if(globalStats && $('feeMonthly')){ // finance が有るページのみチップ表示
     // 既存 finance チップ除去
     [...globalStats.querySelectorAll('.fin-chip')].forEach(n=>n.remove());
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
