@@ -8,8 +8,14 @@ const state = {
   month: new Date().getMonth(), // 0-11
 };
 
-const LS_USERS_KEY = 'cw_users_v1'; // map: uid -> { pinHash?: string, data: {...} }
-const LS_FIN_KEY = 'cw_finance_v1'; // { monthly:number, day:number, transit:number, other:number }
+// ページ毎のストレージ分離用プレフィックス (meditation.html は 'med', それ以外は 'cw')
+const PAGE_PREFIX = (()=>{
+  const p = (location.pathname||'').toLowerCase();
+  if(p.includes('meditation')) return 'med';
+  return 'cw';
+})();
+const LS_USERS_KEY = `${PAGE_PREFIX}_users_v1`; // map: uid -> { pinHash?: string, data: {...} }
+const LS_FIN_KEY = `${PAGE_PREFIX}_finance_v1`; // { monthly:number, day:number, transit:number, other:number }
 
 function getAllUsers(){
   try { return JSON.parse(localStorage.getItem(LS_USERS_KEY)) || {}; } catch { return {}; }
@@ -163,7 +169,7 @@ function doExport(){
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `coworking-${state.uid}.json`;
+  a.download = `${PAGE_PREFIX}-data-${state.uid}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -321,7 +327,7 @@ autoCloudRestoreIfConfigured();
 */
 
 // ===== S3 Sync via Vercel API (password-gated, presigned URL) =====
-const LS_S3 = 'cw_s3_cfg_v1';
+const LS_S3 = `${PAGE_PREFIX}_s3_cfg_v1`;
 function getS3Cfg(){ try{return JSON.parse(localStorage.getItem(LS_S3))||{};}catch{return{}} }
 function saveS3Cfg(v){ localStorage.setItem(LS_S3, JSON.stringify(v)); }
 
