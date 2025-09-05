@@ -284,15 +284,21 @@ function renderFinanceStats(attendedOverride){
   // inline finance chips inside global stats row
   const globalStats = $('stats');
   if(globalStats){
-    // remove previous finance chips
-    [...globalStats.querySelectorAll('.fin-chip')].forEach(n=>n.remove());
+    let row = document.getElementById('finChipsRow');
+    if(!row){
+      row = document.createElement('div');
+      row.id='finChipsRow';
+      row.className='fin-chips-row';
+      globalStats.appendChild(row);
+    }
+    row.innerHTML='';
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
-    globalStats.append(
+    row.append(
       mkChip('出席', `${attended}`),
       mkChip('分岐', be?`${be}`:'-'),
       mkChip('残り', remaining),
       mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-'),
-      mkChip(delta>=0?'損差':'得差', `${Math.abs(delta).toLocaleString()}円`)
+      mkChip(delta>=0?'損差':'現損', `${Math.abs(delta).toLocaleString()}円`)
     );
   }
 }

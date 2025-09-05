@@ -58,6 +58,11 @@ input::placeholder{color:#9fb0ff99}
 .fin-summary-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11px;line-height:1.2}
 .fin-chip{background:#14224e;padding:4px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:16px;display:flex;align-items:center;gap:4px}
 .fin-chip b{font-weight:600;color:var(--ok)}
+/* single row chips inside stats */
+.fin-chips-row{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;padding:2px 0;margin-top:4px}
+.fin-chips-row::-webkit-scrollbar{height:6px}
+.fin-chips-row::-webkit-scrollbar-track{background:transparent}
+.fin-chips-row::-webkit-scrollbar-thumb{background:#1f2f55;border-radius:4px}
 
 .footer{display:none}
 .row.tight{gap:6px}
