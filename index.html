@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ワークトラッカー</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Supabase JS (任意同期で使用) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="coworking-chekcin.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="row" style="justify-content:space-between; align-items:flex-start">
+      <div>
+        <h1>コワーキング出席トラッカー</h1>
+        <div class="sub">カレンダーの日付をクリック → 「行った」をトグル。データは <b>この端末</b> のローカル保存。</div>
+      </div><!-- 認証UI削除（ローカル保存のみ） --><div class="notice" style="margin-top:8px">※ 簡易ログインです（端末内のみ）。本格認証は後述。</div>
+      </div>
+    </div>
+
+    <div class="card" id="financeCard" style="margin-top:14px">
+      <details open>
+        <summary>💰 月額 vs. 回数（個人用・ローカル保存）</summary>
+        <div class="row" style="margin-top:8px; gap:8px">
+          <input id="feeMonthly" placeholder="月額 (円)" inputmode="numeric" style="width:140px" />
+          <input id="priceDay" placeholder="1回あたり費用 (円)" inputmode="numeric" style="width:170px" />
+          <input id="costTransit" placeholder="交通費/回 (円)" inputmode="numeric" style="width:150px" />
+          <input id="otherPer" placeholder="他/回 (円)" inputmode="numeric" style="width:140px" />
+          <button id="saveFinance">保存</button>
+        </div>
+        <div class="notice" style="margin-top:6px">※ 端末内のみ保存。エクスポートJSONにも含まれます。</div>
+        <div class="stats" id="financeStats"></div>
+      </details>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="cal-head">
+        <div class="controls">
+          <button id="prevBtn">◀ 前月</button>
+          <div class="cal-title" id="monthLabel"></div>
+          <button id="nextBtn">次月 ▶</button>
+        </div>
+        <div class="legend">
+          <span class="badge badge-on"></span> 行った
+          <span class="badge badge-off"></span> 未記録
+        </div>
+      </div>
+      <div class="grid" id="dowRow"></div>
+      <div class="grid" id="calGrid" aria-live="polite"></div>
+      <div id="debug" style="margin-top:8px;font-size:12px;color:#ffdede"></div>
+      <div class="stats" id="stats"></div>
+      <div class="hr"></div>
+      <div class="row">
+        <button id="exportBtn">このユーザーのデータを書き出し</button>
+        <input type="file" id="importFile" accept="application/json" />
+        <button id="clearMonthBtn">この月の記録をクリア</button></div>
+
+    <div class="card" style="margin-top:14px">
+      <details>
+        <summary>🪣 S3 同期（簡単・パスワード式／任意）</summary>
+        <div class="notice" style="margin-top:6px">Vercel の <b>環境変数</b> で AWS を保持。<b>ブラウザでパスワード入力</b>→APIが検証→S3用の署名URLを発行し、<b>暗号化済みデータ</b>を直接S3に保存/取得します。</div>
+        <div class="row" style="margin-top:10px; gap:8px">
+          <input id="s3DocId" placeholder="ドキュメントID (例: my-notes)" style="width:200px" />
+          <input id="s3Passphrase" placeholder="パスフレーズ (E2E)" type="password" style="min-width:200px" />
+          <input id="s3Password" placeholder="APP_PASSWORD (API用)" type="password" style="min-width:220px" />
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="s3Push">S3へ保存</button>
+          <button id="s3Pull">S3から復元</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#9fb0ff">
+            <input type="checkbox" id="s3AutoRestore" /> 次回自動復元（設定とパス保持）
+          </label>
+        </div>
+      </details>
+    </div>
+
+    <div class="footer">
+      <details>
+        <summary>本格認証（Supabase/Firebase）にアップグレードするには？</summary>
+        <div style="margin-top:8px">
+          
+          <ol>
+            <li>Supabase でプロジェクト作成 → Auth（Magic Link/メール認証）を有効化。</li>
+            <li>フロントに supabase-js を追加し、ログイン状態の uid をキーにして <code>localStorage</code> ではなく Supabase の <code>row level security</code> 付きテーブルへ保存。</li>
+            <li>Vercel 環境変数に Supabase URL/Anon Key を設定。</li>
+          </ol>
+          まずはこのローカル保存版で運用を開始し、必要に応じて同期を追加するのが簡単です。
+        </div>
+      </details>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <details>
+        <summary>☁️ クラウド同期（任意・端末間で自動復元したい人向け／E2E暗号化対応）</summary>
+        <div class="notice" style="margin-top:6px">Supabaseを使った<strong>任意同期</strong>です。暗号化してから保存するので、サーバー側は中身を読めません（E2E）。設定が揃っていれば<em>ページ読み込み時に自動復元</em>します。</div>
+        <div class="row" style="margin-top:10px; gap:8px">
+          <input id="spUrl" placeholder="SUPABASE_URL" style="min-width:220px" />
+          <input id="spAnon" placeholder="SUPABASE_ANON_KEY" style="min-width:260px" />
+          <input id="spBucket" placeholder="バケット名 (例: cw-sync)" style="width:160px" />
+          <input id="docId" placeholder="ドキュメントID (例: my-notes)" style="width:170px" />
+          <input id="passphrase" placeholder="パスフレーズ (E2E)" type="password" style="min-width:200px" />
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="saveCloudCfg">設定を保存</button>
+          <button id="pushCloud">クラウドへ保存</button>
+          <button id="pullCloud">クラウドから復元</button>
+        </div>
+        <div class="notice" style="margin-top:6px">※ 先にSupabaseでStorageバケットを作成しておき、<code>RLS: Public</code> か適切なポリシーを設定してください（Anonキーでアップ/ダウンロード可能に）。</div>
+      </details>
+    </div>
+  </div>
+</body>
+</html>
