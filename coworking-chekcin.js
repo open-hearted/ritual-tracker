@@ -120,6 +120,7 @@ function renderCalendar(){
   }
 
   renderStats();
+  adjustCalendarSize();
 }
 
 function renderStats(){
@@ -223,8 +224,29 @@ $('clearMonthBtn').addEventListener('click', clearThisMonth);
 
 // init (run after DOM ready)
 if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded', ()=>renderAll());
-} else { renderAll(); }
+  document.addEventListener('DOMContentLoaded', ()=>{ renderAll(); adjustCalendarSize(); });
+} else { renderAll(); adjustCalendarSize(); }
+
+// ===== Responsive calendar height fit =====
+function adjustCalendarSize(){
+  try{
+    const container = document.querySelector('.container.compact');
+    const calGrid = $('calGrid');
+    if(!container || !calGrid) return;
+    const headerH = document.querySelector('.top-bar')?.offsetHeight || 0;
+    const financeH = document.getElementById('financeCard')?.offsetHeight || 0;
+    // weeks = number of row buttons groups
+    const cells = calGrid.querySelectorAll('.cell').length;
+    if(!cells) return;
+    const weeks = Math.ceil(cells / 7);
+    const dowRowH = $('dowRow').offsetHeight || 0;
+    const available = window.innerHeight - headerH - financeH - 70; // side margins etc
+    const per = Math.floor((available - dowRowH - (weeks*4)) / weeks); // 4px gap
+    const minTarget = Math.max(52, Math.min(88, per));
+    document.documentElement.style.setProperty('--cell-min', minTarget + 'px');
+  }catch(e){ /* ignore */ }
+}
+window.addEventListener('resize', ()=>{ clearTimeout(window.__cw_resize); window.__cw_resize=setTimeout(adjustCalendarSize,120); });
 
 // ===== Finance rendering =====
 function renderFinanceInputs(){
