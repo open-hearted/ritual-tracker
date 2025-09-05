@@ -281,17 +281,18 @@ function renderFinanceStats(attendedOverride){
     makeStat(`${delta>=0?'日割より割高':'日割より割安'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
   );
 
-  // concise bar outside toggle
-  const bar = $('financeSummary');
-  if(bar){
-    bar.innerHTML = '';
+  // inline finance chips inside global stats row
+  const globalStats = $('stats');
+  if(globalStats){
+    // remove previous finance chips
+    [...globalStats.querySelectorAll('.fin-chip')].forEach(n=>n.remove());
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
-    bar.append(
+    globalStats.append(
       mkChip('出席', `${attended}`),
       mkChip('分岐', be?`${be}`:'-'),
       mkChip('残り', remaining),
       mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-'),
-      mkChip(delta>=0?'差額(損高)':'差額(得安)', `${Math.abs(delta).toLocaleString()}円`)
+      mkChip(delta>=0?'損差':'得差', `${Math.abs(delta).toLocaleString()}円`)
     );
   }
 }
