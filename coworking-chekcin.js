@@ -110,25 +110,17 @@ function renderCalendar(){
       const totalMin = sessions.reduce((a,b)=>a+b,0);
       el.dataset.sessions = String(sessions.length);
       if(isToday) el.setAttribute('data-today','true');
-      el.innerHTML = `<div class="d">${d}</div><div class="dot">${sessions.length? '🧘'+sessions.length : ''}</div>`;
-      el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで追加 / 右クリックでリセット)` : '未記録（クリックで追加）';
-      el.addEventListener('click', ()=>{
-        const minutesStr = prompt('瞑想分数 (整数, キャンセルで中止)');
-        if(minutesStr===null) return;
-        const m = parseInt(minutesStr,10);
-        if(!Number.isFinite(m) || m<=0){ alert('正の整数を入力'); return; }
-        const md = readMonth(state.uid, year, month);
-        const cur = md[dk];
-        const arr = Array.isArray(cur?.sessions)? cur.sessions.slice(): [];
-        arr.push(m);
-        md[dk] = { sessions: arr };
-        writeMonth(state.uid, year, month, md);
-        renderCalendar();
+      // meditation cell layout
+      el.innerHTML = `<div class=\"d\">${d}</div><div class=\"med-summary\">${sessions.length? totalMin+'分' : ''}</div>`;
+      el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで編集 / 右クリックでクリア)` : '未記録（クリックで追加）';
+      el.addEventListener('click', (ev)=>{
+        openMeditationEditor(dk, el, sessions);
       });
       el.addEventListener('contextmenu', (e)=>{
         e.preventDefault();
-        if(!monthData[dk]) return;
-        if(confirm('この日の瞑想記録をクリアしますか？')){
+        const recNow = readMonth(state.uid, year, month)[dk];
+        if(!recNow) return;
+        if(confirm('この日の瞑想記録をすべて削除しますか？')){
           const md = readMonth(state.uid, year, month);
           delete md[dk];
           writeMonth(state.uid, year, month, md);
@@ -163,16 +155,23 @@ function renderStats(){
   const box = $('stats'); box.innerHTML = '';
   const md = readMonth(state.uid, state.year, state.month);
   const keys = Object.keys(md);
+  let attendedForFinance = 0;
   if(isMeditation()){
-    const daysMeditated = keys.filter(k => Array.isArray(md[k]?.sessions) && md[k].sessions.length>0).length;
+    const dayKeys = keys.filter(k => Array.isArray(md[k]?.sessions) && md[k].sessions.length>0);
+    const daysMeditated = dayKeys.length;
     const totalDays = daysInMonth(state.year, state.month);
     const streak = calcStreak(md);
+    const totalMinutes = dayKeys.reduce((sum,k)=> sum + md[k].sessions.reduce((a,b)=>a+b,0), 0);
+    const avgPerDay = daysMeditated? Math.round(totalMinutes/daysMeditated) : 0;
     box.append(
       makeStat(`瞑想日数: <b>${daysMeditated}</b> / ${totalDays}日`),
       makeStat(`連続日数: <b>${streak}</b> 日`),
+      makeStat(`合計: <b>${totalMinutes}</b> 分`),
+      makeStat(`1日平均: <b>${avgPerDay}</b> 分`),
     );
   } else {
     const attended = keys.filter(k => md[k] === 1).length;
+    attendedForFinance = attended;
     const total = daysInMonth(state.year, state.month);
     const rate = total ? Math.round(attended*100/total) : 0;
     const streak = calcStreak(md);
@@ -181,7 +180,7 @@ function renderStats(){
       makeStat(`連続出席（今月内）: <b>${streak}</b> 日`),
     );
   }
-  renderFinanceStats(attended);
+  renderFinanceStats(attendedForFinance);
 }
 
 function makeStat(html){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=html; return d; }
@@ -205,6 +204,86 @@ function calcStreak(monthObj){
   for(const v of days){ cur = v ? cur+1 : 0; if(cur>best) best=cur; }
   return best;
 }
+
+// ===== Meditation session editor (for meditation mode only) =====
+let medEditorEl = null;
+function ensureMedEditor(){
+  if(medEditorEl || !isMeditation()) return medEditorEl;
+  medEditorEl = document.createElement('div');
+  medEditorEl.id = 'medEditor';
+  medEditorEl.innerHTML = '<div class="med-head"><span id="medEditDate"></span><button id="medClose" title="閉じる">✕</button></div><div class="med-sessions" id="medSessions"></div><div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
+  document.body.appendChild(medEditorEl);
+  medEditorEl.querySelector('#medClose').addEventListener('click', ()=> hideMedEditor());
+  medEditorEl.querySelector('#medAddBtn').addEventListener('click', ()=> addMedSession());
+  medEditorEl.querySelector('#medNewMin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addMedSession(); }});
+  medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ if(confirm('この日の全セッションを削除しますか？')){ clearMedDay(); }});
+  document.addEventListener('click', (e)=>{
+    if(!medEditorEl) return;
+    if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
+  });
+  return medEditorEl;
+}
+let medEditTarget = { dateKey:null, anchor:null };
+function openMeditationEditor(dateKey, anchorEl, sessions){
+  ensureMedEditor();
+  medEditTarget.dateKey = dateKey; medEditTarget.anchor = anchorEl;
+  const box = medEditorEl;
+  const r = anchorEl.getBoundingClientRect();
+  box.style.display='block';
+  // position (try below; fallback above)
+  const topPreferred = r.bottom + 6;
+  const left = Math.min(window.innerWidth - 220, Math.max(4, r.left));
+  box.style.left = left + 'px';
+  if(topPreferred + box.offsetHeight < window.innerHeight){
+    box.style.top = topPreferred + 'px';
+  } else {
+    box.style.top = (r.top - box.offsetHeight - 6) + 'px';
+  }
+  box.querySelector('#medEditDate').textContent = dateKey;
+  renderMedSessionList();
+  box.querySelector('#medNewMin').focus();
+}
+function hideMedEditor(){ if(medEditorEl) medEditorEl.style.display='none'; }
+function readMedSessions(){
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[medEditTarget.dateKey];
+  return Array.isArray(rec?.sessions)? rec.sessions : [];
+}
+function writeMedSessions(arr){
+  const md = readMonth(state.uid, state.year, state.month);
+  if(arr.length===0){ delete md[medEditTarget.dateKey]; } else { md[medEditTarget.dateKey] = { sessions: arr }; }
+  writeMonth(state.uid, state.year, state.month, md);
+  renderCalendar(); // re-render calendar & stats
+  renderMedSessionList();
+}
+function renderMedSessionList(){
+  if(!medEditorEl) return;
+  const wrap = medEditorEl.querySelector('#medSessions');
+  const sessions = readMedSessions();
+  wrap.innerHTML = '';
+  if(!sessions.length){ wrap.innerHTML = '<div class="empty">記録なし</div>'; return; }
+  let total = 0;
+  sessions.forEach((m,i)=>{ total += m; const row=document.createElement('div'); row.className='med-row'; row.innerHTML=`<span class="min">${m}分</span><span class="actions"><button data-edit="${i}" title="編集">✏</button><button data-del="${i}" title="削除">✕</button></span>`; wrap.appendChild(row); });
+  const sum=document.createElement('div'); sum.className='med-total'; sum.textContent = `合計 ${total}分 / ${sessions.length}回`; wrap.appendChild(sum);
+  wrap.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>{
+    const idx = parseInt(b.getAttribute('data-edit'),10);
+    const cur = readMedSessions(); const curVal=cur[idx];
+    const nvStr = prompt('新しい分数', curVal);
+    if(nvStr===null) return; const nv=parseInt(nvStr,10); if(!Number.isFinite(nv)||nv<=0){ alert('正の整数'); return; }
+    cur[idx]=nv; writeMedSessions(cur);
+  }));
+  wrap.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{
+    const idx = parseInt(b.getAttribute('data-del'),10);
+    if(!confirm('このセッションを削除しますか？')) return;
+    const cur = readMedSessions(); cur.splice(idx,1); writeMedSessions(cur);
+  }));
+}
+function addMedSession(){
+  const inp = medEditorEl.querySelector('#medNewMin');
+  const v = parseInt(inp.value,10); if(!Number.isFinite(v)||v<=0){ alert('正の整数'); return; }
+  const cur = readMedSessions(); cur.push(v); writeMedSessions(cur); inp.value=''; inp.focus();
+}
+function clearMedDay(){ writeMedSessions([]); hideMedEditor(); }
 
 // ===== Export / Import / Clear =====
 function doExport(){

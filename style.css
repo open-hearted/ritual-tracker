@@ -43,6 +43,7 @@ input::placeholder{color:#9fb0ff99}
 .cell.disabled{opacity:.35; cursor:default}
 .cell .d{font-size:10px; color:#cfd7ff; line-height:1.1}
 .cell .dot{position:absolute; right:4px; bottom:4px; width:14px; height:14px; border-radius:5px; display:grid; place-items:center; font-size:11px; border:1px solid rgba(255,255,255,0.15)}
+.cell .med-summary{position:absolute; right:2px; bottom:2px; font-size:10px; padding:1px 4px; background:#14224e99; border:1px solid rgba(255,255,255,0.12); border-radius:10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .cell[data-state="1"]{background:linear-gradient(180deg, rgba(127,227,161,0.12), rgba(127,227,161,0.06));}
 .cell[data-state="1"] .dot{background:#163d2a; color:var(--ok); border-color:#2e7e4f}
 .cell[data-today="true"]{outline:2px solid var(--accent)}
@@ -72,3 +73,18 @@ input::placeholder{color:#9fb0ff99}
 .hr{height:1px; background:rgba(255,255,255,0.08); margin:12px 0}
 
 .notice{font-size:12px;color:#93a2ff}
+
+/* Meditation editor overlay */
+#medEditor{position:fixed; z-index:1000; width:210px; background:#132247; border:1px solid rgba(255,255,255,0.18); border-radius:14px; padding:10px 10px 12px; box-shadow:0 10px 28px -4px rgba(0,0,0,0.5); display:none;}
+#medEditor .med-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:600; letter-spacing:.5px}
+#medEditor button{padding:4px 8px; border-radius:10px; font-size:12px}
+#medEditor #medNewMin{width:70px; padding:6px 8px; font-size:12px}
+#medEditor .med-sessions{max-height:160px; overflow:auto; display:flex; flex-direction:column; gap:4px; margin-bottom:6px}
+#medEditor .med-row{display:flex; justify-content:space-between; background:#0d1a3a; border:1px solid rgba(255,255,255,0.08); padding:4px 6px; border-radius:10px; font-size:12px}
+#medEditor .med-row .actions button{margin-left:4px; background:#1a315f}
+#medEditor .med-row .actions button:hover{filter:brightness(1.15)}
+#medEditor .med-total{margin-top:2px; font-size:11px; color:var(--muted); text-align:right}
+#medEditor .empty{font-size:11px; color:var(--muted); text-align:center; padding:10px 0}
+#medEditor .med-add{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+#medEditor .med-add .danger{background:#3a1420; border-color:#6a2233}
+#medEditor .med-add .danger:hover{filter:brightness(1.15)}
