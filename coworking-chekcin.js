@@ -17,6 +17,8 @@ const PAGE_PREFIX = (()=>{
 const LS_USERS_KEY = `${PAGE_PREFIX}_users_v1`; // map: uid -> { pinHash?: string, data: {...} }
 const LS_FIN_KEY = `${PAGE_PREFIX}_finance_v1`; // { monthly:number, day:number, transit:number, other:number }
 
+function isMeditation(){ return PAGE_PREFIX === 'med'; }
+
 function getAllUsers(){
   try { return JSON.parse(localStorage.getItem(LS_USERS_KEY)) || {}; } catch { return {}; }
 }
@@ -102,26 +104,54 @@ function renderCalendar(){
     el.type = 'button'; el.className='cell';
     const dk = getDateKey(year, month, d);
     const isToday = dk === todayKey;
-    const val = monthData[dk] || 0;
-    el.dataset.state = String(val);
-    if(isToday) el.setAttribute('data-today','true');
-
-    el.innerHTML = `<div class="d">${d}</div><div class="dot">${val ? '🏢' : ''}</div>`;
-    el.title = val ? '行った（クリックで解除）' : '未記録（クリックで「行った」に）';
-
-    
-
-    el.addEventListener('click', ()=>{
-      
-      const current = el.dataset.state === '1' ? 1 : 0;
-      const next = current ? 0 : 1;
-      el.dataset.state = String(next);
-      el.querySelector('.dot').textContent = next ? '🏢' : '';
-      const md = readMonth(state.uid, year, month);
-      md[dk] = next;
-      writeMonth(state.uid, year, month, md);
-      renderStats();
-    });
+    if(isMeditation()){
+      const rec = monthData[dk]; // {sessions:[minutes,...]}
+      const sessions = Array.isArray(rec?.sessions)? rec.sessions : [];
+      const totalMin = sessions.reduce((a,b)=>a+b,0);
+      el.dataset.sessions = String(sessions.length);
+      if(isToday) el.setAttribute('data-today','true');
+      el.innerHTML = `<div class="d">${d}</div><div class="dot">${sessions.length? '🧘'+sessions.length : ''}</div>`;
+      el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで追加 / 右クリックでリセット)` : '未記録（クリックで追加）';
+      el.addEventListener('click', ()=>{
+        const minutesStr = prompt('瞑想分数 (整数, キャンセルで中止)');
+        if(minutesStr===null) return;
+        const m = parseInt(minutesStr,10);
+        if(!Number.isFinite(m) || m<=0){ alert('正の整数を入力'); return; }
+        const md = readMonth(state.uid, year, month);
+        const cur = md[dk];
+        const arr = Array.isArray(cur?.sessions)? cur.sessions.slice(): [];
+        arr.push(m);
+        md[dk] = { sessions: arr };
+        writeMonth(state.uid, year, month, md);
+        renderCalendar();
+      });
+      el.addEventListener('contextmenu', (e)=>{
+        e.preventDefault();
+        if(!monthData[dk]) return;
+        if(confirm('この日の瞑想記録をクリアしますか？')){
+          const md = readMonth(state.uid, year, month);
+          delete md[dk];
+          writeMonth(state.uid, year, month, md);
+          renderCalendar();
+        }
+      });
+    } else {
+      const val = monthData[dk] || 0;
+      el.dataset.state = String(val);
+      if(isToday) el.setAttribute('data-today','true');
+      el.innerHTML = `<div class="d">${d}</div><div class="dot">${val ? '🏢' : ''}</div>`;
+      el.title = val ? '行った（クリックで解除）' : '未記録（クリックで「行った」に）';
+      el.addEventListener('click', ()=>{
+        const current = el.dataset.state === '1' ? 1 : 0;
+        const next = current ? 0 : 1;
+        el.dataset.state = String(next);
+        el.querySelector('.dot').textContent = next ? '🏢' : '';
+        const md = readMonth(state.uid, year, month);
+        md[dk] = next;
+        writeMonth(state.uid, year, month, md);
+        renderStats();
+      });
+    }
     grid.appendChild(el);
   }
 
@@ -133,15 +163,24 @@ function renderStats(){
   const box = $('stats'); box.innerHTML = '';
   const md = readMonth(state.uid, state.year, state.month);
   const keys = Object.keys(md);
-  const attended = keys.filter(k => md[k] === 1).length;
-  const total = daysInMonth(state.year, state.month);
-  const rate = total ? Math.round(attended*100/total) : 0;
-  const streak = calcStreak(md);
-
-  box.append(
-    makeStat(`今月の出席日数: <b>${attended}</b> / ${total}日 (${rate}%)`),
-    makeStat(`連続出席（今月内）: <b>${streak}</b> 日`),
-  );
+  if(isMeditation()){
+    const daysMeditated = keys.filter(k => Array.isArray(md[k]?.sessions) && md[k].sessions.length>0).length;
+    const totalDays = daysInMonth(state.year, state.month);
+    const streak = calcStreak(md);
+    box.append(
+      makeStat(`瞑想日数: <b>${daysMeditated}</b> / ${totalDays}日`),
+      makeStat(`連続日数: <b>${streak}</b> 日`),
+    );
+  } else {
+    const attended = keys.filter(k => md[k] === 1).length;
+    const total = daysInMonth(state.year, state.month);
+    const rate = total ? Math.round(attended*100/total) : 0;
+    const streak = calcStreak(md);
+    box.append(
+      makeStat(`今月の出席日数: <b>${attended}</b> / ${total}日 (${rate}%)`),
+      makeStat(`連続出席（今月内）: <b>${streak}</b> 日`),
+    );
+  }
   renderFinanceStats(attended);
 }
 
@@ -154,7 +193,13 @@ function calcStreak(monthObj){
   const total = daysInMonth(year, month);
   for(let d=1; d<=total; d++){
     const dk = getDateKey(year, month, d);
-    days.push(monthObj[dk] === 1 ? 1 : 0);
+    if(isMeditation()){
+      const rec = monthObj[dk];
+      const ok = Array.isArray(rec?.sessions) && rec.sessions.length>0;
+      days.push(ok?1:0);
+    } else {
+      days.push(monthObj[dk] === 1 ? 1 : 0);
+    }
   }
   let best=0, cur=0;
   for(const v of days){ cur = v ? cur+1 : 0; if(cur>best) best=cur; }
