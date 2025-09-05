@@ -240,11 +240,11 @@ function adjustCalendarSize(){
     if(!cells) return;
     const weeks = Math.ceil(cells / 7);
     const dowRowH = $('dowRow').offsetHeight || 0;
-    const available = window.innerHeight - headerH - financeH - 70; // side margins etc
-    const per = Math.floor((available - dowRowH - (weeks*4)) / weeks); // 4px gap
-  // 以前より小型化: 下限 38 / 上限 68
-  const minTarget = Math.max(38, Math.min(68, per));
-    document.documentElement.style.setProperty('--cell-min', minTarget + 'px');
+  const available = window.innerHeight - headerH - financeH - 60; // reserved space
+  const gap = 3;
+  const per = Math.floor((available - dowRowH - (weeks*gap)) / weeks);
+  const minTarget = Math.max(32, Math.min(56, per));
+  document.documentElement.style.setProperty('--cell-min', minTarget + 'px');
   }catch(e){ /* ignore */ }
 }
 window.addEventListener('resize', ()=>{ clearTimeout(window.__cw_resize); window.__cw_resize=setTimeout(adjustCalendarSize,120); });
