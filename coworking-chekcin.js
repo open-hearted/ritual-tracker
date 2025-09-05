@@ -262,121 +262,18 @@ function renderFinanceStats(attendedOverride){
 renderFinanceInputs();
 renderFinanceStats();
 
-// ===== Optional Cloud Sync (Supabase + E2E crypto) =====
+/* ===== Optional Cloud Sync (Supabase + E2E crypto) =====
+ * 無効化要求により以下の Supabase 関連コードをコメントアウトしています。
+ * 再度有効化する場合はこのブロックを復元してください。
+ *
 const LS_CLOUD = 'cw_cloud_cfg_v1';
 function getCloud(){ try{return JSON.parse(localStorage.getItem(LS_CLOUD))||{};}catch{return{}} }
 function saveCloud(cfg){ localStorage.setItem(LS_CLOUD, JSON.stringify(cfg)); }
-
-function renderCloudInputs(){
-  const c=getCloud();
-  $('spUrl').value=c.url||'';
-  $('spAnon').value=c.anon||'';
-  $('spBucket').value=c.bucket||'';
-  $('docId').value=c.docId||'';
-  $('passphrase').value=c.passphrase||'';
-}
-
-$('saveCloudCfg').addEventListener('click',()=>{
-  saveCloud({
-    url:$('spUrl').value.trim(),
-    anon:$('spAnon').value.trim(),
-    bucket:$('spBucket').value.trim()||'cw-sync',
-    docId:$('docId').value.trim(),
-    passphrase:$('passphrase').value
-  });
-  alert('クラウド設定を保存しました（この端末のlocalStorage）');
-});
-
-async function deriveKey(passphrase, salt){
-  const enc = new TextEncoder();
-  const baseKey = await crypto.subtle.importKey('raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    {name:'PBKDF2', salt, iterations:120000, hash:'SHA-256'},
-    baseKey,
-    {name:'AES-GCM', length:256},
-    false,
-    ['encrypt','decrypt']
-  );
-}
-
-async function encryptJSON(obj, pass){
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const key = await deriveKey(pass, salt);
-  const data = new TextEncoder().encode(JSON.stringify(obj));
-  const ct = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, data));
-  // pack: [salt(16)][iv(12)][ct]
-  const out = new Uint8Array(16+12+ct.length);
-  out.set(salt,0); out.set(iv,16); out.set(ct,28);
-  return out;
-}
-
-async function decryptJSON(buf, pass){
-  const u8 = new Uint8Array(buf);
-  const salt = u8.slice(0,16), iv=u8.slice(16,28), ct=u8.slice(28);
-  const key = await deriveKey(pass, salt);
-  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, key, ct);
-  return JSON.parse(new TextDecoder().decode(new Uint8Array(pt)));
-}
-
-function supa(){
-  const c=getCloud(); if(!c.url||!c.anon||!c.bucket||!c.docId) throw new Error('設定が不完全です');
-  return {
-    client: window.supabase.createClient(c.url, c.anon),
-    bucket: c.bucket,
-    docId: c.docId,
-    passphrase: c.passphrase||''
-  };
-}
-
-$('pushCloud').addEventListener('click', async()=>{
-  try{
-    const {client,bucket,docId,passphrase} = supa();
-    if(!passphrase){ alert('パスフレーズを設定してください'); return; }
-    // current payload (same as export)
-    const users = getAllUsers();
-    const data = users[state.uid] || { data:{} };
-    const payload = { ...data, finance: getFinance() };
-    const enc = await encryptJSON(payload, passphrase);
-    const path = `${docId}.json.enc`;
-    // try upsert via remove then upload
-    await client.storage.from(bucket).remove([path]).catch(()=>{});
-    const { error } = await client.storage.from(bucket).upload(path, enc, {contentType:'application/octet-stream', upsert:true});
-    if(error) throw error;
-    alert('クラウドへ保存しました');
-  }catch(e){ alert('保存失敗: '+(e.message||e)); }
-});
-
-$('pullCloud').addEventListener('click', async()=>{
-  try{
-    const {client,bucket,docId,passphrase} = supa();
-    if(!passphrase){ alert('パスフレーズを設定してください'); return; }
-    const path = `${docId}.json.enc`;
-    const { data, error } = await client.storage.from(bucket).download(path);
-    if(error) throw error;
-    const obj = await decryptJSON(await data.arrayBuffer(), passphrase);
-    // merge into local
-    const users = getAllUsers();
-    const existing = users[state.uid] || { data:{} };
-    existing.data = { ...(existing.data||{}), ...(obj.data||{}) };
-    if(obj.pinHash) existing.pinHash = obj.pinHash;
-    users[state.uid] = existing; setAllUsers(users);
-    if(obj.finance) saveFinance(obj.finance);
-    renderAll(); renderFinanceInputs(); renderFinanceStats();
-    alert('クラウドから復元しました');
-  }catch(e){ alert('復元失敗: '+(e.message||e)); }
-});
-
-function autoCloudRestoreIfConfigured(){
-  const c=getCloud();
-  if(c.url && c.anon && c.bucket && c.docId && c.passphrase){
-    // silently try to restore; non-blocking
-    $('pullCloud').click();
-  }
-}
-
+function renderCloudInputs(){ ... }
+...（省略）...
 renderCloudInputs();
 autoCloudRestoreIfConfigured();
+*/
 
 // ===== S3 Sync via Vercel API (password-gated, presigned URL) =====
 const LS_S3 = 'cw_s3_cfg_v1';

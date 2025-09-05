@@ -9,8 +9,8 @@
   <link rel="stylesheet" href="styles.css" disabled />
   <!-- favicon 404 回避（ダミー） -->
   <link rel="icon" href="data:,">
-  <!-- Supabase JS (任意同期で使用) -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase JS (任意同期で使用) 無効化要求によりコメントアウト -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> -->
   <script defer src="coworking-chekcin.js"></script>
 </head>
 <body>
@@ -62,7 +62,7 @@
 
     <div class="card" style="margin-top:14px">
       <details>
-        <summary>🪣 S3 同期（簡単・パスワード式／任意）</summary>
+        <summary> S3 同期（簡単・パスワード式／任意）</summary>
         <div class="notice" style="margin-top:6px">Vercel の <b>環境変数</b> で AWS を保持。<b>ブラウザでパスワード入力</b>→APIが検証→S3用の署名URLを発行し、<b>暗号化済みデータ</b>を直接S3に保存/取得します。</div>
         <div class="row" style="margin-top:10px; gap:8px">
           <input id="s3DocId" placeholder="ドキュメントID (例: my-notes)" style="width:200px" />
@@ -94,6 +94,7 @@
       </details>
     </div>
 
+    <!-- Supabase クラウド同期ブロック（無効化要求によりコメントアウト）
     <div class="card" style="margin-top:14px">
       <details>
         <summary>☁️ クラウド同期（任意・端末間で自動復元したい人向け／E2E暗号化対応）</summary>
@@ -113,6 +114,7 @@
         <div class="notice" style="margin-top:6px">※ 先にSupabaseでStorageバケットを作成しておき、<code>RLS: Public</code> か適切なポリシーを設定してください（Anonキーでアップ/ダウンロード可能に）。</div>
       </details>
     </div>
+    -->
   </div>
 </body>
 </html>
