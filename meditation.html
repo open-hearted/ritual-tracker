@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>瞑想トラッカー</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- 互換性/タイプミス由来の 404 回避用（styles.css を要求されても同じ内容を提供） -->
+  <link rel="stylesheet" href="styles.css" disabled />
+  <!-- favicon 404 回避（ダミー） -->
+  <link rel="icon" href="data:,">
+  <!-- Supabase JS (任意同期で使用) 無効化要求によりコメントアウト -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script> -->
+  <script defer src="coworking-chekcin.js"></script>
+</head>
+<body>
+  <div class="container compact">
+    <div class="top-bar">
+      <div class="app-title">瞑想</div>
+      <div class="quick-actions">
+        <button id="exportBtn" title="エクスポート">💾</button>
+        <label class="imp-inline" title="インポート"><input type="file" id="importFile" accept="application/json" /></label>
+        <button id="clearMonthBtn" title="この月をクリア">♻</button>
+      </div>
+    </div>
+    <div class="card cal-card">
+      <div class="cal-head">
+        <div class="controls">
+          <button id="prevBtn">◀ 前月</button>
+          <div class="cal-title" id="monthLabel"></div>
+          <button id="nextBtn">次月 ▶</button>
+        </div>
+        <div class="legend">
+          <span class="badge badge-on"></span> 行った
+          <span class="badge badge-off"></span> 未記録
+        </div>
+      </div>
+      <div class="grid" id="dowRow"></div>
+      <div class="grid" id="calGrid" aria-live="polite"></div>
+      <div id="debug" style="margin-top:6px;font-size:11px;color:#ffdede"></div>
+      <div class="stats" id="stats"></div>
+    </div>
+
+    <div class="card mini" id="s3Card">
+      <details>
+        <summary>同期</summary>
+        <div class="row tight" style="margin-top:4px; gap:6px">
+          <input id="s3DocId" placeholder="docId" />
+          <input id="s3Passphrase" placeholder="E2E pass" type="password" />
+          <input id="s3Password" placeholder="APP_PASSWORD" type="password" />
+        </div>
+        <div class="row tight" style="margin-top:4px; gap:6px">
+          <button id="s3Push">保存</button>
+          <button id="s3Pull">復元</button>
+          <label class="auto-restore"><input type="checkbox" id="s3AutoRestore" />自動</label>
+        </div>
+      </details>
+    </div>
+  </div>
+</body>
+</html>
+
