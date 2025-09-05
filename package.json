@@ -9,7 +9,6 @@
   },
   "scripts": {
     "dev": "vercel dev",
-    "build": "echo 'Static front-end only'",
     "lint": "echo 'no lint configured'"
   }
 }
