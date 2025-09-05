@@ -242,7 +242,8 @@ function adjustCalendarSize(){
     const dowRowH = $('dowRow').offsetHeight || 0;
     const available = window.innerHeight - headerH - financeH - 70; // side margins etc
     const per = Math.floor((available - dowRowH - (weeks*4)) / weeks); // 4px gap
-    const minTarget = Math.max(52, Math.min(88, per));
+  // 以前より小型化: 下限 38 / 上限 68
+  const minTarget = Math.max(38, Math.min(68, per));
     document.documentElement.style.setProperty('--cell-min', minTarget + 'px');
   }catch(e){ /* ignore */ }
 }
