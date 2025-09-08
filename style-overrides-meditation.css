@@ -1,12 +1,14 @@
-.container.compact {
-  max-width: 99.5vw;
-  height: 105dvh;
-  margin: 0 auto;
-  padding: 8px 14px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  box-sizing: border-box;
+   .container.compact {
+    max-width: 99.5vw;
+    height: 120dvh;
+    margin: 0 auto;
+    padding: 8px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-sizing: border-box;
+    overflow: auto;
+  }
 }
 .card.cal-card {
   flex: 1 1 auto;
