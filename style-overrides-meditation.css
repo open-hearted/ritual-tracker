@@ -1,18 +1,18 @@
-/* 昔風の四角いスクロールバー */
-body, .container.compact, #calGrid {
+/* 昔風の四角いスクロールバー（全体・カレンダー） */
+html, body, .container.compact, #calGrid {
   scrollbar-width: auto;
   scrollbar-color: #aaa #e0e0e0;
 }
-body::-webkit-scrollbar, .container.compact::-webkit-scrollbar, #calGrid::-webkit-scrollbar {
+html::-webkit-scrollbar, body::-webkit-scrollbar, .container.compact::-webkit-scrollbar, #calGrid::-webkit-scrollbar {
   width: 16px;
   background: #e0e0e0;
 }
-body::-webkit-scrollbar-thumb, .container.compact::-webkit-scrollbar-thumb, #calGrid::-webkit-scrollbar-thumb {
+html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, .container.compact::-webkit-scrollbar-thumb, #calGrid::-webkit-scrollbar-thumb {
   background: #aaa;
   border-radius: 0;
   border: 2px solid #e0e0e0;
 }
-body::-webkit-scrollbar-corner, .container.compact::-webkit-scrollbar-corner, #calGrid::-webkit-scrollbar-corner {
+html::-webkit-scrollbar-corner, body::-webkit-scrollbar-corner, .container.compact::-webkit-scrollbar-corner, #calGrid::-webkit-scrollbar-corner {
   background: #e0e0e0;
 }
 body {
