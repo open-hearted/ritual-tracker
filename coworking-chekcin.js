@@ -111,7 +111,7 @@ function renderCalendar(){
       el.dataset.sessions = String(sessions.length);
       if(isToday) el.setAttribute('data-today','true');
       // meditation cell layout
-  el.innerHTML = `<div class=\"d\">${d}</div><div class=\"med-summary\">${sessions.length? (totalMin+'<span class=\\"med-min-unit\\">分</span>') : ''}</div>`;
+  el.innerHTML = `<div class="d">${d}</div><div class="med-summary">${sessions.length ? (totalMin+'<span class="med-min-unit">分</span>') : ''}</div>`;
       el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで編集 / 右クリックでクリア)` : '未記録（クリックで追加）';
       el.addEventListener('click', (ev)=>{
         openMeditationEditor(dk, el, sessions);
