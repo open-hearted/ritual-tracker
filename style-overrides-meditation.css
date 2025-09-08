@@ -1,3 +1,10 @@
+.grid {
+  align-items: stretch !important;
+}
+.cell {
+  width: 100% !important;
+  display: block !important;
+}
 # カレンダーのマス目を最大化
 .grid {
   gap: 0 !important;
