@@ -1,6 +1,6 @@
 .container.compact {
-  max-width: 100vw;
-  height: 100dvh;
+  max-width: 99.5vw;
+  height: 105dvh;
   margin: 0 auto;
   padding: 8px 14px 12px;
   display: flex;
