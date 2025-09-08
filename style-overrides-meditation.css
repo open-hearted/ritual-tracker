@@ -1,3 +1,17 @@
+/* カレンダー本体を縦方向に最大化 */
+.card.cal-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+#calGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
    .container.compact {
     max-width: 99.5vw;
     height: 130dvh;
