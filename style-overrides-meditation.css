@@ -1,3 +1,6 @@
+body {
+  overflow: auto !important;
+}
 /* カレンダー本体を縦方向に最大化 */
 .card.cal-card {
   flex: 1 1 auto;
@@ -13,7 +16,7 @@
   overflow: auto;
 }
    .container.compact {
-    max-width: 99.5vw;
+    max-width: 100vw;
     height: 130dvh;
     margin: 0 auto;
     padding: 8px 14px 12px;
