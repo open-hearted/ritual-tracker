@@ -241,7 +241,9 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   }
   box.querySelector('#medEditDate').textContent = dateKey;
   renderMedSessionList();
-  box.querySelector('#medNewMin').focus();
+  const inp = box.querySelector('#medNewMin');
+  inp.setAttribute('step','0.1');
+  inp.focus();
 }
 function hideMedEditor(){ if(medEditorEl) medEditorEl.style.display='none'; }
 function readMedSessions(){
@@ -269,7 +271,7 @@ function renderMedSessionList(){
     const idx = parseInt(b.getAttribute('data-edit'),10);
     const cur = readMedSessions(); const curVal=cur[idx];
     const nvStr = prompt('新しい分数', curVal);
-    if(nvStr===null) return; const nv=parseInt(nvStr,10); if(!Number.isFinite(nv)||nv<=0){ alert('正の整数'); return; }
+    if(nvStr===null) return; const nv=parseFloat(nvStr); if(!Number.isFinite(nv)||nv<=0){ alert('正の数'); return; }
     cur[idx]=nv; writeMedSessions(cur);
   }));
   wrap.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{
@@ -280,7 +282,7 @@ function renderMedSessionList(){
 }
 function addMedSession(){
   const inp = medEditorEl.querySelector('#medNewMin');
-  const v = parseInt(inp.value,10); if(!Number.isFinite(v)||v<=0){ alert('正の整数'); return; }
+  const v = parseFloat(inp.value); if(!Number.isFinite(v)||v<=0){ alert('正の数'); return; }
   const cur = readMedSessions(); cur.push(v); writeMedSessions(cur); inp.value=''; inp.focus();
 }
 function clearMedDay(){ writeMedSessions([]); hideMedEditor(); }
