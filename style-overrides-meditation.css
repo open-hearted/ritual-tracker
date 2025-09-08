@@ -1,3 +1,12 @@
+.cell {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+}
+.cell .d {
+  align-self: flex-start !important;
+  margin-top: 0 !important;
+}
 .med-summary .med-min-unit {
   font-size: 25% !important;
   vertical-align: super;
