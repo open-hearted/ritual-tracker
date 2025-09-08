@@ -9,10 +9,10 @@
 }
 .med-summary .med-min-unit {
   font-size: 25% !important;
-  transform: scale(0.25);
-  display: inline-block;
-  vertical-align: super !important;
+  vertical-align: top !important;
   line-height: 1 !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 .dow {
   height: 1.8em !important;
