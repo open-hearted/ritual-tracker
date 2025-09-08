@@ -1,3 +1,12 @@
+.cal-card {
+  height: 100% !important;
+}
+.grid {
+  height: 100% !important;
+}
+.cell {
+  min-height: unset !important;
+}
 .grid {
   align-items: stretch !important;
 }
