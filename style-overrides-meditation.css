@@ -1,3 +1,18 @@
+# カレンダーのマス目を最大化
+.grid {
+  gap: 0 !important;
+}
+.cell {
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: var(--cell-min,44px);
+  height: var(--cell-min,44px);
+}
+.cell .d {
+  padding-left: 2px;
+  padding-top: 1px;
+}
 /* 昔風の四角いスクロールバー（全体・カレンダー） */
 html, body, .container.compact, #calGrid {
   scrollbar-width: auto;
