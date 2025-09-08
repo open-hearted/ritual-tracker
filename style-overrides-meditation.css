@@ -1,3 +1,7 @@
+.med-summary .med-min-unit {
+  font-size: 25% !important;
+  vertical-align: super;
+}
 .dow {
   height: 1.8em !important;
   min-height: 0 !important;
