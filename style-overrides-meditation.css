@@ -1,11 +1,16 @@
 .cal-card {
+  display: flex !important;
+  flex-direction: column !important;
   height: 100% !important;
+  min-height: 0 !important;
 }
-.grid {
-  height: 100% !important;
+#calGrid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
 .cell {
   min-height: unset !important;
+  height: 100% !important;
 }
 .grid {
   align-items: stretch !important;
