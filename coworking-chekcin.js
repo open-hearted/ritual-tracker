@@ -216,7 +216,7 @@ function ensureMedEditor(){
   medEditorEl.querySelector('#medClose').addEventListener('click', ()=> hideMedEditor());
   medEditorEl.querySelector('#medAddBtn').addEventListener('click', ()=> addMedSession());
   medEditorEl.querySelector('#medNewMin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addMedSession(); }});
-  medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ if(confirm('この日の全セッションを削除しますか？')){ clearMedDay(); }});
+  medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ clearMedDay(); });
   document.addEventListener('click', (e)=>{
     if(!medEditorEl) return;
     if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
@@ -276,7 +276,6 @@ function renderMedSessionList(){
   }));
   wrap.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{
     const idx = parseInt(b.getAttribute('data-del'),10);
-    if(!confirm('このセッションを削除しますか？')) return;
     const cur = readMedSessions(); cur.splice(idx,1); writeMedSessions(cur);
   }));
 }

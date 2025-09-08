@@ -43,7 +43,7 @@ input::placeholder{color:#9fb0ff99}
 .cell.disabled{opacity:.35; cursor:default}
 .cell .d{font-size:10px; color:#cfd7ff; line-height:1.1}
 .cell .dot{position:absolute; right:4px; bottom:4px; width:14px; height:14px; border-radius:5px; display:grid; place-items:center; font-size:11px; border:1px solid rgba(255,255,255,0.15)}
-.cell .med-summary{position:absolute; right:2px; bottom:2px; font-size:10px; padding:1px 4px; background:#14224e99; border:1px solid rgba(255,255,255,0.12); border-radius:10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cell .med-summary{position:absolute; right:2px; bottom:2px; font-size:20px; line-height:1.2; padding:1px 4px; background:#14224e99; border:1px solid rgba(255,255,255,0.12); border-radius:10px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .cell[data-state="1"]{background:linear-gradient(180deg, rgba(127,227,161,0.12), rgba(127,227,161,0.06));}
 .cell[data-state="1"] .dot{background:#163d2a; color:var(--ok); border-color:#2e7e4f}
 .cell[data-today="true"]{outline:2px solid var(--accent)}
