@@ -16,16 +16,17 @@
 </head>
 <body>
   <div class="container compact">
+
     <div class="card cal-card">
-      <div class="cal-head">
+      <div class="grid" id="dowRow"></div>
+      <div class="grid" id="calGrid" aria-live="polite"></div>
+      <div class="cal-head" style="margin-top:10px;">
         <div class="controls">
           <button id="prevBtn">◀ 前月</button>
           <div class="cal-title" id="monthLabel"></div>
           <button id="nextBtn">次月 ▶</button>
         </div>
       </div>
-      <div class="grid" id="dowRow"></div>
-      <div class="grid" id="calGrid" aria-live="polite"></div>
       <div id="debug" style="margin-top:6px;font-size:11px;color:#ffdede"></div>
       <div class="stats" id="stats"></div>
     </div>
