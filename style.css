@@ -92,3 +92,5 @@ input::placeholder{color:#9fb0ff99}
 #medEditor .med-timer{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:6px 0}
 #medEditor #medTimerDisplay{min-width:60px; text-align:center; font-variant-numeric:tabular-nums; background:#0d1a3a; border:1px solid rgba(255,255,255,0.08); padding:4px 8px; border-radius:10px}
 #medEditor #medTimerMin{width:72px}
+/* start label */
+#medEditor .med-startat{font-size:11px; color:var(--muted)}

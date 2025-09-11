@@ -216,10 +216,12 @@ function ensureMedEditor(){
   '<div class="med-timer" id="medTimerBox">'+
     '<input id="medTimerMin" type="number" min="0.1" step="0.5" value="10" title="カウントダウン分" />'+
     '<span id="medTimerDisplay">--:--</span>'+ 
+    '<span class="med-startat">開始: <b id="medTimerStartedAt">--:--</b></span>'+ 
     '<button id="medTimerStart">開始</button>'+ 
     '<button id="medTimerPause" disabled>一時停止</button>'+ 
     '<button id="medTimerResume" disabled>再開</button>'+ 
     '<button id="medTimerCancel" disabled>中止</button>'+ 
+    '<button id="medAlarmStop" disabled>消音</button>'+ 
   '</div>'+
   '<div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
   document.body.appendChild(medEditorEl);
@@ -232,6 +234,7 @@ function ensureMedEditor(){
   medEditorEl.querySelector('#medTimerPause').addEventListener('click', pauseMedTimer);
   medEditorEl.querySelector('#medTimerResume').addEventListener('click', resumeMedTimer);
   medEditorEl.querySelector('#medTimerCancel').addEventListener('click', cancelMedTimer);
+  medEditorEl.querySelector('#medAlarmStop').addEventListener('click', stopAlarm);
   document.addEventListener('click', (e)=>{
     if(!medEditorEl) return;
     if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
@@ -333,22 +336,43 @@ function clearMedDay(){ writeMedSessions([]); hideMedEditor(); }
 
 // ===== Timer (countdown with sound) =====
 let medTimer = { id:null, running:false, endAt:0, remaining:0, startedAt:null };
+let medAlarm = { ctx:null, osc:null, gain:null, on:false };
 function fmtTime(ms){ const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
-function updateTimerDisplay(){ const el = medEditorEl?.querySelector('#medTimerDisplay'); if(!el) return; if(medTimer.running){ el.textContent = fmtTime(Math.max(0, medTimer.endAt - Date.now())); } else { el.textContent = medTimer.remaining? fmtTime(medTimer.remaining) : '--:--'; } }
+function updateTimerDisplay(){
+  const el = medEditorEl?.querySelector('#medTimerDisplay');
+  const st = medEditorEl?.querySelector('#medTimerStartedAt');
+  if(!el) return;
+  if(st){ st.textContent = medTimer.startedAt ? medTimer.startedAt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '--:--'; }
+  if(medTimer.running){ el.textContent = fmtTime(Math.max(0, medTimer.endAt - Date.now())); }
+  else { el.textContent = medTimer.remaining? fmtTime(medTimer.remaining) : '--:--'; }
+}
 function setTimerButtons({start,pause,resume,cancel}){
   const bS=medEditorEl?.querySelector('#medTimerStart'); if(bS) bS.disabled=!start;
   const bP=medEditorEl?.querySelector('#medTimerPause'); if(bP) bP.disabled=!pause;
   const bR=medEditorEl?.querySelector('#medTimerResume'); if(bR) bR.disabled=!resume;
   const bC=medEditorEl?.querySelector('#medTimerCancel'); if(bC) bC.disabled=!cancel;
+  const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=!medAlarm.on;
 }
-function playBeep(){
+function startAlarm(){
   try{
-    const C = window.AudioContext || window.webkitAudioContext; if(!C) return;
-    const ctx = new C(); const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.connect(g).connect(ctx.destination); osc.type='sine'; osc.frequency.value=880; g.gain.value=0.08;
-    osc.start(); setTimeout(()=>{ osc.stop(); ctx.close(); }, 900);
+    if(medAlarm.on) return;
+    const C = window.AudioContext || window.webkitAudioContext; if(!C) return; // no sound
+    medAlarm.ctx = new C(); medAlarm.osc = medAlarm.ctx.createOscillator(); medAlarm.gain = medAlarm.ctx.createGain();
+    medAlarm.osc.type='sawtooth'; medAlarm.osc.frequency.value=740;
+    medAlarm.gain.gain.value=0.06;
+    medAlarm.osc.connect(medAlarm.gain).connect(medAlarm.ctx.destination);
+    medAlarm.osc.start(); medAlarm.on=true;
+    const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=false;
   }catch{}
-  if(navigator.vibrate) try{ navigator.vibrate(300); }catch{}
+  if(navigator.vibrate) try{ navigator.vibrate([200,150,200,150,200]); }catch{}
+}
+function stopAlarm(){
+  try{
+    if(medAlarm.osc){ medAlarm.osc.stop(); medAlarm.osc.disconnect(); }
+    if(medAlarm.ctx){ medAlarm.ctx.close(); }
+  }catch{}
+  medAlarm={ctx:null,osc:null,gain:null,on:false};
+  const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=true;
 }
 function startMedTimer(){
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
@@ -366,8 +390,8 @@ function startMedTimer(){
   medTimer.id = setInterval(()=>{
     const left = medTimer.endAt - Date.now();
     if(left<=0){
-      clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay();
-      playBeep();
+  clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay();
+  startAlarm();
       // auto record minutes with start time
       addMedSessionWithStart(min, medTimer.startedAt.toISOString());
       setTimerButtons({start:true,pause:false,resume:false,cancel:false});
@@ -375,7 +399,7 @@ function startMedTimer(){
   }, 250);
 }
 function pauseMedTimer(){ if(!medTimer.running) return; medTimer.running=false; medTimer.remaining = Math.max(0, medTimer.endAt - Date.now()); clearInterval(medTimer.id); medTimer.id=null; setTimerButtons({start:false,pause:false,resume:true,cancel:true}); updateTimerDisplay(); }
-function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); playBeep(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
+function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
 function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
 
 // ===== Export / Import / Clear =====
