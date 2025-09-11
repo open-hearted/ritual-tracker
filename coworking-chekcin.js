@@ -211,12 +211,27 @@ function ensureMedEditor(){
   if(medEditorEl || !isMeditation()) return medEditorEl;
   medEditorEl = document.createElement('div');
   medEditorEl.id = 'medEditor';
-  medEditorEl.innerHTML = '<div class="med-head"><span id="medEditDate"></span><button id="medClose" title="閉じる">✕</button></div><div class="med-sessions" id="medSessions"></div><div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
+  medEditorEl.innerHTML = '<div class="med-head"><span id="medEditDate"></span><button id="medClose" title="閉じる">✕</button></div>'+
+  '<div class="med-sessions" id="medSessions"></div>'+
+  '<div class="med-timer" id="medTimerBox">'+
+    '<input id="medTimerMin" type="number" min="0.1" step="0.5" value="10" title="カウントダウン分" />'+
+    '<span id="medTimerDisplay">--:--</span>'+ 
+    '<button id="medTimerStart">開始</button>'+ 
+    '<button id="medTimerPause" disabled>一時停止</button>'+ 
+    '<button id="medTimerResume" disabled>再開</button>'+ 
+    '<button id="medTimerCancel" disabled>中止</button>'+ 
+  '</div>'+
+  '<div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
   document.body.appendChild(medEditorEl);
   medEditorEl.querySelector('#medClose').addEventListener('click', ()=> hideMedEditor());
   medEditorEl.querySelector('#medAddBtn').addEventListener('click', ()=> addMedSession());
   medEditorEl.querySelector('#medNewMin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addMedSession(); }});
   medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ clearMedDay(); });
+  // Timer bindings
+  medEditorEl.querySelector('#medTimerStart').addEventListener('click', startMedTimer);
+  medEditorEl.querySelector('#medTimerPause').addEventListener('click', pauseMedTimer);
+  medEditorEl.querySelector('#medTimerResume').addEventListener('click', resumeMedTimer);
+  medEditorEl.querySelector('#medTimerCancel').addEventListener('click', cancelMedTimer);
   document.addEventListener('click', (e)=>{
     if(!medEditorEl) return;
     if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
@@ -253,9 +268,30 @@ function readMedSessions(){
 }
 function writeMedSessions(arr){
   const md = readMonth(state.uid, state.year, state.month);
-  if(arr.length===0){ delete md[medEditTarget.dateKey]; } else { md[medEditTarget.dateKey] = { sessions: arr }; }
+  // preserve starts alignment if exists
+  if(arr.length===0){ delete md[medEditTarget.dateKey]; }
+  else {
+    const existing = md[medEditTarget.dateKey] || {};
+    let starts = Array.isArray(existing.starts) ? existing.starts.slice() : [];
+    // trim/extend starts to match sessions length
+    if(starts.length > arr.length) starts = starts.slice(0, arr.length);
+    if(starts.length < arr.length) starts = starts.concat(Array(arr.length - starts.length).fill(''));
+    md[medEditTarget.dateKey] = { sessions: arr, starts };
+  }
   writeMonth(state.uid, state.year, state.month, md);
   renderCalendar(); // re-render calendar & stats
+  renderMedSessionList();
+}
+function addMedSessionWithStart(min, startedAt){
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[medEditTarget.dateKey] || {};
+  const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
+  const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
+  sessions.push(min);
+  starts.push(startedAt||'');
+  md[medEditTarget.dateKey] = { sessions, starts };
+  writeMonth(state.uid, state.year, state.month, md);
+  renderCalendar();
   renderMedSessionList();
 }
 function renderMedSessionList(){
@@ -272,19 +308,75 @@ function renderMedSessionList(){
     const cur = readMedSessions(); const curVal=cur[idx];
     const nvStr = prompt('新しい分数', curVal);
     if(nvStr===null) return; const nv=parseFloat(nvStr); if(!Number.isFinite(nv)||nv<=0){ alert('正の数'); return; }
-    cur[idx]=nv; writeMedSessions(cur);
+  cur[idx]=nv; writeMedSessions(cur);
   }));
   wrap.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{
     const idx = parseInt(b.getAttribute('data-del'),10);
-    const cur = readMedSessions(); cur.splice(idx,1); writeMedSessions(cur);
+  // delete both sessions and starts
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[medEditTarget.dateKey] || {};
+  const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
+  const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
+  sessions.splice(idx,1);
+  if(starts.length>idx) starts.splice(idx,1);
+  md[medEditTarget.dateKey] = sessions.length? { sessions, starts } : undefined;
+  if(sessions.length) writeMonth(state.uid, state.year, state.month, md); else { delete md[medEditTarget.dateKey]; writeMonth(state.uid, state.year, state.month, md); }
+  renderCalendar(); renderMedSessionList();
   }));
 }
 function addMedSession(){
   const inp = medEditorEl.querySelector('#medNewMin');
   const v = parseFloat(inp.value); if(!Number.isFinite(v)||v<=0){ alert('正の数'); return; }
-  const cur = readMedSessions(); cur.push(v); writeMedSessions(cur); inp.value=''; inp.focus();
+  addMedSessionWithStart(v, ''); inp.value=''; inp.focus();
 }
 function clearMedDay(){ writeMedSessions([]); hideMedEditor(); }
+
+// ===== Timer (countdown with sound) =====
+let medTimer = { id:null, running:false, endAt:0, remaining:0, startedAt:null };
+function fmtTime(ms){ const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
+function updateTimerDisplay(){ const el = medEditorEl?.querySelector('#medTimerDisplay'); if(!el) return; if(medTimer.running){ el.textContent = fmtTime(Math.max(0, medTimer.endAt - Date.now())); } else { el.textContent = medTimer.remaining? fmtTime(medTimer.remaining) : '--:--'; } }
+function setTimerButtons({start,pause,resume,cancel}){
+  const bS=medEditorEl?.querySelector('#medTimerStart'); if(bS) bS.disabled=!start;
+  const bP=medEditorEl?.querySelector('#medTimerPause'); if(bP) bP.disabled=!pause;
+  const bR=medEditorEl?.querySelector('#medTimerResume'); if(bR) bR.disabled=!resume;
+  const bC=medEditorEl?.querySelector('#medTimerCancel'); if(bC) bC.disabled=!cancel;
+}
+function playBeep(){
+  try{
+    const C = window.AudioContext || window.webkitAudioContext; if(!C) return;
+    const ctx = new C(); const osc = ctx.createOscillator(); const g = ctx.createGain();
+    osc.connect(g).connect(ctx.destination); osc.type='sine'; osc.frequency.value=880; g.gain.value=0.08;
+    osc.start(); setTimeout(()=>{ osc.stop(); ctx.close(); }, 900);
+  }catch{}
+  if(navigator.vibrate) try{ navigator.vibrate(300); }catch{}
+}
+function startMedTimer(){
+  const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
+  if(min<=0){ alert('分を入力してください'); return; }
+  // Pre-flight reminders
+  alert('イヤホンをつないでいませんか（有線）？\nイヤホンをつないでいませんか（ブルートゥース）？\n端末がミュートになっていないか確認してください。');
+  // record start time
+  medTimer.startedAt = new Date();
+  medTimer.remaining = Math.round(min*60*1000);
+  medTimer.endAt = Date.now() + medTimer.remaining;
+  medTimer.running = true;
+  setTimerButtons({start:false,pause:true,resume:false,cancel:true});
+  updateTimerDisplay();
+  if(medTimer.id) clearInterval(medTimer.id);
+  medTimer.id = setInterval(()=>{
+    const left = medTimer.endAt - Date.now();
+    if(left<=0){
+      clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay();
+      playBeep();
+      // auto record minutes with start time
+      addMedSessionWithStart(min, medTimer.startedAt.toISOString());
+      setTimerButtons({start:true,pause:false,resume:false,cancel:false});
+    } else { updateTimerDisplay(); }
+  }, 250);
+}
+function pauseMedTimer(){ if(!medTimer.running) return; medTimer.running=false; medTimer.remaining = Math.max(0, medTimer.endAt - Date.now()); clearInterval(medTimer.id); medTimer.id=null; setTimerButtons({start:false,pause:false,resume:true,cancel:true}); updateTimerDisplay(); }
+function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); playBeep(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
+function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
 
 // ===== Export / Import / Clear =====
 function doExport(){
