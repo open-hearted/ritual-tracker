@@ -392,7 +392,7 @@ function startMedTimer(){
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
   if(min<=0){ alert('分を入力してください'); return; }
   // Pre-flight reminders
-  alert('イヤホンをつないでいませんか（有線）？\nイヤホンをつないでいませんか（ブルートゥース）？\n端末がミュートになっていないか確認してください。');
+  alert('イヤホンをつないでいませんか（有線）？\nイヤホンをつないでいませんか（ブルートゥース）？\n端末がミュートになっていないか確認してください。\n(画面上または本体の音量表示でミュート解除を目視確認してください)');
   // record start time
   medTimer.startedAt = new Date();
   medTimer.remaining = Math.round(min*60*1000);
