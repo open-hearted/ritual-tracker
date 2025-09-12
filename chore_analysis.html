@@ -155,8 +155,12 @@
       templateLaundry: $('#templateLaundry'), templateCloset: $('#templateCloset'), templateHangers: $('#templateHangers'),
       annoyBtn: $('#annoyBtn'), toast: $('#toast'),
   runTestsBtn: $('#runTestsBtn'), testOutput: $('#testOutput'),
+<<<<<<< HEAD
   resetBtn: $('#resetBtn'),
       startHereBtn: $('#startHereBtn')
+=======
+  resetBtn: $('#resetBtn')
+>>>>>>> abef7d0e491c61a751931b4de9a5b33d7af8f7a1
     };
 
     function uuid(){return 'xxxxxxxyxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;const v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});}
@@ -372,7 +376,11 @@
       el.templateHangers.addEventListener('click', addHangersTemplate);
       el.annoyBtn.addEventListener('click', onAnnoy);
       el.runTestsBtn.addEventListener('click', runSelfTests);
+<<<<<<< HEAD
   if(el.resetBtn) el.resetBtn.addEventListener('click', resetAll);
+=======
+  el.resetBtn.addEventListener('click', resetAll);
+>>>>>>> abef7d0e491c61a751931b4de9a5b33d7af8f7a1
     }
 
     function init(){ refreshBlockedChooser(); bind(); render(); }
