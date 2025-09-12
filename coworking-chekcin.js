@@ -357,22 +357,36 @@ function startAlarm(){
   try{
     if(medAlarm.on) return;
     const C = window.AudioContext || window.webkitAudioContext; if(!C) return; // no sound
-    medAlarm.ctx = new C(); medAlarm.osc = medAlarm.ctx.createOscillator(); medAlarm.gain = medAlarm.ctx.createGain();
-    medAlarm.osc.type='sawtooth'; medAlarm.osc.frequency.value=740;
-    medAlarm.gain.gain.value=0.06;
+    medAlarm.ctx = new C();
+    medAlarm.osc = medAlarm.ctx.createOscillator();
+    medAlarm.gain = medAlarm.ctx.createGain();
+    medAlarm.osc.type = 'sawtooth';
+    medAlarm.osc.frequency.value = 740;
+    medAlarm.gain.gain.value = 0.06;
     medAlarm.osc.connect(medAlarm.gain).connect(medAlarm.ctx.destination);
-    medAlarm.osc.start(); medAlarm.on=true;
-    const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=false;
-  }catch{}
-  if(navigator.vibrate) try{ navigator.vibrate([200,150,200,150,200]); }catch{}
+    medAlarm.osc.start();
+    medAlarm.on = true;
+    // 断続的なON/OFF
+    medAlarm._beepInt = setInterval(() => {
+      if (!medAlarm.gain) return;
+      // 0.4秒ON, 0.1秒OFF
+      medAlarm.gain.gain.setValueAtTime(0.06, medAlarm.ctx.currentTime);
+      setTimeout(() => {
+        if (medAlarm.gain) medAlarm.gain.gain.setValueAtTime(0, medAlarm.ctx.currentTime);
+      }, 400);
+    }, 500);
+    const bA = medEditorEl?.querySelector('#medAlarmStop'); if (bA) bA.disabled = false;
+  } catch { }
+  if (navigator.vibrate) try { navigator.vibrate([200, 150, 200, 150, 200]); } catch { }
 }
 function stopAlarm(){
-  try{
-    if(medAlarm.osc){ medAlarm.osc.stop(); medAlarm.osc.disconnect(); }
-    if(medAlarm.ctx){ medAlarm.ctx.close(); }
-  }catch{}
-  medAlarm={ctx:null,osc:null,gain:null,on:false};
-  const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=true;
+  try {
+    if (medAlarm._beepInt) { clearInterval(medAlarm._beepInt); medAlarm._beepInt = null; }
+    if (medAlarm.osc) { medAlarm.osc.stop(); medAlarm.osc.disconnect(); }
+    if (medAlarm.ctx) { medAlarm.ctx.close(); }
+  } catch { }
+  medAlarm = { ctx: null, osc: null, gain: null, on: false, _beepInt: null };
+  const bA = medEditorEl?.querySelector('#medAlarmStop'); if (bA) bA.disabled = true;
 }
 function startMedTimer(){
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
