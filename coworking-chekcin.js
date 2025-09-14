@@ -655,3 +655,185 @@ function autoS3RestoreIfConfigured(){
 
 renderS3Inputs();
 autoS3RestoreIfConfigured();
+
+// ===== Auto Sync (cross-device) =====
+// 前提: ユーザーが S3 同期設定(docId/passphrase/password + 自動)を有効化していること。
+// 方式:
+//  1. 起動時に即座に pull。
+//  2. 90秒ごとに pull。
+//  3. ローカル変更(writeMonth/saveFinance/meditation session add/edit/delete)で markDirty() → 3秒デバウンス push。
+//  4. 競合: per day マージ。work(0/1) は OR。meditation.sessions は分数+開始時刻ペアでユニーク統合(最大3件想定のため軽量)。finance は updatedAt 比較。
+//  5. メタ: payload.__meta = { updatedAt: ISO, version: n }
+//  6. 失敗時は次周期までリトライ。push 中の競合は最新 remote pull 後再push。
+
+let __autoSync = {
+  pollingMs: 90000,
+  pushDebounceMs: 3000,
+  dirty: false,
+  pushing: false,
+  timerPoll: null,
+  timerPush: null,
+  lastRemoteVersion: 0,
+  inited: false
+};
+
+function nowISO(){ return new Date().toISOString(); }
+
+function buildPayload(){
+  const users = getAllUsers();
+  const data = users[state.uid] || { data:{} };
+  const payload = { ...data, finance: getFinance() };
+  if(!payload.__meta) payload.__meta = { version:0, updatedAt: nowISO() };
+  return payload;
+}
+
+function bumpMeta(payload){
+  if(!payload.__meta) payload.__meta = { version:0, updatedAt: nowISO() };
+  payload.__meta.version = (payload.__meta.version||0)+1;
+  payload.__meta.updatedAt = nowISO();
+  return payload;
+}
+
+function mergePayload(localP, remoteP){
+  if(!localP) return remoteP;
+  if(!remoteP) return localP;
+  const result = { ...localP };
+  // finance: choose newer updatedAt if present
+  if(remoteP.finance){
+    if(!localP.finance) result.finance = remoteP.finance;
+    else {
+      const lu = localP.finance.__updatedAt || localP.__meta?.updatedAt || '1970';
+      const ru = remoteP.finance.__updatedAt || remoteP.__meta?.updatedAt || '1970';
+      result.finance = (ru > lu) ? remoteP.finance : localP.finance;
+    }
+  }
+  // data: month maps
+  result.data = result.data || {};
+  const lData = localP.data || {};
+  const rData = remoteP.data || {};
+  const months = new Set([...Object.keys(lData), ...Object.keys(rData)]);
+  for(const mk of months){
+    const lMonth = lData[mk] || {};
+    const rMonth = rData[mk] || {};
+    const days = new Set([...Object.keys(lMonth), ...Object.keys(rMonth)]);
+    const mergedMonth = {};
+    for(const dk of days){
+      const lVal = lMonth[dk];
+      const rVal = rMonth[dk];
+      if(lVal==null) { mergedMonth[dk]=rVal; continue; }
+      if(rVal==null) { mergedMonth[dk]=lVal; continue; }
+      // meditation style object or simple 0/1
+      if(typeof lVal === 'object' || typeof rVal === 'object'){
+        const lSess = Array.isArray(lVal?.sessions)? lVal.sessions:[];
+        const rSess = Array.isArray(rVal?.sessions)? rVal.sessions:[];
+        const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
+        const rStarts = Array.isArray(rVal?.starts)? rVal.starts:[];
+        const combined = [];
+        for(let i=0;i<lSess.length;i++){ combined.push({m:lSess[i], s:lStarts[i]||''}); }
+        for(let i=0;i<rSess.length;i++){ combined.push({m:rSess[i], s:rStarts[i]||''}); }
+        // dedupe by m|s (round m to 2 decimals)
+        const seen = new Map();
+        combined.forEach(o=>{ const key = `${Math.round(o.m*100)/100}|${o.s}`; if(!seen.has(key)) seen.set(key,o); });
+        const uniq = [...seen.values()].slice(0, 12); // safety upper bound, though想定3
+        mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s) };
+      } else {
+        // numeric OR (presence)
+        mergedMonth[dk] = (lVal || rVal) ? 1 : 0;
+      }
+    }
+    // prune empty days for meditation object if sessions empty
+    Object.keys(mergedMonth).forEach(dk=>{
+      const v = mergedMonth[dk];
+      if(v && typeof v==='object' && Array.isArray(v.sessions) && v.sessions.length===0) delete mergedMonth[dk];
+    });
+    result.data[mk] = mergedMonth;
+  }
+  // meta: choose newer updatedAt
+  const lu = localP.__meta?.updatedAt || '1970';
+  const ru = remoteP.__meta?.updatedAt || '1970';
+  result.__meta = (ru>lu) ? remoteP.__meta : localP.__meta;
+  return result;
+}
+
+async function autoPull(){
+  const cfg = getS3Cfg();
+  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
+  try{
+    const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
+    if(!r.ok) return; // silent
+    const { url } = await r.json();
+    const res = await fetch(url, { cache:'no-store' }); if(!res.ok) return;
+    const buf = await res.arrayBuffer();
+    const remote = await decryptJSON(buf, cfg.passphrase);
+    if(!remote.__meta){ remote.__meta = { version:0, updatedAt: nowISO() }; }
+    // decide merge
+    const users = getAllUsers();
+    const existing = users[state.uid] || { data:{} };
+    const localPayload = { ...existing, finance: getFinance(), __meta: existing.__meta || { version:0, updatedAt: nowISO() } };
+    const merged = mergePayload(localPayload, remote);
+    // if merged differs (simple stringify compare)
+    if(JSON.stringify(merged.data) !== JSON.stringify(localPayload.data) || JSON.stringify(merged.finance) !== JSON.stringify(localPayload.finance)){
+      users[state.uid] = { data: merged.data, pinHash: localPayload.pinHash, __meta: merged.__meta };
+      setAllUsers(users);
+      if(merged.finance) saveFinance(merged.finance);
+      renderAll(); renderFinanceInputs(); renderFinanceStats();
+      console.info('[sync] pulled & merged');
+    }
+    __autoSync.lastRemoteVersion = remote.__meta.version || 0;
+  }catch(e){ /* silent */ }
+}
+
+async function autoPush(){
+  if(!__autoSync.dirty || __autoSync.pushing) return;
+  const cfg = getS3Cfg();
+  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
+  try{
+    __autoSync.pushing = true; __autoSync.dirty=false;
+    const users = getAllUsers();
+    const existing = users[state.uid] || { data:{} };
+    const payload = { ...existing, finance: getFinance(), __meta: existing.__meta || { version:0, updatedAt: nowISO() } };
+    bumpMeta(payload);
+    users[state.uid] = { ...existing, data: payload.data, pinHash: existing.pinHash, __meta: payload.__meta };
+    setAllUsers(users);
+    if(payload.finance){ payload.finance.__updatedAt = payload.__meta.updatedAt; }
+    const enc = await encryptJSON(payload, cfg.passphrase);
+    const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
+    if(!sign.ok){ __autoSync.dirty=true; return; }
+    const { url } = await sign.json();
+    const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
+    if(!put.ok){ __autoSync.dirty=true; return; }
+    console.info('[sync] pushed v'+payload.__meta.version);
+    setTimeout(()=>{ autoPull(); }, 2000); // verify
+  }catch(e){ __autoSync.dirty=true; }
+  finally { __autoSync.pushing=false; }
+}
+
+function markDirty(){
+  __autoSync.dirty = true;
+  if(__autoSync.timerPush) clearTimeout(__autoSync.timerPush);
+  __autoSync.timerPush = setTimeout(()=> autoPush(), __autoSync.pushDebounceMs);
+}
+
+function installAutoSyncHooks(){
+  if(__autoSync.inited) return;
+  __autoSync.inited = true;
+  // Patch writeMonth & saveFinance & meditation session modifications
+  const _writeMonth = writeMonth;
+  writeMonth = function(uid,y,m,obj){ _writeMonth(uid,y,m,obj); markDirty(); };
+  const _saveFinance = saveFinance;
+  saveFinance = function(obj){ _saveFinance(obj); markDirty(); };
+  // Session add/edit/remove already call writeMonth which is patched.
+}
+
+function startAutoSync(){
+  const cfg = getS3Cfg();
+  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){ return; }
+  installAutoSyncHooks();
+  autoPull();
+  if(__autoSync.timerPoll) clearInterval(__autoSync.timerPoll);
+  __autoSync.timerPoll = setInterval(()=>{ autoPull(); }, __autoSync.pollingMs);
+  console.info('[sync] auto sync started');
+}
+
+// Start after DOM load & potential auto restore
+setTimeout(startAutoSync, 1500);
