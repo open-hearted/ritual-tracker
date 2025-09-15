@@ -129,17 +129,25 @@ function renderCalendar(){
       });
     } else {
       const val = monthData[dk] || 0;
-      el.dataset.state = String(val);
+      const present = (typeof val==='object') ? (val.work===1 && !val.__deleted) : (val===1);
+      el.dataset.state = present ? '1' : '0';
       if(isToday) el.setAttribute('data-today','true');
-      el.innerHTML = `<div class="d">${d}</div><div class="dot">${val ? '🏢' : ''}</div>`;
-      el.title = val ? '行った（クリックで解除）' : '未記録（クリックで「行った」に）';
+      el.innerHTML = `<div class="d">${d}</div><div class="dot">${present ? '🏢' : ''}</div>`;
+      el.title = present ? '行った（クリックで解除）' : '未記録（クリックで「行った」に）';
       el.addEventListener('click', ()=>{
-        const current = el.dataset.state === '1' ? 1 : 0;
-        const next = current ? 0 : 1;
-        el.dataset.state = String(next);
-        el.querySelector('.dot').textContent = next ? '🏢' : '';
         const md = readMonth(state.uid, year, month);
-        md[dk] = next;
+        const curVal = md[dk];
+        const curPresent = (typeof curVal==='object') ? (curVal.work===1 && !curVal.__deleted) : (curVal===1);
+        if(curPresent){
+          // 削除(tombstone)
+            md[dk] = { __deleted:true, ts: nowISO() };
+            el.dataset.state='0';
+            el.querySelector('.dot').textContent='';
+        } else {
+            md[dk] = { work:1, dayTs: nowISO() };
+            el.dataset.state='1';
+            el.querySelector('.dot').textContent='🏢';
+        }
         writeMonth(state.uid, year, month, md);
   if(window.syncAfterNewWorkToggle) window.syncAfterNewWorkToggle();
   if(window.syncAfterNewWorkToggle) window.syncAfterNewWorkToggle();
@@ -839,8 +847,36 @@ function mergePayload(localP, remoteP){
         const uniq = [...byFp.values()].slice(0, 48);
         mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
       } else {
-        // numeric OR (presence)
-        mergedMonth[dk] = (lVal || rVal) ? 1 : 0;
+        // attendance legacy numeric -> wrap
+        const wrap = v=> (v===1) ? { work:1, dayTs: '1970' } : (v===0? { work:0, dayTs:'1970' } : v);
+        const lObj = wrap(lVal);
+        const rObj = wrap(rVal);
+        const lDel = lObj && lObj.__deleted;
+        const rDel = rObj && rObj.__deleted;
+        if(lDel || rDel){
+          if(lDel && rDel){
+            const lt = lObj.ts || '1970';
+            const rt = rObj.ts || '1970';
+            mergedMonth[dk] = rt>lt ? rObj : lObj;
+          } else {
+            const delObj = lDel ? lObj : rObj;
+            const liveObj = lDel ? rObj : lObj;
+            const delTs = delObj.ts || '1970';
+            const liveTs = liveObj.dayTs || '1970';
+            mergedMonth[dk] = (liveTs>delTs) ? liveObj : delObj;
+          }
+        } else {
+          // 両方 live: dayTs 新しい方 / どちらか work=1 優先
+          const lTs = lObj.dayTs || '1970';
+          const rTs = rObj.dayTs || '1970';
+          if(lObj.work===1 && rObj.work===1){
+            mergedMonth[dk] = (rTs>lTs)? rObj : lObj;
+          } else if(lObj.work===1 || rObj.work===1){
+            mergedMonth[dk] = lObj.work===1 ? lObj : rObj;
+          } else {
+            mergedMonth[dk] = (rTs>lTs)? rObj : lObj; // 両方0
+          }
+        }
       }
     }
     // prune empty days for meditation object if sessions empty
