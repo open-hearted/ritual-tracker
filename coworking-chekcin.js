@@ -469,7 +469,6 @@ on('saveFinance','click', ()=>{
   renderFinanceStats();
   if(window.syncAfterFinanceSave) window.syncAfterFinanceSave();
 });
-on('importFile','change', (e)=>{ const f=e.target.files && e.target.files[0]; if(f) doImport(f); });
 on('clearMonthBtn','click', clearThisMonth);
 
 // init (run after DOM ready)
