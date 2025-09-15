@@ -971,8 +971,15 @@ async function autoPush(){
     const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
     if(!put.ok){ console.warn('[sync] S3 PUT failed', put.status); __autoSync.dirty=true; return; }
     console.info('[sync] pushed v'+payload.__meta.version);
-    setSyncStatus('pushed v'+payload.__meta.version+' (verify...)');
-    setTimeout(()=>{ autoPull(); }, 2000); // verify
+    setSyncStatus('pushed v'+payload.__meta.version+' (verifying)');
+    // 直後は ETag がまだ反映されない / 同一ETag再利用の可能性があるためキャッシュ無視pull
+    try{
+      const oldETag = __fastPull.lastETag;
+      __fastPull.lastETag = null; // 強制 decode
+      await autoPull();
+      // もし変化なければ元に戻す
+      if(!__fastPull.lastETag) __fastPull.lastETag = oldETag;
+    }catch(e){ console.warn('[sync] immediate verify pull failed', e); }
   }catch(e){ console.warn('[sync] push error', e); __autoSync.dirty=true; }
   finally { __autoSync.pushing=false; }
 }
