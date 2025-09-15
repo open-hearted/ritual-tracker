@@ -275,7 +275,10 @@ function readMedSessions(){
 function writeMedSessions(arr){
   const md = readMonth(state.uid, state.year, state.month);
   // preserve starts alignment if exists
-  if(arr.length===0){ delete md[medEditTarget.dateKey]; }
+  if(arr.length===0){
+    // tombstone to propagate deletion
+    md[medEditTarget.dateKey] = { __deleted:true, ts:new Date().toISOString() };
+  }
   else {
     const existing = md[medEditTarget.dateKey] || {};
     let starts = Array.isArray(existing.starts) ? existing.starts.slice() : [];
@@ -327,8 +330,8 @@ function renderMedSessionList(){
   const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
   sessions.splice(idx,1);
   if(starts.length>idx) starts.splice(idx,1);
-  md[medEditTarget.dateKey] = sessions.length? { sessions, starts } : undefined;
-  if(sessions.length) writeMonth(state.uid, state.year, state.month, md); else { delete md[medEditTarget.dateKey]; writeMonth(state.uid, state.year, state.month, md); }
+  md[medEditTarget.dateKey] = sessions.length? { sessions, starts } : { __deleted:true, ts:new Date().toISOString() };
+  writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); renderMedSessionList();
   }));
@@ -826,6 +829,20 @@ function mergePayload(localP, remoteP){
       if(rVal==null) { mergedMonth[dk]=lVal; continue; }
       // meditation style object or simple 0/1
       if(typeof lVal === 'object' || typeof rVal === 'object'){
+        // tombstone precedence
+        const lDel = lVal && lVal.__deleted;
+        const rDel = rVal && rVal.__deleted;
+        if(lDel || rDel){
+          if(lDel && rDel){
+            // choose newer ts
+            const lt = lVal.ts || '1970';
+            const rt = rVal.ts || '1970';
+            mergedMonth[dk] = rt > lt ? rVal : lVal;
+          } else {
+            mergedMonth[dk] = lDel ? lVal : rVal;
+          }
+          continue;
+        }
         const lSess = Array.isArray(lVal?.sessions)? lVal.sessions:[];
         const rSess = Array.isArray(rVal?.sessions)? rVal.sessions:[];
         const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
@@ -846,6 +863,7 @@ function mergePayload(localP, remoteP){
     // prune empty days for meditation object if sessions empty
     Object.keys(mergedMonth).forEach(dk=>{
       const v = mergedMonth[dk];
+      if(v && v.__deleted){ return; }
       if(v && typeof v==='object' && Array.isArray(v.sessions) && v.sessions.length===0) delete mergedMonth[dk];
     });
     result.data[mk] = mergedMonth;
