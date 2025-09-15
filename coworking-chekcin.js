@@ -945,41 +945,37 @@ async function autoPush(){
   const cfg = getS3Cfg();
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
   try{
-    __autoSync.pushing = true; __autoSync.dirty=false;
-    setSyncStatus('pushing...');
-    const users = getAllUsers();
-    const existing = users[state.uid] || { data:{} };
-    const payload = { ...existing, finance: getFinance(), __meta: existing.__meta || { version:0, updatedAt: nowISO() } };
-    bumpMeta(payload);
-    users[state.uid] = { ...existing, data: payload.data, pinHash: existing.pinHash, __meta: payload.__meta };
-    setAllUsers(users);
-    if(payload.finance){ payload.finance.__updatedAt = payload.__meta.updatedAt; }
-    const enc = await encryptJSON(payload, cfg.passphrase);
-    const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
-    if(sign.status===401){ console.warn('[sync] push unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (push)'); __autoSync.dirty=true; return; }
-    if(!sign.ok){
-      const txt = await sign.text().catch(()=> '');
-      if(txt.includes('S3_BUCKET not set')){
-        console.warn('[sync] server missing S3_BUCKET env (push)');
-        setSyncStatus('Server missing S3_BUCKET env var');
-      } else {
-        console.warn('[sync] sign-put failed', sign.status, txt);
-        setSyncStatus('sign-put failed '+sign.status);
+    __autoSync.pushing = true;
+    let safety = 3; // 最大3連続 (バースト追加想定)
+    while(__autoSync.dirty && safety>0){
+      __autoSync.dirty = false;
+      setSyncStatus('pushing...');
+      const users = getAllUsers();
+      const existing = users[state.uid] || { data:{} };
+      const payload = { ...existing, finance: getFinance(), __meta: existing.__meta || { version:0, updatedAt: nowISO() } };
+      bumpMeta(payload);
+      users[state.uid] = { ...existing, data: payload.data, pinHash: existing.pinHash, __meta: payload.__meta };
+      setAllUsers(users);
+      if(payload.finance){ payload.finance.__updatedAt = payload.__meta.updatedAt; }
+      const enc = await encryptJSON(payload, cfg.passphrase);
+      const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
+      if(sign.status===401){ console.warn('[sync] push unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (push)'); __autoSync.dirty=true; break; }
+      if(!sign.ok){
+        const txt = await sign.text().catch(()=> '');
+        if(txt.includes('S3_BUCKET not set')){ console.warn('[sync] server missing S3_BUCKET env (push)'); setSyncStatus('Server missing S3_BUCKET env var'); }
+        else { console.warn('[sync] sign-put failed', sign.status, txt); setSyncStatus('sign-put failed '+sign.status); }
+        __autoSync.dirty=true; break;
       }
-      __autoSync.dirty=true; return; }
-    const { url } = await sign.json();
-    const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
-    if(!put.ok){ console.warn('[sync] S3 PUT failed', put.status); __autoSync.dirty=true; return; }
-    console.info('[sync] pushed v'+payload.__meta.version);
-    setSyncStatus('pushed v'+payload.__meta.version+' (verifying)');
-    // 直後は ETag がまだ反映されない / 同一ETag再利用の可能性があるためキャッシュ無視pull
-    try{
-      const oldETag = __fastPull.lastETag;
-      __fastPull.lastETag = null; // 強制 decode
-      await autoPull();
-      // もし変化なければ元に戻す
-      if(!__fastPull.lastETag) __fastPull.lastETag = oldETag;
-    }catch(e){ console.warn('[sync] immediate verify pull failed', e); }
+      const { url } = await sign.json();
+      const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
+      if(!put.ok){ console.warn('[sync] S3 PUT failed', put.status); __autoSync.dirty=true; break; }
+      console.info('[sync] pushed v'+payload.__meta.version);
+      setSyncStatus('pushed v'+payload.__meta.version+' (verifying)');
+      try{
+        const oldETag = __fastPull.lastETag; __fastPull.lastETag = null; await autoPull(); if(!__fastPull.lastETag) __fastPull.lastETag = oldETag;
+      }catch(e){ console.warn('[sync] immediate verify pull failed', e); }
+      safety--;
+    }
   }catch(e){ console.warn('[sync] push error', e); __autoSync.dirty=true; }
   finally { __autoSync.pushing=false; }
 }
