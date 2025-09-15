@@ -433,13 +433,7 @@ function pauseMedTimer(){ if(!medTimer.running) return; medTimer.running=false; 
 function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
 function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
 
-// (Export / Import 機能削除済) clearThisMonth だけ最小用途なら再実装可
-function clearThisMonth(){
-  if(!confirm('この月の記録をクリアします。よろしいですか？')) return;
-  writeMonth(state.uid, state.year, state.month, {});
-  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
-  renderAll();
-}
+// clearThisMonth 機能削除 (UI 簡略化)
 
 // ===== Render Root =====
 function renderAll(){
@@ -469,7 +463,7 @@ on('saveFinance','click', ()=>{
   renderFinanceStats();
   if(window.syncAfterFinanceSave) window.syncAfterFinanceSave();
 });
-on('clearMonthBtn','click', clearThisMonth);
+// clearMonthBtn 削除に伴いイベント未登録
 
 // init (run after DOM ready)
 if(document.readyState==='loading'){

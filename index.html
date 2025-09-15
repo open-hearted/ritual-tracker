@@ -15,12 +15,6 @@
 </head>
 <body>
   <div class="container compact">
-    <div class="top-bar">
-      <div class="app-title">出席</div>
-      <div class="quick-actions">
-        <button id="clearMonthBtn" title="この月をクリア">♻</button>
-      </div>
-    </div>
     <div class="card cal-card">
       <div class="cal-head">
         <div class="controls">
@@ -39,6 +33,11 @@
       <div class="stats" id="stats"></div>
     </div>
 
+    <div class="top-bar" style="margin-top:12px;">
+      <div class="app-title">出席</div>
+      <div class="quick-actions"></div>
+    </div>
+
     <div class="card mini" id="financeCard">
       <details>
         <summary>💰 コスト計算</summary>
@@ -55,7 +54,7 @@
 
     <div class="card mini" id="s3Card">
       <details>
-        <summary>S3 同期</summary>
+        <summary>同期</summary>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <input id="s3DocId" placeholder="docId" />
           <span style="display:flex;align-items:center;gap:4px;flex:1;">
