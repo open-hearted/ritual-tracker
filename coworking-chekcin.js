@@ -669,6 +669,27 @@ function autoS3RestoreIfConfigured(){
 renderS3Inputs();
 autoS3RestoreIfConfigured();
 
+// Auto save config & possibly start sync upon changes
+['s3DocId','s3Passphrase','s3Password','s3AutoRestore'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener('input', ()=>{ persistS3ConfigAndMaybeStart(); });
+  el.addEventListener('change', ()=>{ persistS3ConfigAndMaybeStart(); });
+});
+
+function persistS3ConfigAndMaybeStart(){
+  const cfg = {
+    docId: $('s3DocId').value.trim(),
+    passphrase: $('s3Passphrase').value,
+    password: $('s3Password').value,
+    auto: $('s3AutoRestore').checked
+  };
+  saveS3Cfg(cfg);
+  if(cfg.auto && cfg.docId && cfg.passphrase && cfg.password){
+    restartAutoSync();
+  }
+}
+
 // ===== Auto Sync (cross-device) =====
 // 前提: ユーザーが S3 同期設定(docId/passphrase/password + 自動)を有効化していること。
 // 方式:
@@ -863,6 +884,17 @@ function startAutoSync(){
   __autoSync.timerPoll = setInterval(()=>{ autoPull(); }, __autoSync.pollingMs);
   console.info('[sync] auto sync started (interval '+__autoSync.pollingMs+'ms)');
   setSyncStatus('watching (interval '+__autoSync.pollingMs+'ms)');
+}
+
+function stopAutoSync(){
+  if(__autoSync.timerPoll){ clearInterval(__autoSync.timerPoll); __autoSync.timerPoll=null; }
+  console.info('[sync] auto sync stopped');
+}
+
+function restartAutoSync(){
+  stopAutoSync();
+  __autoSync.inited=false; // allow hooks again (idempotent safety)
+  startAutoSync();
 }
 
 // Start after DOM load & potential auto restore
