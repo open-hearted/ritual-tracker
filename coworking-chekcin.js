@@ -690,6 +690,11 @@ let __autoSync = {
   inited: false
 };
 
+function setSyncStatus(msg){
+  const el = document.getElementById('syncStatus');
+  if(el) el.textContent = msg;
+}
+
 function nowISO(){ return new Date().toISOString(); }
 
 function buildPayload(){
@@ -772,6 +777,7 @@ async function autoPull(){
   const cfg = getS3Cfg();
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
   try{
+    setSyncStatus('pulling...');
     const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
     if(!r.ok) return; // silent
     const { url } = await r.json();
@@ -791,8 +797,10 @@ async function autoPull(){
       if(merged.finance) saveFinance(merged.finance);
       renderAll(); renderFinanceInputs(); renderFinanceStats();
       console.info('[sync] pulled & merged');
+      setSyncStatus('pulled & merged v'+(remote.__meta.version||0));
     }
     __autoSync.lastRemoteVersion = remote.__meta.version || 0;
+    setSyncStatus('idle (v'+__autoSync.lastRemoteVersion+')');
   }catch(e){ console.warn('[sync] pull error', e); }
 }
 
@@ -802,6 +810,7 @@ async function autoPush(){
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
   try{
     __autoSync.pushing = true; __autoSync.dirty=false;
+    setSyncStatus('pushing...');
     const users = getAllUsers();
     const existing = users[state.uid] || { data:{} };
     const payload = { ...existing, finance: getFinance(), __meta: existing.__meta || { version:0, updatedAt: nowISO() } };
@@ -816,6 +825,7 @@ async function autoPush(){
     const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
     if(!put.ok){ __autoSync.dirty=true; return; }
     console.info('[sync] pushed v'+payload.__meta.version);
+    setSyncStatus('pushed v'+payload.__meta.version+' (verify...)');
     setTimeout(()=>{ autoPull(); }, 2000); // verify
   }catch(e){ console.warn('[sync] push error', e); __autoSync.dirty=true; }
   finally { __autoSync.pushing=false; }
@@ -824,6 +834,7 @@ async function autoPush(){
 function markDirty(){
   __autoSync.dirty = true;
   if(__autoSync.timerPush) clearTimeout(__autoSync.timerPush);
+  setSyncStatus('queued push (debounce '+__autoSync.pushDebounceMs+'ms)');
   __autoSync.timerPush = setTimeout(()=> autoPush(), __autoSync.pushDebounceMs);
 }
 
@@ -843,6 +854,7 @@ function startAutoSync(){
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){ console.info('[sync] auto sync disabled or incomplete config'); return; }
   installAutoSyncHooks();
   console.info('[sync] start: attempting initial pull');
+  setSyncStatus('initial pull...');
   autoPull().then(()=>{
     // 初回pullだけで remote が空の場合、ローカルを push するため dirty をセット
     setTimeout(()=>{ markDirty(); }, 1200);
@@ -850,7 +862,12 @@ function startAutoSync(){
   if(__autoSync.timerPoll) clearInterval(__autoSync.timerPoll);
   __autoSync.timerPoll = setInterval(()=>{ autoPull(); }, __autoSync.pollingMs);
   console.info('[sync] auto sync started (interval '+__autoSync.pollingMs+'ms)');
+  setSyncStatus('watching (interval '+__autoSync.pollingMs+'ms)');
 }
 
 // Start after DOM load & potential auto restore
 setTimeout(startAutoSync, 1500);
+
+// Manual debug helpers
+window.forcePull = autoPull;
+window.forcePush = ()=>{ markDirty(); autoPush(); };
