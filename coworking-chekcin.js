@@ -104,6 +104,10 @@ function renderCalendar(){
     el.type = 'button'; el.className='cell';
     const dk = getDateKey(year, month, d);
     const isToday = dk === todayKey;
+    const dateObj = new Date(year, month, d);
+    const dow = dateObj.getDay(); // 0:Sun 6:Sat
+    if(dow===0 || dow===6) el.dataset.weekend='1';
+    el.dataset.dow = String(dow);
     if(isMeditation()){
       const rec = monthData[dk]; // {sessions:[minutes,...]}
       const sessions = Array.isArray(rec?.sessions)? rec.sessions : [];
