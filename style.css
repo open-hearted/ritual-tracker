@@ -88,6 +88,13 @@ input::placeholder{color:#9fb0ff99}
 #medEditor .med-add{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
 #medEditor .med-add .danger{background:#3a1420; border-color:#6a2233}
 #medEditor .med-add .danger:hover{filter:brightness(1.15)}
+/* Responsive tweak: meditation total minutes chip on small screens */
+@media (max-width:560px){
+	.cell .med-summary{font-size:15px; padding:1px 3px; border-radius:8px; max-width:calc(100% - 2px)}
+}
+@media (max-width:400px){
+	.cell .med-summary{font-size:13px; padding:0 3px;}
+}
 /* timer ui */
 #medEditor .med-timer{display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin:6px 0}
 #medEditor #medTimerDisplay{min-width:60px; text-align:center; font-variant-numeric:tabular-nums; background:#0d1a3a; border:1px solid rgba(255,255,255,0.08); padding:4px 8px; border-radius:10px}
