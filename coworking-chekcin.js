@@ -872,7 +872,16 @@ function installAutoSyncHooks(){
 
 function startAutoSync(){
   const cfg = getS3Cfg();
-  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){ console.info('[sync] auto sync disabled or incomplete config'); return; }
+  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){
+    const miss=[];
+    if(!cfg.auto) miss.push('auto=false');
+    if(!cfg.docId) miss.push('docId');
+    if(!cfg.passphrase) miss.push('passphrase');
+    if(!cfg.password) miss.push('APP_PASSWORD');
+    console.info('[sync] auto sync disabled or incomplete config -> missing:', miss.join(','));
+    setSyncStatus('config incomplete: '+miss.join(', '));
+    return;
+  }
   installAutoSyncHooks();
   console.info('[sync] start: attempting initial pull');
   setSyncStatus('initial pull...');
