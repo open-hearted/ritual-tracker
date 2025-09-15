@@ -638,8 +638,8 @@ $('s3Push').addEventListener('click', async()=>{
     const { url } = await r.json();
     const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
     if(!put.ok) throw new Error('S3アップロード失敗');
-    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
-    alert('S3へ保存しました');
+  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+  setSyncStatus('push完了');
   }catch(e){ alert(e.message||e); }
 });
 
@@ -663,8 +663,8 @@ $('s3Pull').addEventListener('click', async()=>{
     users[state.uid] = existing; setAllUsers(users);
     if(obj.finance) saveFinance(obj.finance);
     renderAll(); renderFinanceInputs(); renderFinanceStats();
-    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
-    alert('S3から復元しました');
+  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+  setSyncStatus('pull完了');
   }catch(e){ alert(e.message||e); }
 });
 
