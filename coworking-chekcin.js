@@ -562,7 +562,7 @@ function renderFinanceStats(attendedOverride){
   const perVisit = (Number(f.day)||0) + (Number(f.transit)||0) + (Number(f.other)||0);
   const attended = (typeof attendedOverride==='number') ? attendedOverride : (()=>{
     const md = readMonth(state.uid, state.year, state.month);
-    return Object.values(md).filter(v=>v===1).length;
+    return countAttendanceDays(md, state.year, state.month);
   })();
   const be = perVisit>0 ? Math.ceil(monthly / perVisit) : 0;
   const remaining = Math.max(0, be - attended);
