@@ -136,7 +136,7 @@ function renderCalendar(){
   const present = (typeof val==='object') ? (!!val && !val.__deleted && val.work===1) : (val===1);
       el.dataset.state = present ? '1' : '0';
       if(isToday) el.setAttribute('data-today','true');
-      el.innerHTML = `<div class="d">${d}</div><div class="dot">${present ? '🏢' : ''}</div>`;
+  el.innerHTML = `<div class="d">${d}</div><div class="dot"></div>`;
       el.title = present ? '行った（クリックで解除）' : '未記録（クリックで「行った」に）';
       el.addEventListener('click', ()=>{
         const md = readMonth(state.uid, year, month);
@@ -146,11 +146,11 @@ function renderCalendar(){
           // 削除(tombstone)
             md[dk] = { __deleted:true, ts: nowISO() };
             el.dataset.state='0';
-            el.querySelector('.dot').textContent='';
+            // icon handled by CSS pseudo element
         } else {
             md[dk] = { work:1, dayTs: nowISO() };
             el.dataset.state='1';
-            el.querySelector('.dot').textContent='🏢';
+            // icon handled by CSS pseudo element
         }
         writeMonth(state.uid, year, month, md);
   if(window.syncAfterNewWorkToggle) window.syncAfterNewWorkToggle();
