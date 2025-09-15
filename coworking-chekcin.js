@@ -609,8 +609,18 @@ $('s3Pull').addEventListener('click', async()=>{
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
     const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
-    // ETag を無効化して強制 fresh pull
-    __fastPull.lastETag = null;
+    // __fastPull がまだ宣言前 (autoRestore の即時 click) なら次tickに遅延
+    if(typeof __fastPull === 'undefined'){
+      setTimeout(()=>{
+        if(typeof __fastPull !== 'undefined'){
+          __fastPull.lastETag = null;
+          setSyncStatus('manual pull');
+          autoPull();
+        }
+      },0);
+      return;
+    }
+    __fastPull.lastETag = null; // 強制 fresh pull
     setSyncStatus('manual pull');
     await autoPull();
   }catch(e){ alert(e.message||e); }
@@ -621,7 +631,8 @@ function autoS3RestoreIfConfigured(){
   if(c.auto && c.docId && c.passphrase && c.password){
     // silent pull
     $('s3DocId').value=c.docId; $('s3Passphrase').value=c.passphrase; $('s3Password').value=c.password; $('s3AutoRestore').checked=true;
-    $('s3Pull').click();
+    // __fastPull 定義完了後に確実に走るよう次tickへ
+    setTimeout(()=>{ const btn=$('s3Pull'); if(btn) btn.click(); },0);
   }
 }
 
