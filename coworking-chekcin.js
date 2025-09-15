@@ -586,8 +586,21 @@ autoCloudRestoreIfConfigured();
 
 // ===== S3 Sync via Vercel API (password-gated, presigned URL) =====
 const LS_S3 = `${PAGE_PREFIX}_s3_cfg_v1`;
-function getS3Cfg(){ try{return JSON.parse(localStorage.getItem(LS_S3))||{};}catch{return{}} }
-function saveS3Cfg(v){ localStorage.setItem(LS_S3, JSON.stringify(v)); }
+const LS_S3_GLOBAL = 'global_s3_cfg_v1';
+function getS3Cfg(){
+  // prefix優先 -> global -> 既知の他プレフィックス (med/cw) をフォールバック
+  try{ const direct = JSON.parse(localStorage.getItem(LS_S3)||'null'); if(direct && Object.keys(direct).length) return direct; }catch{}
+  try{ const global = JSON.parse(localStorage.getItem(LS_S3_GLOBAL)||'null'); if(global && Object.keys(global).length) return global; }catch{}
+  try{
+    const altKey = PAGE_PREFIX==='med' ? 'cw_s3_cfg_v1' : 'med_s3_cfg_v1';
+    const alt = JSON.parse(localStorage.getItem(altKey)||'null'); if(alt && Object.keys(alt).length) return alt;
+  }catch{}
+  return {};
+}
+function saveS3Cfg(v){
+  localStorage.setItem(LS_S3, JSON.stringify(v));
+  try{ localStorage.setItem(LS_S3_GLOBAL, JSON.stringify(v)); }catch{}
+}
 
 function renderS3Inputs(){
   const c=getS3Cfg();
@@ -780,7 +793,7 @@ async function autoPull(){
       console.info('[sync] pulled & merged');
     }
     __autoSync.lastRemoteVersion = remote.__meta.version || 0;
-  }catch(e){ /* silent */ }
+  }catch(e){ console.warn('[sync] pull error', e); }
 }
 
 async function autoPush(){
@@ -804,7 +817,7 @@ async function autoPush(){
     if(!put.ok){ __autoSync.dirty=true; return; }
     console.info('[sync] pushed v'+payload.__meta.version);
     setTimeout(()=>{ autoPull(); }, 2000); // verify
-  }catch(e){ __autoSync.dirty=true; }
+  }catch(e){ console.warn('[sync] push error', e); __autoSync.dirty=true; }
   finally { __autoSync.pushing=false; }
 }
 
@@ -827,12 +840,16 @@ function installAutoSyncHooks(){
 
 function startAutoSync(){
   const cfg = getS3Cfg();
-  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){ return; }
+  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){ console.info('[sync] auto sync disabled or incomplete config'); return; }
   installAutoSyncHooks();
-  autoPull();
+  console.info('[sync] start: attempting initial pull');
+  autoPull().then(()=>{
+    // 初回pullだけで remote が空の場合、ローカルを push するため dirty をセット
+    setTimeout(()=>{ markDirty(); }, 1200);
+  });
   if(__autoSync.timerPoll) clearInterval(__autoSync.timerPoll);
   __autoSync.timerPoll = setInterval(()=>{ autoPull(); }, __autoSync.pollingMs);
-  console.info('[sync] auto sync started');
+  console.info('[sync] auto sync started (interval '+__autoSync.pollingMs+'ms)');
 }
 
 // Start after DOM load & potential auto restore
