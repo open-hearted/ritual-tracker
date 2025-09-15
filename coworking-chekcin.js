@@ -564,22 +564,19 @@ autoCloudRestoreIfConfigured();
 */
 
 // ===== S3 Sync via Vercel API (password-gated, presigned URL) =====
-const LS_S3 = `${PAGE_PREFIX}_s3_cfg_v1`;
-const LS_S3_GLOBAL = 'global_s3_cfg_v1';
+// ページ固有 S3 設定 (他ページと docId を共有しない: グローバル/フォールバック廃止)
+const LS_S3 = `${PAGE_PREFIX}_s3_cfg_iso_v1`;
 function getS3Cfg(){
-  // prefix優先 -> global -> 既知の他プレフィックス (med/cw) をフォールバック
-  try{ const direct = JSON.parse(localStorage.getItem(LS_S3)||'null'); if(direct && Object.keys(direct).length) return direct; }catch{}
-  try{ const global = JSON.parse(localStorage.getItem(LS_S3_GLOBAL)||'null'); if(global && Object.keys(global).length) return global; }catch{}
-  try{
-    const altKey = PAGE_PREFIX==='med' ? 'cw_s3_cfg_v1' : 'med_s3_cfg_v1';
-    const alt = JSON.parse(localStorage.getItem(altKey)||'null'); if(alt && Object.keys(alt).length) return alt;
-  }catch{}
-  return {};
+  try{ return JSON.parse(localStorage.getItem(LS_S3)||'null') || {}; }catch{ return {}; }
 }
 function saveS3Cfg(v){
   localStorage.setItem(LS_S3, JSON.stringify(v));
-  try{ localStorage.setItem(LS_S3_GLOBAL, JSON.stringify(v)); }catch{}
 }
+
+// 互換: 過去の共有キーを削除 (一度だけで良い軽量処理)
+try{
+  ['global_s3_cfg_v1','med_s3_cfg_v1','cw_s3_cfg_v1'].forEach(k=>{ if(localStorage.getItem(k)) localStorage.removeItem(k); });
+}catch{}
 
 function renderS3Inputs(){
   const c=getS3Cfg();
@@ -592,6 +589,7 @@ function renderS3Inputs(){
 $('s3Push').addEventListener('click', async()=>{
   try{
     const docId=$('s3DocId').value.trim();
+    if(!docId || docId.length<6 || !/[A-Za-z0-9]$/.test(docId)) return alert('docId が短すぎるか未確定です');
     const pass=$('s3Passphrase').value; // E2E
     const appPw=$('s3Password').value; // API password (server checks against ENV)
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
@@ -614,6 +612,7 @@ $('s3Push').addEventListener('click', async()=>{
 $('s3Pull').addEventListener('click', async()=>{
   try{
     const docId=$('s3DocId').value.trim();
+    if(!docId || docId.length<6 || !/[A-Za-z0-9]$/.test(docId)) return alert('docId が短すぎるか未確定です');
     const pass=$('s3Passphrase').value;
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
@@ -706,7 +705,9 @@ function persistS3ConfigAndMaybeStart(){
     auto: $('s3AutoRestore').checked
   };
   saveS3Cfg(cfg);
-  if(cfg.auto && cfg.docId && cfg.passphrase && cfg.password){
+  // 自動開始条件強化: docId 最低長さ / 末尾ハイフン等で未確定とみなす / 許可された文字種のみ
+  const docOk = cfg.docId && cfg.docId.length >= 6 && /[A-Za-z0-9]$/.test(cfg.docId) && /^[A-Za-z0-9._-]+$/.test(cfg.docId);
+  if(cfg.auto && docOk && cfg.passphrase && cfg.password){
     restartAutoSync();
   }
 }
