@@ -280,10 +280,15 @@ function writeMedSessions(arr){
   } else {
     const existing = md[medEditTarget.dateKey] || {};
     let starts = Array.isArray(existing.starts) ? existing.starts.slice() : [];
+    let ids = Array.isArray(existing.ids) ? existing.ids.slice() : [];
     // trim/extend starts to match sessions length
     if(starts.length > arr.length) starts = starts.slice(0, arr.length);
     if(starts.length < arr.length) starts = starts.concat(Array(arr.length - starts.length).fill(''));
-    md[medEditTarget.dateKey] = { sessions: arr, starts, dayTs: new Date().toISOString() };
+    if(ids.length > arr.length) ids = ids.slice(0, arr.length);
+    if(ids.length < arr.length){
+      for(let i=ids.length;i<arr.length;i++){ ids.push('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)); }
+    }
+    md[medEditTarget.dateKey] = { sessions: arr, starts, ids, dayTs: new Date().toISOString() };
   }
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
@@ -295,9 +300,12 @@ function addMedSessionWithStart(min, startedAt){
   const rec = md[medEditTarget.dateKey] || {};
   const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
   const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
+  const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
+  const newId = 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   sessions.push(min);
   starts.push(startedAt||'');
-  md[medEditTarget.dateKey] = { sessions, starts };
+  ids.push(newId);
+  md[medEditTarget.dateKey] = { sessions, starts, ids, dayTs:new Date().toISOString() };
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar();
@@ -328,7 +336,9 @@ function renderMedSessionList(){
   const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
   sessions.splice(idx,1);
   if(starts.length>idx) starts.splice(idx,1);
-  md[medEditTarget.dateKey] = sessions.length? { sessions, starts, dayTs:new Date().toISOString() } : { __deleted:true, ts:new Date().toISOString() };
+  const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
+  if(ids.length>idx) ids.splice(idx,1);
+  md[medEditTarget.dateKey] = sessions.length? { sessions, starts, ids, dayTs:new Date().toISOString() } : { __deleted:true, ts:new Date().toISOString() };
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); renderMedSessionList();
@@ -854,14 +864,19 @@ function mergePayload(localP, remoteP){
         const rSess = Array.isArray(rVal?.sessions)? rVal.sessions:[];
         const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
         const rStarts = Array.isArray(rVal?.starts)? rVal.starts:[];
+        const lIds = Array.isArray(lVal?.ids)? lVal.ids:[];
+        const rIds = Array.isArray(rVal?.ids)? rVal.ids:[];
         const combined = [];
-        for(let i=0;i<lSess.length;i++){ combined.push({m:lSess[i], s:lStarts[i]||''}); }
-        for(let i=0;i<rSess.length;i++){ combined.push({m:rSess[i], s:rStarts[i]||''}); }
-        // dedupe by m|s (round m to 2 decimals)
+        for(let i=0;i<lSess.length;i++){ combined.push({m:lSess[i], s:lStarts[i]||'', id:lIds[i]||('L'+i)}); }
+        for(let i=0;i<rSess.length;i++){ combined.push({m:rSess[i], s:rStarts[i]||'', id:rIds[i]||('R'+i)}); }
+        // dedupe by explicit id first; fallback key m|s for legacy entries without real id overlap
         const seen = new Map();
-        combined.forEach(o=>{ const key = `${Math.round(o.m*100)/100}|${o.s}`; if(!seen.has(key)) seen.set(key,o); });
-        const uniq = [...seen.values()].slice(0, 12); // safety upper bound, though想定3
-        mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s) };
+        combined.forEach(o=>{
+          const key = o.id || `${Math.round(o.m*100)/100}|${o.s}`;
+          if(!seen.has(key)) seen.set(key,o);
+        });
+        const uniq = [...seen.values()].slice(0, 24); // allow more now that IDs unique
+        mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
       } else {
         // numeric OR (presence)
         mergedMonth[dk] = (lVal || rVal) ? 1 : 0;
