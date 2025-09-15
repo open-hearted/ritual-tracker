@@ -843,7 +843,17 @@ async function autoPull(){
     setSyncStatus('pulling...');
     const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
     if(r.status===401){ console.warn('[sync] pull unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (APP_PASSWORD?)'); return; }
-    if(!r.ok){ console.warn('[sync] pull non-200', r.status); return; }
+    if(!r.ok){
+      const txt = await r.text().catch(()=> '');
+      if(txt.includes('S3_BUCKET not set')){
+        console.warn('[sync] server missing S3_BUCKET env');
+        setSyncStatus('Server missing S3_BUCKET env var');
+      } else {
+        console.warn('[sync] pull non-200', r.status, txt);
+        setSyncStatus('pull failed '+r.status);
+      }
+      return;
+    }
     const { url } = await r.json();
     const res = await fetch(url, { cache:'no-store' }); if(!res.ok) return;
     const buf = await res.arrayBuffer();
@@ -885,7 +895,16 @@ async function autoPush(){
     const enc = await encryptJSON(payload, cfg.passphrase);
     const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
     if(sign.status===401){ console.warn('[sync] push unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (push)'); __autoSync.dirty=true; return; }
-    if(!sign.ok){ console.warn('[sync] sign-put failed', sign.status); __autoSync.dirty=true; return; }
+    if(!sign.ok){
+      const txt = await sign.text().catch(()=> '');
+      if(txt.includes('S3_BUCKET not set')){
+        console.warn('[sync] server missing S3_BUCKET env (push)');
+        setSyncStatus('Server missing S3_BUCKET env var');
+      } else {
+        console.warn('[sync] sign-put failed', sign.status, txt);
+        setSyncStatus('sign-put failed '+sign.status);
+      }
+      __autoSync.dirty=true; return; }
     const { url } = await sign.json();
     const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
     if(!put.ok){ console.warn('[sync] S3 PUT failed', put.status); __autoSync.dirty=true; return; }
