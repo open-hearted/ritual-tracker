@@ -276,16 +276,14 @@ function writeMedSessions(arr){
   const md = readMonth(state.uid, state.year, state.month);
   // preserve starts alignment if exists
   if(arr.length===0){
-    // tombstone to propagate deletion
     md[medEditTarget.dateKey] = { __deleted:true, ts:new Date().toISOString() };
-  }
-  else {
+  } else {
     const existing = md[medEditTarget.dateKey] || {};
     let starts = Array.isArray(existing.starts) ? existing.starts.slice() : [];
     // trim/extend starts to match sessions length
     if(starts.length > arr.length) starts = starts.slice(0, arr.length);
     if(starts.length < arr.length) starts = starts.concat(Array(arr.length - starts.length).fill(''));
-    md[medEditTarget.dateKey] = { sessions: arr, starts };
+    md[medEditTarget.dateKey] = { sessions: arr, starts, dayTs: new Date().toISOString() };
   }
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
@@ -330,7 +328,7 @@ function renderMedSessionList(){
   const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
   sessions.splice(idx,1);
   if(starts.length>idx) starts.splice(idx,1);
-  md[medEditTarget.dateKey] = sessions.length? { sessions, starts } : { __deleted:true, ts:new Date().toISOString() };
+  md[medEditTarget.dateKey] = sessions.length? { sessions, starts, dayTs:new Date().toISOString() } : { __deleted:true, ts:new Date().toISOString() };
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); renderMedSessionList();
@@ -834,12 +832,21 @@ function mergePayload(localP, remoteP){
         const rDel = rVal && rVal.__deleted;
         if(lDel || rDel){
           if(lDel && rDel){
-            // choose newer ts
             const lt = lVal.ts || '1970';
             const rt = rVal.ts || '1970';
             mergedMonth[dk] = rt > lt ? rVal : lVal;
+            continue;
+          }
+          // 片方 tombstone, 片方 sessions: tombstone ts と dayTs を比較
+          const delObj = lDel ? lVal : rVal;
+          const liveObj = lDel ? rVal : lVal;
+          const delTs = delObj.ts || '1970';
+          const liveTs = liveObj.dayTs || '1970';
+          if(liveTs > delTs){
+            // 再追加が tombstone より新しいので復活（liveObj を採用）
+            mergedMonth[dk] = liveObj;
           } else {
-            mergedMonth[dk] = lDel ? lVal : rVal;
+            mergedMonth[dk] = delObj; // tombstone 優先
           }
           continue;
         }
