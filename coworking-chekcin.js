@@ -186,8 +186,10 @@ function renderStats(){
     const rate = total ? Math.round(attended*100/total) : 0;
     const longest = calcAttendanceLongestStreak(md, state.year, state.month);
     const current = calcAttendanceCurrentStreak(md, state.year, state.month);
+    const remaining = total - attended;
     box.append(
       makeStat(`今月の出席日数: <b>${attended}</b> / ${total}日 (${rate}%)`),
+      makeStat(`残り: <b>${remaining}</b> 日`),
       makeStat(`現在連続: <b>${current}</b> 日 / 最長: <b>${longest}</b> 日`),
     );
   }
