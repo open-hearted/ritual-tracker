@@ -867,15 +867,23 @@ function mergePayload(localP, remoteP){
         const lIds = Array.isArray(lVal?.ids)? lVal.ids:[];
         const rIds = Array.isArray(rVal?.ids)? rVal.ids:[];
         const combined = [];
-        for(let i=0;i<lSess.length;i++){ combined.push({m:lSess[i], s:lStarts[i]||'', id:lIds[i]||('L'+i)}); }
-        for(let i=0;i<rSess.length;i++){ combined.push({m:rSess[i], s:rStarts[i]||'', id:rIds[i]||('R'+i)}); }
-        // dedupe by explicit id first; fallback key m|s for legacy entries without real id overlap
-        const seen = new Map();
+        const fp = (m,s)=>`${Math.round(m*100)/100}|${s}`;
+        for(let i=0;i<lSess.length;i++){ const m=lSess[i]; const s=lStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:lIds[i]||fid}); }
+        for(let i=0;i<rSess.length;i++){ const m=rSess[i]; const s=rStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:rIds[i]||fid}); }
+        // collapse by fingerprint first, prefer real 'm' generated ids over synthetic 'v_' ids
+        const byFp = new Map();
         combined.forEach(o=>{
-          const key = o.id || `${Math.round(o.m*100)/100}|${o.s}`;
-          if(!seen.has(key)) seen.set(key,o);
+          const f = fp(o.m,o.s);
+            const cur = byFp.get(f);
+            if(!cur) byFp.set(f,o);
+            else {
+              // choose one with real id (starts with 'm')
+              const curReal = /^m[0-9a-z]/.test(cur.id);
+              const oReal = /^m[0-9a-z]/.test(o.id);
+              if(oReal && !curReal) byFp.set(f,o);
+            }
         });
-        const uniq = [...seen.values()].slice(0, 24); // allow more now that IDs unique
+        const uniq = [...byFp.values()].slice(0, 48);
         mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
       } else {
         // numeric OR (presence)
@@ -1023,18 +1031,21 @@ function cleanupLegacyMeditationDuplicates(){
         if(!rec || rec.__deleted) continue;
         if(!Array.isArray(rec.sessions)) continue;
         const sess = rec.sessions; const starts = Array.isArray(rec.starts)? rec.starts:[]; const ids = Array.isArray(rec.ids)? rec.ids:[];
+        const fp = (m,s)=> (Math.round(m*100)/100)+'|'+s;
         const map = new Map();
         const newSess=[]; const newStarts=[]; const newIds=[];
         for(let i=0;i<sess.length;i++){
-          const id = ids[i];
-          const m = sess[i];
-            const s = starts[i]||'';
-          const k = (id && !/^L\d+$/.test(id) && !/^R\d+$/.test(id)) ? ('ID:'+id) : ('VAL:'+ (Math.round(m*100)/100)+'|'+s);
-          if(!map.has(k)){
-            map.set(k,true);
-            newSess.push(m); newStarts.push(starts[i]||''); newIds.push(id && !/^L\d+$/.test(id) && !/^R\d+$/.test(id) ? id : 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,7));
+          const m = sess[i]; const s = starts[i]||''; const id = ids[i];
+          const f = fp(m,s);
+          const cur = map.get(f);
+          const real = id && /^m[0-9a-z]/.test(id);
+          if(!cur){
+            map.set(f,{m,s,id: real? id : ('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7))});
+          } else {
+            if(real && !/^m[0-9a-z]/.test(cur.id)) map.set(f,{m,s,id});
           }
         }
+        for(const v of map.values()){ newSess.push(v.m); newStarts.push(v.s); newIds.push(v.id); }
         if(newSess.length !== sess.length){
           rec.sessions = newSess; rec.starts = newStarts; rec.ids = newIds; rec.dayTs = new Date().toISOString(); changed = true;
         }
