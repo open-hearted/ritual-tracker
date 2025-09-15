@@ -764,6 +764,16 @@ let __autoSync = {
   pendingPull: false
 };
 
+// 高速ポーリング拡張: 署名URLとETagキャッシュ
+let __fastPull = {
+  intervalMs: 1000,
+  lastSignTime: 0,
+  signTTL: 5000, // 5秒までは同じ presigned GET URL を再利用
+  cachedGetUrl: null,
+  lastETag: null,
+  inFastLoop: false
+};
+
 function setSyncStatus(msg){
   const el = document.getElementById('syncStatus');
   if(el) el.textContent = msg;
@@ -856,22 +866,33 @@ async function autoPull(){
     return;
   }
   try{
-    setSyncStatus('pulling...');
-    const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
-    if(r.status===401){ console.warn('[sync] pull unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (APP_PASSWORD?)'); return; }
-    if(!r.ok){
-      const txt = await r.text().catch(()=> '');
-      if(txt.includes('S3_BUCKET not set')){
-        console.warn('[sync] server missing S3_BUCKET env');
-        setSyncStatus('Server missing S3_BUCKET env var');
-      } else {
-        console.warn('[sync] pull non-200', r.status, txt);
-        setSyncStatus('pull failed '+r.status);
+    // 署名URLキャッシュ利用
+    let useUrl = __fastPull.cachedGetUrl;
+    const now = Date.now();
+    if(!useUrl || (now - __fastPull.lastSignTime) > __fastPull.signTTL){
+      const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
+      if(r.status===401){ console.warn('[sync] pull unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (APP_PASSWORD?)'); return; }
+      if(!r.ok){
+        const txt = await r.text().catch(()=> '');
+        if(txt.includes('S3_BUCKET not set')){ console.warn('[sync] server missing S3_BUCKET env'); setSyncStatus('Server missing S3_BUCKET env var'); }
+        else { console.warn('[sync] pull non-200', r.status, txt); setSyncStatus('pull failed '+r.status); }
+        return;
       }
+      const { url } = await r.json();
+      __fastPull.cachedGetUrl = url; __fastPull.lastSignTime = now; useUrl = url;
+    }
+
+    // 条件付き取得 (If-None-Match) 対応: presigned URL で 304 が得られない場合もあるが、S3 は ETag 比較には HEAD を推奨。ここでは GET して ETag 同じなら decode スキップ。
+    const res = await fetch(useUrl, { cache:'no-store' });
+    if(!res.ok){ return; }
+    const etag = res.headers.get('ETag');
+    if(etag && etag === __fastPull.lastETag){
+      // 変更無し: ステータス更新のみ最小化
+      setSyncStatus('idle (v'+__autoSync.lastRemoteVersion+')');
       return;
     }
-    const { url } = await r.json();
-    const res = await fetch(url, { cache:'no-store' }); if(!res.ok) return;
+    if(etag) __fastPull.lastETag = etag;
+    setSyncStatus('pulling...');
     const buf = await res.arrayBuffer();
     const remote = await decryptJSON(buf, cfg.passphrase);
     if(!remote.__meta){ remote.__meta = { version:0, updatedAt: nowISO() }; }
@@ -989,14 +1010,21 @@ function startAutoSync(){
     // 初回pullだけで remote が空の場合、ローカルを push するため dirty をセット
   setTimeout(()=>{ markDirtyImmediate(); }, 1200);
   });
-  if(__autoSync.timerPoll) clearInterval(__autoSync.timerPoll);
-  __autoSync.timerPoll = setInterval(()=>{ autoPull(); }, __autoSync.pollingMs);
-  console.info('[sync] auto sync started (interval '+__autoSync.pollingMs+'ms)');
-  setSyncStatus('watching (interval '+__autoSync.pollingMs+'ms)');
+  // 通常ポーリング停止し高速ループ開始
+  if(!__fastPull.inFastLoop){
+    __fastPull.inFastLoop = true;
+    const loop = async()=>{
+      try{ await autoPull(); }catch(e){ /* swallow */ }
+      if(__fastPull.inFastLoop) setTimeout(loop, __fastPull.intervalMs);
+    };
+    loop();
+    console.info('[sync] fast polling started ('+__fastPull.intervalMs+'ms)');
+    setSyncStatus('fast polling '+__fastPull.intervalMs+'ms');
+  }
 }
 
 function stopAutoSync(){
-  if(__autoSync.timerPoll){ clearInterval(__autoSync.timerPoll); __autoSync.timerPoll=null; }
+  __fastPull.inFastLoop = false;
   console.info('[sync] auto sync stopped');
 }
 
