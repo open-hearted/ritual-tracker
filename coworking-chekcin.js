@@ -129,7 +129,7 @@ function renderCalendar(){
       });
     } else {
       const val = monthData[dk] || 0;
-      const present = (typeof val==='object') ? (val.work===1 && !val.__deleted) : (val===1);
+  const present = (typeof val==='object') ? (!!val && !val.__deleted && val.work===1) : (val===1);
       el.dataset.state = present ? '1' : '0';
       if(isToday) el.setAttribute('data-today','true');
       el.innerHTML = `<div class="d">${d}</div><div class="dot">${present ? '🏢' : ''}</div>`;
@@ -798,54 +798,76 @@ function mergePayload(localP, remoteP){
       if(rVal==null) { mergedMonth[dk]=lVal; continue; }
       // meditation style object or simple 0/1
       if(typeof lVal === 'object' || typeof rVal === 'object'){
-        // tombstone precedence
-        const lDel = lVal && lVal.__deleted;
-        const rDel = rVal && rVal.__deleted;
-        if(lDel || rDel){
-          if(lDel && rDel){
-            const lt = lVal.ts || '1970';
-            const rt = rVal.ts || '1970';
-            mergedMonth[dk] = rt > lt ? rVal : lVal;
+        const isMed = v => v && typeof v==='object' && (Array.isArray(v.sessions) || Array.isArray(v.starts) || Array.isArray(v.ids));
+        const isAttendanceObj = v => v && typeof v==='object' && !isMed(v) && (v.work!==undefined || v.__deleted);
+        if(isMed(lVal) || isMed(rVal)){
+          // --- Meditation merge (既存) ---
+          const lDel = lVal && lVal.__deleted;
+          const rDel = rVal && rVal.__deleted;
+          if(lDel || rDel){
+            if(lDel && rDel){
+              const lt = lVal.ts || '1970';
+              const rt = rVal.ts || '1970';
+              mergedMonth[dk] = rt > lt ? rVal : lVal;
+              continue;
+            }
+            const delObj = lDel ? lVal : rVal;
+            const liveObj = lDel ? rVal : lVal;
+            const delTs = delObj.ts || '1970';
+            const liveTs = liveObj.dayTs || '1970';
+            mergedMonth[dk] = (liveTs > delTs) ? liveObj : delObj;
             continue;
           }
-          // 片方 tombstone, 片方 sessions: tombstone ts と dayTs を比較
-          const delObj = lDel ? lVal : rVal;
-          const liveObj = lDel ? rVal : lVal;
-          const delTs = delObj.ts || '1970';
-          const liveTs = liveObj.dayTs || '1970';
-          if(liveTs > delTs){
-            // 再追加が tombstone より新しいので復活（liveObj を採用）
-            mergedMonth[dk] = liveObj;
-          } else {
-            mergedMonth[dk] = delObj; // tombstone 優先
-          }
-          continue;
-        }
-        const lSess = Array.isArray(lVal?.sessions)? lVal.sessions:[];
-        const rSess = Array.isArray(rVal?.sessions)? rVal.sessions:[];
-        const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
-        const rStarts = Array.isArray(rVal?.starts)? rVal.starts:[];
-        const lIds = Array.isArray(lVal?.ids)? lVal.ids:[];
-        const rIds = Array.isArray(rVal?.ids)? rVal.ids:[];
-        const combined = [];
-        const fp = (m,s)=>`${Math.round(m*100)/100}|${s}`;
-        for(let i=0;i<lSess.length;i++){ const m=lSess[i]; const s=lStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:lIds[i]||fid}); }
-        for(let i=0;i<rSess.length;i++){ const m=rSess[i]; const s=rStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:rIds[i]||fid}); }
-        // collapse by fingerprint first, prefer real 'm' generated ids over synthetic 'v_' ids
-        const byFp = new Map();
-        combined.forEach(o=>{
-          const f = fp(o.m,o.s);
-            const cur = byFp.get(f);
-            if(!cur) byFp.set(f,o);
-            else {
-              // choose one with real id (starts with 'm')
-              const curReal = /^m[0-9a-z]/.test(cur.id);
-              const oReal = /^m[0-9a-z]/.test(o.id);
-              if(oReal && !curReal) byFp.set(f,o);
+          const lSess = Array.isArray(lVal?.sessions)? lVal.sessions:[];
+          const rSess = Array.isArray(rVal?.sessions)? rVal.sessions:[];
+            const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
+            const rStarts = Array.isArray(rVal?.starts)? rVal.starts:[];
+            const lIds = Array.isArray(lVal?.ids)? lVal.ids:[];
+            const rIds = Array.isArray(rVal?.ids)? rVal.ids:[];
+            const combined = [];
+            const fp = (m,s)=>`${Math.round(m*100)/100}|${s}`;
+            for(let i=0;i<lSess.length;i++){ const m=lSess[i]; const s=lStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:lIds[i]||fid}); }
+            for(let i=0;i<rSess.length;i++){ const m=rSess[i]; const s=rStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:rIds[i]||fid}); }
+            const byFp = new Map();
+            combined.forEach(o=>{
+              const f = fp(o.m,o.s);
+              const cur = byFp.get(f);
+              if(!cur) byFp.set(f,o); else {
+                const curReal = /^m[0-9a-z]/.test(cur.id);
+                const oReal = /^m[0-9a-z]/.test(o.id);
+                if(oReal && !curReal) byFp.set(f,o);
+              }
+            });
+            const uniq = [...byFp.values()].slice(0,48);
+            mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
+        } else if(isAttendanceObj(lVal) || isAttendanceObj(rVal)){
+          // --- Attendance object merge ---
+          const norm = v => {
+            if(!v) return { work:0, dayTs:'1970' };
+            if(typeof v==='number') return { work: v?1:0, dayTs:'1970' };
+            return v;
+          };
+          const L = norm(lVal); const R = norm(rVal);
+          const lDel = !!L.__deleted; const rDel = !!R.__deleted;
+          if(lDel || rDel){
+            if(lDel && rDel){
+              const lt=L.ts||'1970'; const rt=R.ts||'1970';
+              mergedMonth[dk] = rt>lt ? R : L;
+            } else {
+              const delObj = lDel? L : R; const liveObj = lDel? R : L;
+              const delTs = delObj.ts||'1970'; const liveTs = liveObj.dayTs||'1970';
+              mergedMonth[dk] = (liveTs>delTs)? liveObj : delObj;
             }
-        });
-        const uniq = [...byFp.values()].slice(0, 48);
-        mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
+          } else {
+            const lTs=L.dayTs||'1970'; const rTs=R.dayTs||'1970';
+            if(L.work===1 && R.work===1){ mergedMonth[dk] = rTs>lTs ? R : L; }
+            else if(L.work===1 || R.work===1){ mergedMonth[dk] = L.work===1? L : R; }
+            else { mergedMonth[dk] = rTs>lTs ? R : L; }
+          }
+        } else {
+          // どちらも object だが attendance/meditation 指標が無い → そのまま上書き優先 (後勝ち)
+          mergedMonth[dk] = rVal || lVal;
+        }
       } else {
         // attendance legacy numeric -> wrap
         const wrap = v=> (v===1) ? { work:1, dayTs: '1970' } : (v===0? { work:0, dayTs:'1970' } : v);
