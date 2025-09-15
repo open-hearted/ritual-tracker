@@ -433,40 +433,8 @@ function pauseMedTimer(){ if(!medTimer.running) return; medTimer.running=false; 
 function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
 function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
 
-// ===== Export / Import / Clear =====
-function doExport(){
-  const users = getAllUsers();
-  const data = users[state.uid] || { data:{} };
-  const payload = { ...data, finance: getFinance() };
-  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `${PAGE_PREFIX}-data-${state.uid}.json`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-function doImport(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try{
-      const obj = JSON.parse(reader.result);
-      const users = getAllUsers();
-      const existing = users[state.uid] || { data:{} };
-      existing.data = { ...(existing.data||{}), ...(obj.data||{}) };
-      if(obj.pinHash) existing.pinHash = obj.pinHash;
-      users[state.uid] = existing; setAllUsers(users);
-      if(obj.finance) saveFinance(obj.finance);
-      renderAll(); renderFinanceInputs();
-      alert('インポート完了');
-    } catch(e){ alert('JSON の読み込みに失敗しました'); }
-  };
-  reader.readAsText(file);
-}
-
+// (Export / Import 機能削除済) clearThisMonth だけ最小用途なら再実装可
 function clearThisMonth(){
-  
   if(!confirm('この月の記録をクリアします。よろしいですか？')) return;
   writeMonth(state.uid, state.year, state.month, {});
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
@@ -488,7 +456,6 @@ function on(id, ev, handler){ const el=$(id); if(el) el.addEventListener(ev, han
 
 on('prevBtn','click', ()=>{ state.month--; if(state.month<0){ state.month=11; state.year--; } renderCalendar(); });
 on('nextBtn','click', ()=>{ state.month++; if(state.month>11){ state.month=0; state.year++; } renderCalendar(); });
-on('exportBtn','click', doExport);
 on('saveFinance','click', ()=>{
   const fee = $('feeMonthly');
   if(!fee) return; // meditation 等 finance 無しページ
