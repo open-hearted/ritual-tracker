@@ -590,22 +590,14 @@ $('s3Push').addEventListener('click', async()=>{
   try{
     const docId=$('s3DocId').value.trim();
     if(!docId || docId.length<6 || !/[A-Za-z0-9]$/.test(docId)) return alert('docId が短すぎるか未確定です');
-    const pass=$('s3Passphrase').value; // E2E
-    const appPw=$('s3Password').value; // API password (server checks against ENV)
+    const pass=$('s3Passphrase').value;
+    const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
-    // payload = local data + finance
-    const users = getAllUsers();
-    const data = users[state.uid] || { data:{} };
-    const payload = { ...data, finance: getFinance() };
-    const enc = await encryptJSON(payload, pass);
-    // ask server for presigned PUT
-    const r = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: appPw, key: `${docId}.json.enc`, contentType:'application/octet-stream' }) });
-    if(!r.ok){ const t=await r.text(); throw new Error('署名取得失敗: '+t); }
-    const { url } = await r.json();
-    const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
-    if(!put.ok) throw new Error('S3アップロード失敗');
-  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
-  setSyncStatus('push完了');
+    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+    // メタ管理付きの統一 autoPush を利用
+    markDirtyImmediate();
+    setSyncStatus('manual push queued');
+    await autoPush();
   }catch(e){ alert(e.message||e); }
 });
 
@@ -616,22 +608,11 @@ $('s3Pull').addEventListener('click', async()=>{
     const pass=$('s3Passphrase').value;
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
-    const r = await fetch(`/api/sign-get?key=${encodeURIComponent(docId+'.json.enc')}&password=${encodeURIComponent(appPw)}`);
-    if(!r.ok){ const t=await r.text(); throw new Error('署名取得失敗: '+t); }
-    const { url } = await r.json();
-    const res = await fetch(url); if(!res.ok) throw new Error('S3ダウンロード失敗');
-    const buf = await res.arrayBuffer();
-    const obj = await decryptJSON(buf, pass);
-    // merge
-    const users = getAllUsers();
-    const existing = users[state.uid] || { data:{} };
-    existing.data = { ...(existing.data||{}), ...(obj.data||{}) };
-    if(obj.pinHash) existing.pinHash = obj.pinHash;
-    users[state.uid] = existing; setAllUsers(users);
-    if(obj.finance) saveFinance(obj.finance);
-    renderAll(); renderFinanceInputs(); renderFinanceStats();
-  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
-  setSyncStatus('pull完了');
+    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+    // ETag を無効化して強制 fresh pull
+    __fastPull.lastETag = null;
+    setSyncStatus('manual pull');
+    await autoPull();
   }catch(e){ alert(e.message||e); }
 });
 
