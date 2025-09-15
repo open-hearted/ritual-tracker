@@ -180,7 +180,11 @@ function renderStats(){
       makeStat(`1日平均: <b>${avgPerDay}</b> 分`),
     );
   } else {
-    const attended = keys.filter(k => md[k] === 1).length;
+    const attended = keys.filter(k => {
+      const v = md[k];
+      if(typeof v === 'object') return !!v && !v.__deleted && v.work===1;
+      return v === 1; // 旧フォーマット互換
+    }).length;
     attendedForFinance = attended;
     const total = daysInMonth(state.year, state.month);
     const rate = total ? Math.round(attended*100/total) : 0;
@@ -207,7 +211,11 @@ function calcStreak(monthObj){
       const ok = Array.isArray(rec?.sessions) && rec.sessions.length>0;
       days.push(ok?1:0);
     } else {
-      days.push(monthObj[dk] === 1 ? 1 : 0);
+  const v = monthObj[dk];
+  let present = 0;
+  if(typeof v === 'object') present = (v && !v.__deleted && v.work===1)?1:0;
+  else present = (v===1)?1:0;
+  days.push(present);
     }
   }
   let best=0, cur=0;
