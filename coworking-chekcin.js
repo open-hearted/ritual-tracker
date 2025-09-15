@@ -264,8 +264,9 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   const inp = box.querySelector('#medNewMin');
   inp.setAttribute('step','0.1');
   inp.focus();
+  if(window.beginMeditationEdit) window.beginMeditationEdit();
 }
-function hideMedEditor(){ if(medEditorEl) medEditorEl.style.display='none'; }
+function hideMedEditor(){ if(medEditorEl){ medEditorEl.style.display='none'; if(window.endMeditationEdit) window.endMeditationEdit(); } }
 function readMedSessions(){
   const md = readMonth(state.uid, state.year, state.month);
   const rec = md[medEditTarget.dateKey];
@@ -758,7 +759,9 @@ let __autoSync = {
   /* timerPush: null, */
   lastRemoteVersion: 0,
   inited: false,
-  mode: 'manual-new-only' // 新規入力完了時のみ同期
+  mode: 'manual-new-only', // 新規入力完了時のみ同期
+  editing: false,
+  pendingPull: false
 };
 
 function setSyncStatus(msg){
@@ -847,6 +850,11 @@ function mergePayload(localP, remoteP){
 async function autoPull(){
   const cfg = getS3Cfg();
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
+  if(__autoSync.editing){
+    __autoSync.pendingPull = true;
+    setSyncStatus('editing - skip pull');
+    return;
+  }
   try{
     setSyncStatus('pulling...');
     const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
@@ -942,6 +950,25 @@ function installAutoSyncHooks(){
 window.syncAfterNewMeditationSession = ()=>{ markDirtyImmediate(); };
 window.syncAfterNewWorkToggle = ()=>{ markDirtyImmediate(); };
 window.syncAfterFinanceSave = ()=>{ markDirtyImmediate(); };
+// ---- Editing soft-lock for meditation editor ----
+window.beginMeditationEdit = ()=>{
+  if(!__autoSync.editing){
+    __autoSync.editing = true;
+    setSyncStatus('editing (pull paused)');
+  }
+  resetEditIdleTimer();
+};
+window.endMeditationEdit = (force)=>{
+  if(!__autoSync.editing) return;
+  __autoSync.editing = false;
+  const need = __autoSync.pendingPull; __autoSync.pendingPull=false;
+  setSyncStatus('edit done');
+  if(need || force){ setTimeout(()=> autoPull(), 150); }
+};
+function resetEditIdleTimer(){
+  clearTimeout(window.__medEditIdleTimer);
+  window.__medEditIdleTimer = setTimeout(()=>{ window.endMeditationEdit(); }, 8000);
+}
 
 function startAutoSync(){
   const cfg = getS3Cfg();
