@@ -1010,6 +1010,47 @@ function installAutoSyncHooks(){
   // 手動モード: 既存関数を書き換えない。必要箇所から sync trigger を呼ぶ。
 }
 
+// 旧データ重複 (L*/R* 仮ID由来 / m|s 同一) を日単位で除去
+function cleanupLegacyMeditationDuplicates(){
+  try{
+    const users = getAllUsers();
+    const u = users[state.uid]; if(!u||!u.data) return;
+    let changed = false;
+    for(const monthKey of Object.keys(u.data)){
+      const month = u.data[monthKey]; if(!month||typeof month!== 'object') continue;
+      for(const dayKey of Object.keys(month)){
+        const rec = month[dayKey];
+        if(!rec || rec.__deleted) continue;
+        if(!Array.isArray(rec.sessions)) continue;
+        const sess = rec.sessions; const starts = Array.isArray(rec.starts)? rec.starts:[]; const ids = Array.isArray(rec.ids)? rec.ids:[];
+        const map = new Map();
+        const newSess=[]; const newStarts=[]; const newIds=[];
+        for(let i=0;i<sess.length;i++){
+          const id = ids[i];
+          const m = sess[i];
+            const s = starts[i]||'';
+          const k = (id && !/^L\d+$/.test(id) && !/^R\d+$/.test(id)) ? ('ID:'+id) : ('VAL:'+ (Math.round(m*100)/100)+'|'+s);
+          if(!map.has(k)){
+            map.set(k,true);
+            newSess.push(m); newStarts.push(starts[i]||''); newIds.push(id && !/^L\d+$/.test(id) && !/^R\d+$/.test(id) ? id : 'm'+Date.now().toString(36)+Math.random().toString(36).slice(2,7));
+          }
+        }
+        if(newSess.length !== sess.length){
+          rec.sessions = newSess; rec.starts = newStarts; rec.ids = newIds; rec.dayTs = new Date().toISOString(); changed = true;
+        }
+      }
+    }
+    if(changed){
+      users[state.uid] = u; setAllUsers(users); renderAll();
+      // 後で push されるよう dirty マーク
+      if(window.markDirtyImmediate) markDirtyImmediate();
+    }
+  }catch(e){ console.warn('[cleanup] failed', e); }
+}
+
+// 初回ロード時一度だけクリーンアップ（重複が見つかった場合再pushされる）
+setTimeout(()=>{ cleanupLegacyMeditationDuplicates(); }, 500);
+
 // 明示トリガ用ヘルパ（後で既存コードの追加ポイントから使用）
 window.syncAfterNewMeditationSession = ()=>{ markDirtyImmediate(); };
 window.syncAfterNewWorkToggle = ()=>{ markDirtyImmediate(); };
