@@ -141,6 +141,8 @@ function renderCalendar(){
         const md = readMonth(state.uid, year, month);
         md[dk] = next;
         writeMonth(state.uid, year, month, md);
+  if(window.syncAfterNewWorkToggle) window.syncAfterNewWorkToggle();
+  if(window.syncAfterNewWorkToggle) window.syncAfterNewWorkToggle();
         renderStats();
       });
     }
@@ -282,6 +284,7 @@ function writeMedSessions(arr){
     md[medEditTarget.dateKey] = { sessions: arr, starts };
   }
   writeMonth(state.uid, state.year, state.month, md);
+  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); // re-render calendar & stats
   renderMedSessionList();
 }
@@ -294,6 +297,7 @@ function addMedSessionWithStart(min, startedAt){
   starts.push(startedAt||'');
   md[medEditTarget.dateKey] = { sessions, starts };
   writeMonth(state.uid, state.year, state.month, md);
+  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar();
   renderMedSessionList();
 }
@@ -324,6 +328,7 @@ function renderMedSessionList(){
   if(starts.length>idx) starts.splice(idx,1);
   md[medEditTarget.dateKey] = sessions.length? { sessions, starts } : undefined;
   if(sessions.length) writeMonth(state.uid, state.year, state.month, md); else { delete md[medEditTarget.dateKey]; writeMonth(state.uid, state.year, state.month, md); }
+  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); renderMedSessionList();
   }));
 }
@@ -452,6 +457,7 @@ function clearThisMonth(){
   
   if(!confirm('この月の記録をクリアします。よろしいですか？')) return;
   writeMonth(state.uid, state.year, state.month, {});
+  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderAll();
 }
 
@@ -482,6 +488,7 @@ on('saveFinance','click', ()=>{
   };
   saveFinance(fin);
   renderFinanceStats();
+  if(window.syncAfterFinanceSave) window.syncAfterFinanceSave();
 });
 on('importFile','change', (e)=>{ const f=e.target.files && e.target.files[0]; if(f) doImport(f); });
 on('clearMonthBtn','click', clearThisMonth);
@@ -744,13 +751,14 @@ function persistS3ConfigAndMaybeStart(){
 
 let __autoSync = {
   pollingMs: 90000,
-  pushDebounceMs: 3000,
+  /* pushDebounceMs: 3000,  // 廃止 */
   dirty: false,
   pushing: false,
   timerPoll: null,
-  timerPush: null,
+  /* timerPush: null, */
   lastRemoteVersion: 0,
-  inited: false
+  inited: false,
+  mode: 'manual-new-only' // 新規入力完了時のみ同期
 };
 
 function setSyncStatus(msg){
@@ -915,23 +923,25 @@ async function autoPush(){
   finally { __autoSync.pushing=false; }
 }
 
-function markDirty(){
+function markDirtyImmediate(){
+  // すぐ push する（新規入力完了時のみ呼ばれる想定）
   __autoSync.dirty = true;
-  if(__autoSync.timerPush) clearTimeout(__autoSync.timerPush);
-  setSyncStatus('queued push (debounce '+__autoSync.pushDebounceMs+'ms)');
-  __autoSync.timerPush = setTimeout(()=> autoPush(), __autoSync.pushDebounceMs);
+  autoPush();
 }
+
+// 既存 writeMonth/saveFinance は多くの編集で呼ばれ復活問題の一因。フックをかけず、
+// 新規入力完了箇所（例: meditation セッション追加完了 / 出席トグル / finance 保存ボタン押下時）から明示的に markDirtyImmediate を呼ぶ。
 
 function installAutoSyncHooks(){
   if(__autoSync.inited) return;
   __autoSync.inited = true;
-  // Patch writeMonth & saveFinance & meditation session modifications
-  const _writeMonth = writeMonth;
-  writeMonth = function(uid,y,m,obj){ _writeMonth(uid,y,m,obj); markDirty(); };
-  const _saveFinance = saveFinance;
-  saveFinance = function(obj){ _saveFinance(obj); markDirty(); };
-  // Session add/edit/remove already call writeMonth which is patched.
+  // 手動モード: 既存関数を書き換えない。必要箇所から sync trigger を呼ぶ。
 }
+
+// 明示トリガ用ヘルパ（後で既存コードの追加ポイントから使用）
+window.syncAfterNewMeditationSession = ()=>{ markDirtyImmediate(); };
+window.syncAfterNewWorkToggle = ()=>{ markDirtyImmediate(); };
+window.syncAfterFinanceSave = ()=>{ markDirtyImmediate(); };
 
 function startAutoSync(){
   const cfg = getS3Cfg();
@@ -950,7 +960,7 @@ function startAutoSync(){
   setSyncStatus('initial pull...');
   autoPull().then(()=>{
     // 初回pullだけで remote が空の場合、ローカルを push するため dirty をセット
-    setTimeout(()=>{ markDirty(); }, 1200);
+  setTimeout(()=>{ markDirtyImmediate(); }, 1200);
   });
   if(__autoSync.timerPoll) clearInterval(__autoSync.timerPoll);
   __autoSync.timerPoll = setInterval(()=>{ autoPull(); }, __autoSync.pollingMs);
