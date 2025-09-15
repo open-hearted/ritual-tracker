@@ -180,18 +180,15 @@ function renderStats(){
       makeStat(`1日平均: <b>${avgPerDay}</b> 分`),
     );
   } else {
-    const attended = keys.filter(k => {
-      const v = md[k];
-      if(typeof v === 'object') return !!v && !v.__deleted && v.work===1;
-      return v === 1; // 旧フォーマット互換
-    }).length;
+    const attended = countAttendanceDays(md, state.year, state.month);
     attendedForFinance = attended;
     const total = daysInMonth(state.year, state.month);
     const rate = total ? Math.round(attended*100/total) : 0;
-    const streak = calcStreak(md);
+    const longest = calcAttendanceLongestStreak(md, state.year, state.month);
+    const current = calcAttendanceCurrentStreak(md, state.year, state.month);
     box.append(
       makeStat(`今月の出席日数: <b>${attended}</b> / ${total}日 (${rate}%)`),
-      makeStat(`連続出席（今月内）: <b>${streak}</b> 日`),
+      makeStat(`現在連続: <b>${current}</b> 日 / 最長: <b>${longest}</b> 日`),
     );
   }
   renderFinanceStats(attendedForFinance);
@@ -221,6 +218,41 @@ function calcStreak(monthObj){
   let best=0, cur=0;
   for(const v of days){ cur = v ? cur+1 : 0; if(cur>best) best=cur; }
   return best;
+}
+
+// ---- Attendance helper logic (presence & streak) ----
+function isAttendancePresent(v){
+  if(typeof v === 'object') return !!v && !v.__deleted && v.work===1;
+  return v === 1;
+}
+function countAttendanceDays(monthObj, year, month){
+  let cnt = 0;
+  const total = daysInMonth(year, month);
+  for(let d=1; d<=total; d++){
+    const dk = getDateKey(year, month, d);
+    if(isAttendancePresent(monthObj[dk])) cnt++;
+  }
+  return cnt;
+}
+function calcAttendanceLongestStreak(monthObj, year, month){
+  let best=0, cur=0;
+  const total = daysInMonth(year, month);
+  for(let d=1; d<=total; d++){
+    const dk = getDateKey(year, month, d);
+    if(isAttendancePresent(monthObj[dk])){ cur++; if(cur>best) best=cur; } else cur=0;
+  }
+  return best;
+}
+function calcAttendanceCurrentStreak(monthObj, year, month){
+  let cur=0;
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear()===year && today.getMonth()===month;
+  const lastDay = isCurrentMonth ? today.getDate() : daysInMonth(year, month);
+  for(let d=lastDay; d>=1; d--){
+    const dk = getDateKey(year, month, d);
+    if(isAttendancePresent(monthObj[dk])) cur++; else break;
+  }
+  return cur;
 }
 
 // ===== Meditation session editor (for meditation mode only) =====
