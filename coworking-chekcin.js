@@ -669,6 +669,48 @@ function autoS3RestoreIfConfigured(){
 renderS3Inputs();
 autoS3RestoreIfConfigured();
 
+// ===== Encryption Helpers (AES-GCM, E2E) =====
+// 以前の encryptJSON / decryptJSON が存在しない環境向けの軽量実装
+// フォーマット: {v:1, alg:'AES-GCM', salt:base64, iv:base64, cipher:base64}
+async function encryptJSON(obj, passphrase){
+  const enc = new TextEncoder();
+  const data = enc.encode(JSON.stringify(obj));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveAesKey(passphrase, salt);
+  const cipherBuf = await crypto.subtle.encrypt({name:'AES-GCM', iv}, key, data);
+  const payload = {
+    v:1, alg:'AES-GCM',
+    salt: b64FromBuf(salt),
+    iv: b64FromBuf(iv),
+    cipher: b64FromBuf(new Uint8Array(cipherBuf))
+  };
+  return new TextEncoder().encode(JSON.stringify(payload)).buffer;
+}
+async function decryptJSON(buf, passphrase){
+  try{
+    const txt = new TextDecoder().decode(buf);
+    const obj = JSON.parse(txt);
+    if(obj && obj.v===1 && obj.alg==='AES-GCM'){
+      const salt = bufFromB64(obj.salt);
+      const iv = bufFromB64(obj.iv);
+      const cipher = bufFromB64(obj.cipher);
+      const key = await deriveAesKey(passphrase, new Uint8Array(salt));
+      const plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:new Uint8Array(iv)}, key, cipher);
+      return JSON.parse(new TextDecoder().decode(plain));
+    }
+    // プレーン JSON だった場合はそのまま返す
+    return obj;
+  }catch(e){ console.warn('[crypto] decrypt error', e); throw e; }
+}
+async function deriveAesKey(pass, salt){
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pass), {name:'PBKDF2'}, false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt, iterations:120000, hash:'SHA-256'}, keyMaterial, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+function b64FromBuf(u8){ let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s); }
+function bufFromB64(b64){ const bin=atob(b64); const len=bin.length; const u8=new Uint8Array(len); for(let i=0;i<len;i++) u8[i]=bin.charCodeAt(i); return u8.buffer; }
+
 // Auto save config & possibly start sync upon changes
 ['s3DocId','s3Passphrase','s3Password','s3AutoRestore'].forEach(id=>{
   const el = document.getElementById(id);
@@ -800,7 +842,8 @@ async function autoPull(){
   try{
     setSyncStatus('pulling...');
     const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
-    if(!r.ok) return; // silent
+    if(r.status===401){ console.warn('[sync] pull unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (APP_PASSWORD?)'); return; }
+    if(!r.ok){ console.warn('[sync] pull non-200', r.status); return; }
     const { url } = await r.json();
     const res = await fetch(url, { cache:'no-store' }); if(!res.ok) return;
     const buf = await res.arrayBuffer();
@@ -841,10 +884,11 @@ async function autoPush(){
     if(payload.finance){ payload.finance.__updatedAt = payload.__meta.updatedAt; }
     const enc = await encryptJSON(payload, cfg.passphrase);
     const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
-    if(!sign.ok){ __autoSync.dirty=true; return; }
+    if(sign.status===401){ console.warn('[sync] push unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (push)'); __autoSync.dirty=true; return; }
+    if(!sign.ok){ console.warn('[sync] sign-put failed', sign.status); __autoSync.dirty=true; return; }
     const { url } = await sign.json();
     const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
-    if(!put.ok){ __autoSync.dirty=true; return; }
+    if(!put.ok){ console.warn('[sync] S3 PUT failed', put.status); __autoSync.dirty=true; return; }
     console.info('[sync] pushed v'+payload.__meta.version);
     setSyncStatus('pushed v'+payload.__meta.version+' (verify...)');
     setTimeout(()=>{ autoPull(); }, 2000); // verify
