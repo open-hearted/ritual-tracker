@@ -45,7 +45,10 @@
         <summary>同期</summary>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <input id="s3DocId" placeholder="docId" />
-          <input id="s3Passphrase" placeholder="E2E pass" type="password" />
+          <span style="display:flex;align-items:center;gap:4px;flex:1;">
+            <input id="s3Passphrase" placeholder="E2E pass" type="password" style="flex:1;" />
+            <button type="button" id="togglePassMed" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
+          </span>
           <input id="s3Password" placeholder="APP_PASSWORD" type="password" />
         </div>
         <div class="row tight" style="margin-top:4px; gap:6px">
@@ -57,6 +60,20 @@
       </details>
     </div>
   </div>
+  <script>
+  // E2E pass 表示トグル (瞑想ページ)
+  (function(){
+    const btn = document.getElementById('togglePassMed');
+    const inp = document.getElementById('s3Passphrase');
+    if(btn && inp){
+      btn.addEventListener('click', () => {
+        const showing = inp.type === 'text';
+        inp.type = showing ? 'password' : 'text';
+        btn.textContent = showing ? '👁' : '🙈';
+      });
+    }
+  })();
+  </script>
 </body>
 </html>
 
