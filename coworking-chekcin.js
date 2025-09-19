@@ -1196,3 +1196,93 @@ setTimeout(startAutoSync, 1500);
 // Manual debug helpers
 window.forcePull = autoPull;
 window.forcePush = ()=>{ markDirty(); autoPush(); };
+
+// UI設定（瞑想タイマー）
+const __medUI = {
+  TIMER_DEFAULT_MIN: 30,
+  TIMER_AUTOFOCUS: false,   // false の間は入力欄に自動フォーカスさせない
+};
+
+// 瞑想タイマーのUI強化（ボタン大サイズ化・分数既定値セット）
+function enhanceMeditationTimerUI(root=document){
+  try{
+    // 既定分数の設定（空なら30分を入れる）
+    const minInp =
+      root.getElementById?.('medMinutes') ||
+      root.querySelector?.('[data-role="med-minutes"]') ||
+      root.querySelector?.('input[name="med-minutes"]');
+    if(minInp){
+      if(!minInp.value || Number(minInp.value) <= 0){
+        minInp.value = __medUI.TIMER_DEFAULT_MIN;
+      }
+      minInp.setAttribute('inputmode','numeric');
+      minInp.setAttribute('min','1');
+      minInp.setAttribute('step','1');
+    }
+
+    // 開始ボタンを大きく見やすく（CSSクラス付与）
+    const startBtn =
+      root.querySelector?.('[data-med-start]') ||
+      root.getElementById?.('medStartBtn') ||
+      root.getElementById?.('startTimerBtn') ||
+      root.querySelector?.('.start-timer');
+    if(startBtn){
+      startBtn.classList.add('primary-big-med');
+      startBtn.setAttribute('aria-label', '瞑想を開始');
+    }
+  }catch(e){
+    console.warn('enhanceMeditationTimerUI error', e);
+  }
+}
+
+// タイマー画面表示直後の自動フォーカス抑止
+function disableTimerAutoFocusOnce(root=document){
+  if(__medUI.TIMER_AUTOFOCUS) return;
+  setTimeout(()=>{
+    const modal = root.getElementById?.('medEditor')
+      || root.querySelector?.('.med-editor, .med-modal, [data-med-editor]');
+    if(!modal) return;
+    const ae = root.activeElement;
+    if(ae && modal.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')){
+      ae.blur();
+    }
+  }, 30);
+}
+
+// 既存のエディタオープン関数があればフック（存在しない場合は無害）
+(function hookMeditationOpen(){
+  try{
+    const g = (typeof window!=='undefined') ? window : globalThis;
+    const original = g.openMeditationEditor || g.showMeditationEditor || g.openMeditationTimer;
+    if(typeof original === 'function'){
+      const wrapped = function(...args){
+        const r = original.apply(this, args);
+        // エディタ（タイマー）を開いた直後にUI調整＆自動フォーカス抑止
+        enhanceMeditationTimerUI(document);
+        disableTimerAutoFocusOnce(document);
+        return r;
+      };
+      if(g.openMeditationEditor) g.openMeditationEditor = wrapped;
+      else if(g.showMeditationEditor) g.showMeditationEditor = wrapped;
+      else if(g.openMeditationTimer) g.openMeditationTimer = wrapped;
+    }else{
+      // 関数名が不明な場合は DOM 監視でモーダル出現時に適用
+      const mo = new MutationObserver((muts)=>{
+        for(const m of muts){
+          for(const n of m.addedNodes){
+            if(!(n instanceof HTMLElement)) continue;
+            if(n.id==='medEditor' || n.matches?.('.med-editor, .med-modal, [data-med-editor]')){
+              enhanceMeditationTimerUI(n);
+              disableTimerAutoFocusOnce(n);
+            }
+          }
+        }
+      });
+      mo.observe(document.documentElement, { childList:true, subtree:true });
+      // 初回も一度だけ適用
+      enhanceMeditationTimerUI(document);
+    }
+  }catch(e){
+    console.warn('hookMeditationOpen error', e);
+  }
+})();
