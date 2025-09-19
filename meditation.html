@@ -139,13 +139,12 @@
   (function observeMedEditorOpen(){
     const modal = document.getElementById('medEditor');
     if(!modal){
-      // まだ無い場合はDOM生成を待つ
       const mo = new MutationObserver((muts)=>{
         for(const m of muts){
           for(const n of m.addedNodes){
             if(n instanceof HTMLElement && n.id === 'medEditor'){
               mo.disconnect();
-              observeMedEditorOpen(); // 再実行
+              observeMedEditorOpen();
               return;
             }
           }
@@ -155,32 +154,31 @@
       return;
     }
 
-    // 初期は必ず非表示（保険）
+    // 初期は必ず閉じる（覆い防止のセーフガード）
     modal.hidden = true;
     modal.setAttribute('aria-hidden','true');
+    modal.classList.remove('open');
+    modal.style.display = 'none';
 
+    // 「開いている」判定は class/aria のみ参照（computedStyle に頼らない）
     const isOpen = () =>
-      !modal.hidden &&
-      modal.getAttribute('aria-hidden') !== 'true' &&
-      (modal.classList.contains('open') || getComputedStyle(modal).display !== 'none');
+      modal.classList.contains('open') ||
+      modal.getAttribute('aria-hidden') === 'false';
 
     const applyWhenOpen = ()=>{
       if(isOpen()){
         ensureDefaultMinutes();
         styleStartButton();
         disableTimerAutoFocusOnce();
-        focusStartButton();       // ← 開いたら開始ボタンにフォーカス
+        focusStartButton(); // 開いたら開始ボタンにフォーカス
       }
     };
 
-    // 属性変化（hidden/aria-hidden/class/display）を監視
-    const mo = new MutationObserver(()=>{
-      applyWhenOpen();
-    });
-    mo.observe(modal, { attributes:true, attributeFilter:['hidden','class','aria-hidden','style'] });
+    // 属性変化を監視
+    const mo2 = new MutationObserver(applyWhenOpen);
+    mo2.observe(modal, { attributes:true, attributeFilter:['hidden','class','aria-hidden','style'] });
 
-    // 念のため初回も一度適用
-    applyWhenOpen();
+    // 初期は適用しない（誤開封防止）
   })();
 
   // E2E pass 表示トグル (瞑想ページ)
