@@ -76,42 +76,40 @@
   // UI設定（瞑想タイマー）
   const __medUI = {
     TIMER_DEFAULT_MIN: 30,
-    TIMER_AUTOFOCUS: false,   // false の間は入力欄に自動フォーカスさせない
+    TIMER_AUTOFOCUS: false, // 入力欄に自動フォーカスさせない
   };
-  
-  // 瞑想タイマーのUI強化（ボタン大サイズ化・分数既定値セット）
-  function enhanceMeditationTimerUI(root=document){
-    try{
-      // 既定分数の設定（空なら30分を入れる）
-      const minInp =
-        root.getElementById?.('medMinutes') ||
-        root.querySelector?.('[data-role="med-minutes"]') ||
-        root.querySelector?.('input[name="med-minutes"]');
-      if(minInp){
-        if(!minInp.value || Number(minInp.value) <= 0){
-          minInp.value = __medUI.TIMER_DEFAULT_MIN;
-        }
-        minInp.setAttribute('inputmode','numeric');
-        minInp.setAttribute('min','1');
-        minInp.setAttribute('step','1');
+
+  // 既定分数の設定（空や不正値なら30分を入れる）
+  function ensureDefaultMinutes(root=document){
+    const minInp =
+      root.getElementById?.('medMinutes') ||
+      root.querySelector?.('[data-role="med-minutes"]') ||
+      root.querySelector?.('input[name="med-minutes"]');
+    if(minInp){
+      const n = Number(minInp.value);
+      if(!minInp.value || !Number.isFinite(n) || n <= 0){
+        minInp.value = __medUI.TIMER_DEFAULT_MIN;
       }
-  
-      // 開始ボタンを大きく見やすく（CSSクラス付与）
-      const startBtn =
-        root.querySelector?.('[data-med-start]') ||
-        root.getElementById?.('medStartBtn') ||
-        root.getElementById?.('startTimerBtn') ||
-        root.querySelector?.('.start-timer');
-      if(startBtn){
-        startBtn.classList.add('primary-big-med');
-        startBtn.setAttribute('aria-label', '瞑想を開始');
-      }
-    }catch(e){
-      console.warn('enhanceMeditationTimerUI error', e);
+      minInp.setAttribute('inputmode','numeric');
+      minInp.setAttribute('min','1');
+      minInp.setAttribute('step','1');
     }
   }
-  
-  // タイマー画面表示直後の自動フォーカス抑止
+
+  // 開始ボタンを大きく見やすく（クラス付与）
+  function styleStartButton(root=document){
+    const startBtn =
+      root.querySelector?.('[data-med-start]') ||
+      root.getElementById?.('medStartBtn') ||
+      root.getElementById?.('startTimerBtn') ||
+      root.querySelector?.('.start-timer');
+    if(startBtn){
+      startBtn.classList.add('primary-big-med');
+      startBtn.setAttribute('aria-label', '瞑想を開始');
+    }
+  }
+
+  // 入力欄への自動フォーカスを抑止
   function disableTimerAutoFocusOnce(root=document){
     if(__medUI.TIMER_AUTOFOCUS) return;
     setTimeout(()=>{
@@ -124,44 +122,67 @@
       }
     }, 30);
   }
-  
-  // 既存のエディタオープン関数があればフック（存在しない場合は無害）
-  (function hookMeditationOpen(){
-    try{
-      const g = (typeof window!=='undefined') ? window : globalThis;
-      const original = g.openMeditationEditor || g.showMeditationEditor || g.openMeditationTimer;
-      if(typeof original === 'function'){
-        const wrapped = function(...args){
-          const r = original.apply(this, args);
-          // エディタ（タイマー）を開いた直後にUI調整＆自動フォーカス抑止
-          enhanceMeditationTimerUI(document);
-          disableTimerAutoFocusOnce(document);
-          return r;
-        };
-        if(g.openMeditationEditor) g.openMeditationEditor = wrapped;
-        else if(g.showMeditationEditor) g.showMeditationEditor = wrapped;
-        else if(g.openMeditationTimer) g.openMeditationTimer = wrapped;
-      }else{
-        // 関数名が不明な場合は DOM 監視でモーダル出現時に適用
-        const mo = new MutationObserver((muts)=>{
-          for(const m of muts){
-            for(const n of m.addedNodes){
-              if(!(n instanceof HTMLElement)) continue;
-              if(n.id==='medEditor' || n.matches?.('.med-editor, .med-modal, [data-med-editor]')){
-                enhanceMeditationTimerUI(n);
-                disableTimerAutoFocusOnce(n);
-              }
+
+  // タイマー開始ボタンへフォーカス
+  function focusStartButton(root=document){
+    setTimeout(()=>{
+      const btn =
+        root.querySelector?.('[data-med-start]') ||
+        root.getElementById?.('medStartBtn') ||
+        root.getElementById?.('startTimerBtn') ||
+        root.querySelector?.('.start-timer');
+      if(btn && typeof btn.focus === 'function') btn.focus();
+    }, 0);
+  }
+
+  // medEditor の開閉を監視して、開いたら適用
+  (function observeMedEditorOpen(){
+    const modal = document.getElementById('medEditor');
+    if(!modal){
+      // まだ無い場合はDOM生成を待つ
+      const mo = new MutationObserver((muts)=>{
+        for(const m of muts){
+          for(const n of m.addedNodes){
+            if(n instanceof HTMLElement && n.id === 'medEditor'){
+              mo.disconnect();
+              observeMedEditorOpen(); // 再実行
+              return;
             }
           }
-        });
-        mo.observe(document.documentElement, { childList:true, subtree:true });
-        // 初回も一度だけ適用
-        enhanceMeditationTimerUI(document);
-      }
-    }catch(e){
-      console.warn('hookMeditationOpen error', e);
+        }
+      });
+      mo.observe(document.documentElement, { childList:true, subtree:true });
+      return;
     }
+
+    // 初期は必ず非表示（保険）
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden','true');
+
+    const isOpen = () =>
+      !modal.hidden &&
+      modal.getAttribute('aria-hidden') !== 'true' &&
+      (modal.classList.contains('open') || getComputedStyle(modal).display !== 'none');
+
+    const applyWhenOpen = ()=>{
+      if(isOpen()){
+        ensureDefaultMinutes();
+        styleStartButton();
+        disableTimerAutoFocusOnce();
+        focusStartButton();       // ← 開いたら開始ボタンにフォーカス
+      }
+    };
+
+    // 属性変化（hidden/aria-hidden/class/display）を監視
+    const mo = new MutationObserver(()=>{
+      applyWhenOpen();
+    });
+    mo.observe(modal, { attributes:true, attributeFilter:['hidden','class','aria-hidden','style'] });
+
+    // 念のため初回も一度適用
+    applyWhenOpen();
   })();
+
   // E2E pass 表示トグル (瞑想ページ)
   (function(){
     const btn = document.getElementById('togglePassMed');
@@ -172,22 +193,6 @@
         inp.type = showing ? 'password' : 'text';
         btn.textContent = showing ? '👁' : '🙈';
       });
-    }
-  })();
-  // 初期は必ず非表示を維持（CSS競合の保険）表示を維持（CSS競合の保険）
-  (function(){tion(){
-    const el = document.getElementById('medEditor');st el = document.getElementById('medEditor');
-    if(el){    if(el){
-      el.hidden = true;      el.hidden = true;
-
-
-
-
-
-
-
-
-</html></body>  </script>  })();    }      el.setAttribute('aria-hidden','true');      el.setAttribute('aria-hidden','true');
     }
   })();
   </script>
