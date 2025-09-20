@@ -72,6 +72,13 @@
         grid-column: 1 / -1;
       }
     }
+    /* ポップアップが画面外にはみ出さないようにする */
+    #medEditor{
+      max-width: min(96vw, 380px);
+      max-height: calc(100vh - 16px);
+      overflow: auto;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>

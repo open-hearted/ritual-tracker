@@ -301,22 +301,39 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   ensureMedEditor();
   medEditTarget.dateKey = dateKey; medEditTarget.anchor = anchorEl;
   const box = medEditorEl;
-  const r = anchorEl.getBoundingClientRect();
+
+  // 表示してサイズを測れるようにする＋ビューポート内に収まる上限を付与
   box.style.display='block';
-  // position (try below; fallback above)
-  const topPreferred = r.bottom + 6;
-  const left = Math.min(window.innerWidth - 220, Math.max(4, r.left));
-  box.style.left = left + 'px';
-  if(topPreferred + box.offsetHeight < window.innerHeight){
-    box.style.top = topPreferred + 'px';
-  } else {
-    box.style.top = (r.top - box.offsetHeight - 6) + 'px';
+  box.style.maxWidth = '96vw';
+  box.style.maxHeight = 'calc(100vh - 16px)';
+  box.style.overflow = 'auto';
+
+  const r = anchorEl.getBoundingClientRect();
+  const margin = 8;
+  const bw = box.offsetWidth || 240;
+  const bh = box.offsetHeight || 200;
+
+  // 横位置: 左端/右端をクランプ
+  let left = Math.max(margin, Math.min(r.left, window.innerWidth - bw - margin));
+  // 縦位置: 下に出す→はみ出すなら上→それでも無理なら中央寄せ（上下クランプ）
+  let top = r.bottom + 6;
+  if (top + bh > window.innerHeight - margin) {
+    const aboveTop = r.top - bh - 6;
+    if (aboveTop >= margin) {
+      top = aboveTop; // 上に出す
+    } else {
+      // ビューポート中央寄せ（上下クランプ）
+      top = Math.max(margin, Math.min(window.innerHeight - bh - margin, r.top + (r.height/2) - (bh/2)));
+    }
   }
+
+  box.style.left = Math.round(left) + 'px';
+  box.style.top  = Math.round(top)  + 'px';
+
   box.querySelector('#medEditDate').textContent = dateKey;
   renderMedSessionList();
   const inp = box.querySelector('#medNewMin');
   inp.setAttribute('step','0.1');
-  // フォーカス先を開始ボタンに変更
   setTimeout(()=>{ box.querySelector('#medTimerStart')?.focus(); }, 0);
   if(window.beginMeditationEdit) window.beginMeditationEdit();
 }
