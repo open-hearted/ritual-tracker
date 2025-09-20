@@ -103,11 +103,11 @@
     });
     mo.observe(document.documentElement,{childList:true,subtree:true});
 
-    // 右クリックによる全削除をブロック（カレンダーセルのみ）
-    document.addEventListener('contextmenu', (e)=>{
-      const cell = e.target && e.target.closest && e.target.closest('.cell');
-      if(cell){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
-    }, true);
+    // 右クリックによる全削除ブロックは削除（右クリックでタイマーを開けるようにする）
+    // document.addEventListener('contextmenu', (e)=>{
+    //   const cell = e.target && e.target.closest && e.target.closest('.cell');
+    //   if(cell){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+    // }, true);
 
     // clearMedDay があっても無効化
     try{ window.clearMedDay = function(){ /* disabled */ }; }catch{}

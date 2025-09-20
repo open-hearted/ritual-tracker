@@ -116,20 +116,17 @@ function renderCalendar(){
       if(isToday) el.setAttribute('data-today','true');
       // meditation cell layout
   el.innerHTML = `<div class="d">${d}</div><div class="med-summary">${sessions.length ? (totalMin+'<span class="med-min-unit">分</span>') : ''}</div>`;
-      el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで編集 / 右クリックでクリア)` : '未記録（クリックで追加）';
+      // ツールチップ更新（右クリックでタイマー）
+      el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで編集 / 右クリックでタイマー)` : '未記録（クリックで追加 / 右クリックでタイマー）';
       el.addEventListener('click', (ev)=>{
         openMeditationEditor(dk, el, sessions);
       });
+      // 右クリックでタイマーを開く（日クリアは廃止）
       el.addEventListener('contextmenu', (e)=>{
         e.preventDefault();
-        const recNow = readMonth(state.uid, year, month)[dk];
-        if(!recNow) return;
-        if(confirm('この日の瞑想記録をすべて削除しますか？')){
-          const md = readMonth(state.uid, year, month);
-          delete md[dk];
-          writeMonth(state.uid, year, month, md);
-          renderCalendar();
-        }
+        openMeditationEditor(dk, el, sessions);
+        // 開始ボタンへフォーカス
+        setTimeout(()=>{ medEditorEl?.querySelector('#medTimerStart')?.focus(); }, 0);
       });
     } else {
       const val = monthData[dk] || 0;
@@ -274,14 +271,15 @@ function ensureMedEditor(){
   medEditorEl.innerHTML = '<div class="med-head"><span id="medEditDate"></span><button id="medClose" title="閉じる">✕</button></div>'+
   '<div class="med-sessions" id="medSessions"></div>'+
   '<div class="med-timer" id="medTimerBox">'+
-    '<input id="medTimerMin" type="number" min="0.1" step="0.5" value="10" title="カウントダウン分" />'+
-    '<span id="medTimerDisplay">--:--</span>'+ 
-    '<span class="med-startat">開始: <b id="medTimerStartedAt">--:--</b></span>'+ 
-    '<button id="medTimerStart">開始</button>'+ 
-    '<button id="medTimerPause" disabled>一時停止</button>'+ 
-    '<button id="medTimerResume" disabled>再開</button>'+ 
-    '<button id="medTimerCancel" disabled>中止</button>'+ 
-    '<button id="medAlarmStop" disabled>消音</button>'+ 
+    // 既定値を30分へ
+    '<input id="medTimerMin" type="number" min="0.1" step="0.5" value="30" title="カウントダウン分" />'+
+    '<span id="medTimerDisplay">--:--</span>'+
+    '<span class="med-startat">開始: <b id="medTimerStartedAt">--:--</b></span>'+
+    '<button id="medTimerStart">開始</button>'+
+    '<button id="medTimerPause" disabled>一時停止</button>'+
+    '<button id="medTimerResume" disabled>再開</button>'+
+    '<button id="medTimerCancel" disabled>中止</button>'+
+    '<button id="medAlarmStop" disabled>消音</button>'+
   '</div>'+
   '<div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
   document.body.appendChild(medEditorEl);
@@ -461,7 +459,6 @@ function stopAlarm(){
     if (medAlarm.ctx) { medAlarm.ctx.close(); }
   } catch { }
   medAlarm = { ctx: null, osc: null, gain: null, on: false, _beepInt: null };
-  const bA = medEditorEl?.querySelector('#medAlarmStop'); if (bA) bA.disabled = true;
 }
 function startMedTimer(){
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
