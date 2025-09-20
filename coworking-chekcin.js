@@ -319,7 +319,8 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   renderMedSessionList();
   const inp = box.querySelector('#medNewMin');
   inp.setAttribute('step','0.1');
-  inp.focus();
+  // フォーカス先を開始ボタンに変更
+  setTimeout(()=>{ box.querySelector('#medTimerStart')?.focus(); }, 0);
   if(window.beginMeditationEdit) window.beginMeditationEdit();
 }
 function hideMedEditor(){ if(medEditorEl){ medEditorEl.style.display='none'; if(window.endMeditationEdit) window.endMeditationEdit(); } }
@@ -1088,7 +1089,7 @@ function cleanupLegacyMeditationDuplicates(){
         const rec = month[dayKey];
         if(!rec || rec.__deleted) continue;
         if(!Array.isArray(rec.sessions)) continue;
-        const sess = rec.sessions; const starts = Array.isArray(rec.starts)? rec.starts:[]; const ids = Array.isArray(rec.ids)? rec.ids:[];
+        const sess = rec.sessions; const starts = Array.isArray(rec.starts)? rec.starts:[]; const ids = Array.isArray(rec.ids)? rec.ids: [];
         const fp = (m,s)=> (Math.round(m*100)/100)+'|'+s;
         const map = new Map();
         const newSess=[]; const newStarts=[]; const newIds=[];
