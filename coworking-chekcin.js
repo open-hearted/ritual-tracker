@@ -121,11 +121,12 @@ function renderCalendar(){
       el.addEventListener('click', (ev)=>{
         openMeditationEditor(dk, el, sessions);
       });
-      // 右クリックでタイマーを開く（フォーカスは openMeditationEditor 内で実施）
+      // 右クリックでタイマーを開く（日クリアは廃止）
       el.addEventListener('contextmenu', (e)=>{
         e.preventDefault();
         openMeditationEditor(dk, el, sessions);
-        // （削除）ここでの開始ボタンフォーカスは重複のため撤去
+        // 開始ボタンへフォーカス
+        setTimeout(()=>{ medEditorEl?.querySelector('#medTimerStart')?.focus(); }, 0);
       });
     } else {
       const val = monthData[dk] || 0;
@@ -318,8 +319,7 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   renderMedSessionList();
   const inp = box.querySelector('#medNewMin');
   inp.setAttribute('step','0.1');
-  // （変更）エディタを開いたら開始ボタンにフォーカス
-  setTimeout(()=>{ box.querySelector('#medTimerStart')?.focus(); }, 0);
+  inp.focus();
   if(window.beginMeditationEdit) window.beginMeditationEdit();
 }
 function hideMedEditor(){ if(medEditorEl){ medEditorEl.style.display='none'; if(window.endMeditationEdit) window.endMeditationEdit(); } }
