@@ -70,6 +70,79 @@
       });
     }
   })();
+
+  // 「日クリア」機能の削除/無効化
+  (function(){
+    const JP_LABEL = '日クリア';
+    const reClearDay = /clear[-_\s]?day/i;
+
+    const isDailyClearEl = (el) => {
+      if (!(el instanceof Element)) return false;
+      const norm = (s) => (s || '').replace(/\s+/g,'').trim();
+      const texts = [
+        norm(el.textContent || ''),
+        norm(el.getAttribute('aria-label') || ''),
+        norm(el.getAttribute('title') || '')
+      ];
+      const attrs = [
+        el.id || '',
+        el.className || '',
+        el.getAttribute('data-action') || '',
+        el.getAttribute('data-testid') || ''
+      ];
+      // 日本語ラベル優先で検出
+      if (texts.some(t => t.includes(JP_LABEL))) return true;
+      // 英語トークン（保険）
+      if (attrs.some(a => reClearDay.test(a))) return true;
+      if (texts.some(t => reClearDay.test(t))) return true;
+      return false;
+    };
+
+    const removeTargets = (root=document) => {
+      if (isDailyClearEl(root)) { root.remove(); return; }
+      const candidates = root.querySelectorAll([
+        'button','a','[role="button"]',
+        '[data-action="clear-day"]','[data-testid="clear-day"]',
+        '#clearDay','.clear-day','[id*="clearDay"]','[class*="clear-day"]'
+      ].join(','));
+      candidates.forEach(el => {
+        if (isDailyClearEl(el)) el.remove();
+      });
+      // 追加でテキスト完全一致の日本語ボタンも除去
+      root.querySelectorAll('button, a, [role="button"]').forEach(el=>{
+        const t = (el.textContent || '').trim();
+        if (t === JP_LABEL) el.remove();
+      });
+    };
+
+    // 初期削除
+    removeTargets(document);
+
+    // 動的追加を監視して削除
+    const mo = new MutationObserver(ms=>{
+      for (const m of ms) {
+        m.addedNodes.forEach(n=>{
+          if (n.nodeType === 1) removeTargets(n);
+        });
+      }
+    });
+    mo.observe(document.documentElement, { childList:true, subtree:true });
+
+    // クリックをキャプチャして無効化（念のため）
+    document.addEventListener('click', (e)=>{
+      let n = e.target;
+      while (n && n !== document) {
+        if (isDailyClearEl(n)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          e.stopPropagation();
+          console.info('[meditation] 「日クリア」機能を無効化しました（click blocked）');
+          return;
+        }
+        n = n.parentNode;
+      }
+    }, true);
+  })();
   </script>
 </body>
 </html>
