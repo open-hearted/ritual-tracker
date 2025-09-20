@@ -70,6 +70,48 @@
       });
     }
   })();
+
+  // 「日クリア」機能の削除/無効化（タイマー等は維持）
+  (function(){
+    const isClearDayEl = (el)=>{
+      if(!(el instanceof Element)) return false;
+      const txt = (el.textContent||'').trim();
+      const id = el.id||'';
+      const cls = el.className||'';
+      if (txt === '日クリア') return true;
+      if (id === 'medClearDay') return true;
+      return /clear[-_\s]?day/i.test(id) || /clear[-_\s]?day/i.test(cls);
+    };
+
+    function purge(root=document){
+      // 動的に出る「日クリア」ボタンを除去
+      root.querySelectorAll('button, [role="button"], #medClearDay, .clear-day').forEach(el=>{
+        if (isClearDayEl(el)) el.remove();
+      });
+      // ツールチップから「右クリックでクリア」を削除
+      document.querySelectorAll('.cell[title]').forEach(c=>{
+        c.title = c.title.replace(/\s*\/\s*右クリックでクリア\s*/g, '');
+      });
+    }
+
+    // 初期＆動的監視
+    purge();
+    const mo = new MutationObserver(ms=>{
+      for(const m of ms){
+        m.addedNodes.forEach(n=>{ if(n.nodeType===1) purge(n); });
+      }
+    });
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+
+    // 右クリックによる全削除をブロック（カレンダーセルのみ）
+    document.addEventListener('contextmenu', (e)=>{
+      const cell = e.target && e.target.closest && e.target.closest('.cell');
+      if(cell){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
+    }, true);
+
+    // clearMedDay があっても無効化
+    try{ window.clearMedDay = function(){ /* disabled */ }; }catch{}
+  })();
   </script>
 </body>
 </html>
