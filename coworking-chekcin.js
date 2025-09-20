@@ -345,7 +345,10 @@ function writeMedSessions(arr){
     if(ids.length < arr.length){
       for(let i=ids.length;i<arr.length;i++){ ids.push('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)); }
     }
-    md[medEditTarget.dateKey] = { sessions: arr, starts, ids, dayTs: new Date().toISOString() };
+    const oldLen = Array.isArray(existing.sessions) ? existing.sessions.length : 0;
+    const obj = { sessions: arr, starts, ids, dayTs: new Date().toISOString() };
+    if(arr.length < oldLen){ obj.replace = true; } // 減少編集は置換扱い
+    md[medEditTarget.dateKey] = obj;
   }
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
@@ -382,23 +385,31 @@ function renderMedSessionList(){
     const cur = readMedSessions(); const curVal=cur[idx];
     const nvStr = prompt('新しい分数', curVal);
     if(nvStr===null) return; const nv=parseFloat(nvStr); if(!Number.isFinite(nv)||nv<=0){ alert('正の数'); return; }
-  cur[idx]=nv; writeMedSessions(cur);
+    const next = cur.slice(); next[idx]=nv;
+    writeMedSessions(next);
   }));
   wrap.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{
     const idx = parseInt(b.getAttribute('data-del'),10);
-  // delete both sessions and starts
-  const md = readMonth(state.uid, state.year, state.month);
-  const rec = md[medEditTarget.dateKey] || {};
-  const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
-  const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
-  sessions.splice(idx,1);
-  if(starts.length>idx) starts.splice(idx,1);
-  const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
-  if(ids.length>idx) ids.splice(idx,1);
-  md[medEditTarget.dateKey] = sessions.length? { sessions, starts, ids, dayTs:new Date().toISOString() } : { __deleted:true, ts:new Date().toISOString() };
-  writeMonth(state.uid, state.year, state.month, md);
-  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
-  renderCalendar(); renderMedSessionList();
+    // delete both sessions and starts
+    const md = readMonth(state.uid, state.year, state.month);
+    const rec = md[medEditTarget.dateKey] || {};
+    const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
+    const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
+    const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
+    const oldLen = sessions.length;
+    sessions.splice(idx,1);
+    if(starts.length>idx) starts.splice(idx,1);
+    if(ids.length>idx) ids.splice(idx,1);
+    if(sessions.length){
+      const obj = { sessions, starts, ids, dayTs:new Date().toISOString() };
+      obj.replace = true; // セッション削除は置換扱い
+      md[medEditTarget.dateKey] = obj;
+    } else {
+      md[medEditTarget.dateKey] = { __deleted:true, ts:new Date().toISOString() };
+    }
+    writeMonth(state.uid, state.year, state.month, md);
+    if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
+    renderCalendar(); renderMedSessionList();
   }));
 }
 function addMedSession(){
@@ -849,7 +860,7 @@ function mergePayload(localP, remoteP){
         const isMed = v => v && typeof v==='object' && (Array.isArray(v.sessions) || Array.isArray(v.starts) || Array.isArray(v.ids));
         const isAttendanceObj = v => v && typeof v==='object' && !isMed(v) && (v.work!==undefined || v.__deleted);
         if(isMed(lVal) || isMed(rVal)){
-          // --- Meditation merge (既存) ---
+          // --- Meditation merge ---
           const lDel = lVal && lVal.__deleted;
           const rDel = rVal && rVal.__deleted;
           if(lDel || rDel){
@@ -866,28 +877,38 @@ function mergePayload(localP, remoteP){
             mergedMonth[dk] = (liveTs > delTs) ? liveObj : delObj;
             continue;
           }
+          // 置換フラグがあれば新しい方を全面採用（削除・短縮などの編集を優先反映）
+          const lRep = !!lVal.replace;
+          const rRep = !!rVal.replace;
+          if(lRep || rRep){
+            const lTs = lVal.dayTs || '1970';
+            const rTs = rVal.dayTs || '1970';
+            mergedMonth[dk] = (rTs > lTs) ? rVal : lVal;
+            continue;
+          }
+          // --- 従来の追加統合（ユニオン） ---
           const lSess = Array.isArray(lVal?.sessions)? lVal.sessions:[];
           const rSess = Array.isArray(rVal?.sessions)? rVal.sessions:[];
-            const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
-            const rStarts = Array.isArray(rVal?.starts)? rVal.starts:[];
-            const lIds = Array.isArray(lVal?.ids)? lVal.ids:[];
-            const rIds = Array.isArray(rVal?.ids)? rVal.ids:[];
-            const combined = [];
-            const fp = (m,s)=>`${Math.round(m*100)/100}|${s}`;
-            for(let i=0;i<lSess.length;i++){ const m=lSess[i]; const s=lStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:lIds[i]||fid}); }
-            for(let i=0;i<rSess.length;i++){ const m=rSess[i]; const s=rStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:rIds[i]||fid}); }
-            const byFp = new Map();
-            combined.forEach(o=>{
-              const f = fp(o.m,o.s);
-              const cur = byFp.get(f);
-              if(!cur) byFp.set(f,o); else {
-                const curReal = /^m[0-9a-z]/.test(cur.id);
-                const oReal = /^m[0-9a-z]/.test(o.id);
-                if(oReal && !curReal) byFp.set(f,o);
-              }
-            });
-            const uniq = [...byFp.values()].slice(0,48);
-            mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
+          const lStarts = Array.isArray(lVal?.starts)? lVal.starts:[];
+          const rStarts = Array.isArray(rVal?.starts)? rVal.starts:[];
+          const lIds = Array.isArray(lVal?.ids)? lVal.ids:[];
+          const rIds = Array.isArray(rVal?.ids)? rVal.ids:[];
+          const combined = [];
+          const fp = (m,s)=>`${Math.round(m*100)/100}|${s}`;
+          for(let i=0;i<lSess.length;i++){ const m=lSess[i]; const s=lStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:lIds[i]||fid}); }
+          for(let i=0;i<rSess.length;i++){ const m=rSess[i]; const s=rStarts[i]||''; const fid='v_'+fp(m,s); combined.push({m, s, id:rIds[i]||fid}); }
+          const byFp = new Map();
+          combined.forEach(o=>{
+            const f = fp(o.m,o.s);
+            const cur = byFp.get(f);
+            if(!cur) byFp.set(f,o); else {
+              const curReal = /^m[0-9a-z]/.test(cur.id);
+              const oReal = /^m[0-9a-z]/.test(o.id);
+              if(oReal && !curReal) byFp.set(f,o);
+            }
+          });
+          const uniq = [...byFp.values()].slice(0,48);
+          mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
         } else if(isAttendanceObj(lVal) || isAttendanceObj(rVal)){
           // --- Attendance object merge ---
           const norm = v => {
