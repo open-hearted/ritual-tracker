@@ -121,32 +121,3 @@ body {
   max-height: 100%;
   overflow: auto;
 }
-/* モーダルは初期非表示を強制（覆わない） */
-.med-editor{
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: none;
-  visibility: hidden;
-  pointer-events: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0,0,0,0.35);
-}
-.med-editor[hidden],
-.med-editor[aria-hidden="true"]{
-  display: none !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
-.med-editor.open,
-.med-editor[aria-hidden="false"]{
-  display: flex !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
-.med-editor .card{
-  width: min(92vw, 420px);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-  border-radius: 14px;
-}
