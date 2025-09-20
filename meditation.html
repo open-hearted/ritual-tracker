@@ -22,6 +22,27 @@
       min-width: 120px;
       border-radius: 12px;
       touch-action: manipulation;
+      background: linear-gradient(135deg, #22d3ee, #a78bfa);
+      color: #fff;
+      border: 0;
+      box-shadow: 0 6px 18px rgba(167,139,250,.35), 0 0 0 1px rgba(255,255,255,.08) inset;
+    }
+    #medTimerStart:hover{
+      filter: brightness(1.05);
+    }
+    #medTimerStart:active{
+      transform: translateY(1px);
+      filter: brightness(.98);
+    }
+    #medTimerStart:focus-visible{
+      outline: 2px solid #a78bfa;
+      outline-offset: 2px;
+    }
+    #medTimerStart:disabled{
+      opacity: .55;
+      filter: grayscale(40%);
+      cursor: not-allowed;
+      box-shadow: none;
     }
     @media (max-width: 480px){
       /* 1行目: [分入力][残り時間表示][開始] / 2行目: [開始時刻表示] */
