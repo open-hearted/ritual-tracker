@@ -158,19 +158,19 @@
     modal.hidden = true;
     modal.setAttribute('aria-hidden','true');
     modal.classList.remove('open');
-    modal.style.display = 'none';
 
-    // 「開いている」判定は class/aria のみ参照（computedStyle に頼らない）
+    // 「開いている」判定は class/aria/hidden を参照
     const isOpen = () =>
       modal.classList.contains('open') ||
-      modal.getAttribute('aria-hidden') === 'false';
+      modal.getAttribute('aria-hidden') === 'false' ||
+      !modal.hidden;
 
     const applyWhenOpen = ()=>{
       if(isOpen()){
         ensureDefaultMinutes();
         styleStartButton();
         disableTimerAutoFocusOnce();
-        focusStartButton(); // 開いたら開始ボタンにフォーカス
+        focusStartButton();
       }
     };
 
@@ -193,6 +193,130 @@
       });
     }
   })();
+
+  // ▼ カレンダー描画ロジックを追加
+  (function(){
+    const S = {
+      current: new Date(), // 現在月（1日固定で管理）
+    };
+
+    const els = {
+      dowRow: document.getElementById('dowRow'),
+      calGrid: document.getElementById('calGrid'),
+      monthLabel: document.getElementById('monthLabel'),
+      prevBtn: document.getElementById('prevBtn'),
+      nextBtn: document.getElementById('nextBtn'),
+    };
+
+    if(!els.dowRow || !els.calGrid || !els.monthLabel || !els.prevBtn || !els.nextBtn){
+      // 必要要素が無ければ何もしない
+      return;
+    }
+
+    const DOW_JP = ['日','月','火','水','木','金','土']; // 日曜起点
+
+    const startOfMonth = (d)=> new Date(d.getFullYear(), d.getMonth(), 1);
+    const daysInMonth = (y,m)=> new Date(y, m + 1, 0).getDate();
+    const ymd = (d)=> {
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const da = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${da}`;
+    };
+    const jpDateLabel = (d)=> `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+    const monthLabel = (d)=> `${d.getFullYear()}年${d.getMonth()+1}月`;
+
+    function renderDow(){
+      els.dowRow.textContent = '';
+      for(let i=0;i<7;i++){
+        const div = document.createElement('div');
+        div.className = 'dow-cell';
+        div.textContent = DOW_JP[i];
+        div.setAttribute('aria-label', `${DOW_JP[i]}曜日`);
+        if(i===0) div.classList.add('sun');
+        if(i===6) div.classList.add('sat');
+        els.dowRow.appendChild(div);
+      }
+    }
+
+    function renderGrid(){
+      const base = startOfMonth(S.current);
+      els.monthLabel.textContent = monthLabel(base);
+      els.calGrid.textContent = '';
+
+      const firstDow = base.getDay(); // 0=Sun
+      const total = daysInMonth(base.getFullYear(), base.getMonth());
+
+      // 先頭の空白
+      for(let i=0;i<firstDow;i++){
+        const emp = document.createElement('div');
+        emp.className = 'cal-cell empty';
+        emp.setAttribute('aria-hidden','true');
+        els.calGrid.appendChild(emp);
+      }
+
+      // 本日判定用
+      const today = new Date();
+      const tY = today.getFullYear(), tM = today.getMonth(), tD = today.getDate();
+
+      // 当月
+      for(let d=1; d<=total; d++){
+        const cd = new Date(base.getFullYear(), base.getMonth(), d);
+        const dow = cd.getDay();
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell day';
+        if(dow===0) cell.classList.add('sun');
+        if(dow===6) cell.classList.add('sat');
+
+        cell.dataset.date = ymd(cd);
+        cell.setAttribute('aria-label', jpDateLabel(cd));
+
+        const num = document.createElement('span');
+        num.className = 'day-num';
+        num.textContent = String(d);
+        cell.appendChild(num);
+
+        if(tY===cd.getFullYear() && tM===cd.getMonth() && tD===d){
+          cell.classList.add('today');
+          cell.setAttribute('aria-current','date');
+        }
+        els.calGrid.appendChild(cell);
+      }
+    }
+
+    function render(){
+      renderDow();
+      renderGrid();
+    }
+
+    function addMonths(d, delta){
+      return new Date(d.getFullYear(), d.getMonth() + delta, 1);
+    }
+
+    function bind(){
+      els.prevBtn.addEventListener('click', ()=> {
+        S.current = addMonths(S.current, -1);
+        render();
+      });
+      els.nextBtn.addEventListener('click', ()=> {
+        S.current = addMonths(S.current, 1);
+        render();
+      });
+    }
+
+    function init(){
+      S.current = startOfMonth(new Date());
+      bind();
+      render();
+    }
+
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', init, { once:true });
+    } else {
+      init();
+    }
+  })();
+  // ▲ カレンダー描画ロジック ここまで
   </script>
 </body>
 </html>

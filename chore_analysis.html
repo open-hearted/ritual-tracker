@@ -57,7 +57,6 @@
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
         <div style="font-weight:800">クイック作成：洗濯フロー例</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn danger" id="resetBtn" title="保存データと画面を初期化">初期化</button>
           <button class="btn muted" id="runTestsBtn" title="開発者テスト">テスト</button>
           <button class="btn muted" id="annoyBtn">めんどくさい😵‍💫</button>
         </div>
@@ -154,9 +153,7 @@
       addBtn: $('#addBtn'), clearBtn: $('#clearBtn'),
       templateLaundry: $('#templateLaundry'), templateCloset: $('#templateCloset'), templateHangers: $('#templateHangers'),
       annoyBtn: $('#annoyBtn'), toast: $('#toast'),
-  runTestsBtn: $('#runTestsBtn'), testOutput: $('#testOutput'),
-  resetBtn: $('#resetBtn'),
-      startHereBtn: $('#startHereBtn')
+      runTestsBtn: $('#runTestsBtn'), testOutput: $('#testOutput')
     };
 
     function uuid(){return 'xxxxxxxyxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;const v=c==='x'?r:(r&0x3|0x8);return v.toString(16);});}
@@ -287,18 +284,6 @@
     function clearForm(){ el.title.value=''; el.why.value=''; el.loc.value=''; el.blockedByBox.querySelectorAll('input').forEach(i=>i.checked=false); }
 
     // =========================
-    // Reset (Initialize Screen/Data)
-    // =========================
-    function resetAll(){
-      try{ localStorage.removeItem(LS_KEY); }catch{}
-      clearForm();
-      refreshBlockedChooser();
-      render();
-      if(el.testOutput){ el.testOutput.style.display='none'; el.testOutput.textContent=''; }
-      showToast('初期化しました');
-    }
-
-    // =========================
     // Templates matching your examples
     // =========================
     function addLaundryTemplate(){
@@ -372,7 +357,6 @@
       el.templateHangers.addEventListener('click', addHangersTemplate);
       el.annoyBtn.addEventListener('click', onAnnoy);
       el.runTestsBtn.addEventListener('click', runSelfTests);
-  if(el.resetBtn) el.resetBtn.addEventListener('click', resetAll);
     }
 
     function init(){ refreshBlockedChooser(); bind(); render(); }
