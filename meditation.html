@@ -108,12 +108,15 @@
       <details>
         <summary>同期</summary>
         <div class="row tight" style="margin-top:4px; gap:6px">
-          <input id="s3DocId" placeholder="docId" />
+          <input id="s3DocId" placeholder="docId"
+                 name="docId" autocomplete="username" />
           <span style="display:flex;align-items:center;gap:4px;flex:1;">
-            <input id="s3Passphrase" placeholder="E2E pass" type="password" style="flex:1;" />
+            <input id="s3Passphrase" placeholder="E2E pass" type="password" style="flex:1;"
+                   name="e2e-passphrase" autocomplete="new-password" autocapitalize="off" spellcheck="false" />
             <button type="button" id="togglePassMed" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
           </span>
-          <input id="s3Password" placeholder="APP_PASSWORD" type="password" />
+          <input id="s3Password" placeholder="APP_PASSWORD" type="password"
+                 name="app-password" autocomplete="current-password" />
         </div>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <button id="s3Push">保存</button>
