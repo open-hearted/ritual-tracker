@@ -109,16 +109,16 @@
         <summary>同期</summary>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <input id="s3DocId" placeholder="docId"
-                 name="docId" autocomplete="username" />
+                 name="docId" autocomplete="section-app username" />
           <span style="display:flex;align-items:center;gap:4px;flex:1;">
-            <!-- 変更: type=password → type=text + -webkit-text-security でマスク。パスワード候補を出させない -->
-            <input id="s3Passphrase" placeholder="E2E pass" type="text" style="-webkit-text-security: disc; flex:1;"
-                   name="e2e-secret" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                   inputmode="text" aria-autocomplete="none" data-masked="1" data-lpignore="true" data-1p-ignore="true" />
+            <!-- E2Eは別セクション + 初期readonlyでオートフィル抑止 -->
+            <input id="s3Passphrase" placeholder="E2Eキー" type="text" style="-webkit-text-security: disc; flex:1;"
+                   name="e2e-secret" autocomplete="section-e2e new-password" autocapitalize="off" autocorrect="off" spellcheck="false"
+                   inputmode="text" aria-autocomplete="none" data-masked="1" data-lpignore="true" data-1p-ignore="true" readonly />
             <button type="button" id="togglePassMed" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
           </span>
           <input id="s3Password" placeholder="APP_PASSWORD" type="password"
-                 name="app-password" autocomplete="current-password" />
+                 name="app-password" autocomplete="section-app current-password" />
         </div>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <button id="s3Push">保存</button>
@@ -135,18 +135,23 @@
     const btn = document.getElementById('togglePassMed');
     const inp = document.getElementById('s3Passphrase');
     if(btn && inp){
-      // 初期はマスク（disc）
+      // 初期はマスク（disc）＋ readonly（Chromeオートフィル抑止）
       inp.style.webkitTextSecurity = 'disc';
       inp.dataset.masked = inp.dataset.masked || '1';
+      // 初回ユーザー操作で readonly を解除、blurで戻す
+      const removeRO = ()=>{ if(inp.hasAttribute('readonly')) inp.removeAttribute('readonly'); };
+      ['focus','pointerdown','keydown','touchstart'].forEach(ev=>{
+        inp.addEventListener(ev, removeRO, { once:true });
+      });
+      inp.addEventListener('blur', ()=>{ inp.setAttribute('readonly','readonly'); });
+
       btn.addEventListener('click', () => {
         const masked = inp.dataset.masked !== '0';
         if (masked) {
-          // 表示
           inp.style.webkitTextSecurity = 'none';
           inp.dataset.masked = '0';
           btn.textContent = '🙈';
         } else {
-          // マスク
           inp.style.webkitTextSecurity = 'disc';
           inp.dataset.masked = '1';
           btn.textContent = '👁';
