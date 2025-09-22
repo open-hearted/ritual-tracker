@@ -598,7 +598,8 @@ function renderFinanceStats(attendedOverride){
   const be = perVisit>0 ? Math.ceil(monthly / perVisit) : 0;
   const remaining = Math.max(0, be - attended);
   const eff = attended>0 ? Math.round(monthly/attended) : monthly;
-  const delta = attended*perVisit - monthly; // +なら月額が「日割りより割安」、-なら「日割りより割高」
+  // 1回あたりの差額（実質1回単価 − 想定1回コスト）
+  const diffPerVisit = eff - perVisit;
 
   const box = $('financeStats');
   if(box){
@@ -608,8 +609,8 @@ function renderFinanceStats(attendedOverride){
       makeStat(`損益分岐の回数: <b>${be}</b> 回 / 今月の出席: <b>${attended}</b> 回`),
       makeStat(`分岐まで残り: <b>${remaining}</b> 回`),
       makeStat(`現在の実質1回単価(月額/出席): <b>${eff.toLocaleString()}円</b>`),
-      // ラベルを反転（delta>=0 → 割安、delta<0 → 割高）
-      makeStat(`${delta>=0?'日割りより割安':'日割りより割高'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
+      // 実質1回単価と比較（例: 1463-539 = 924円 割高）
+      makeStat(`${diffPerVisit>=0?'日割りより割高':'日割りより割安'}: <b>${Math.abs(diffPerVisit).toLocaleString()}円</b>`),
     );
   }
 
@@ -624,8 +625,8 @@ function renderFinanceStats(attendedOverride){
       mkChip('分岐', be?`${be}`:'-'),
       mkChip('残り', remaining),
       mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-'),
-      // チップのラベルも整合させる
-      mkChip(delta>=0?'割安':'割高', `${Math.abs(delta).toLocaleString()}円`)
+      // チップも1回あたりの差額基準に合わせる
+      mkChip(diffPerVisit>=0?'割高':'割安', `${Math.abs(diffPerVisit).toLocaleString()}円`)
     );
   }
 }
