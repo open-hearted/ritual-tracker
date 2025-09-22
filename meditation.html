@@ -111,8 +111,10 @@
           <input id="s3DocId" placeholder="docId"
                  name="docId" autocomplete="username" />
           <span style="display:flex;align-items:center;gap:4px;flex:1;">
-            <input id="s3Passphrase" placeholder="E2E pass" type="password" style="flex:1;"
-                   name="e2e-passphrase" autocomplete="new-password" autocapitalize="off" spellcheck="false" />
+            <!-- 変更: type=password → type=text + -webkit-text-security でマスク。パスワード候補を出させない -->
+            <input id="s3Passphrase" placeholder="E2E pass" type="text" style="-webkit-text-security: disc; flex:1;"
+                   name="e2e-secret" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                   inputmode="text" aria-autocomplete="none" data-masked="1" data-lpignore="true" data-1p-ignore="true" />
             <button type="button" id="togglePassMed" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
           </span>
           <input id="s3Password" placeholder="APP_PASSWORD" type="password"
@@ -133,10 +135,22 @@
     const btn = document.getElementById('togglePassMed');
     const inp = document.getElementById('s3Passphrase');
     if(btn && inp){
+      // 初期はマスク（disc）
+      inp.style.webkitTextSecurity = 'disc';
+      inp.dataset.masked = inp.dataset.masked || '1';
       btn.addEventListener('click', () => {
-        const showing = inp.type === 'text';
-        inp.type = showing ? 'password' : 'text';
-        btn.textContent = showing ? '👁' : '🙈';
+        const masked = inp.dataset.masked !== '0';
+        if (masked) {
+          // 表示
+          inp.style.webkitTextSecurity = 'none';
+          inp.dataset.masked = '0';
+          btn.textContent = '🙈';
+        } else {
+          // マスク
+          inp.style.webkitTextSecurity = 'disc';
+          inp.dataset.masked = '1';
+          btn.textContent = '👁';
+        }
       });
     }
   })();
