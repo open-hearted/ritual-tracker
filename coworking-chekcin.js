@@ -190,9 +190,8 @@ function renderStats(){
     const daysLeft = isCur ? (total - today.getDate()) : 0; // 今日以降の残り日数（今日除く）
     box.append(
       makeStat(`今月の出席日数: <b>${attended}</b> / ${total}日 (${rate}%)`),
-      makeStat(`未出席合計: <b>${unAttended}</b> 日`),
       makeStat(`月末まで残り: <b>${daysLeft}</b> 日`),
-      makeStat(`現在連続: <b>${current}</b> 日 / 最長: <b>${longest}</b> 日`),
+      makeStat(`最長: <b>${longest}</b> 日`),
     );
   }
   renderFinanceStats(attendedForFinance);
@@ -622,10 +621,8 @@ function renderFinanceStats(attendedOverride){
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
     globalStats.append(
       mkChip('出席', `${attended}`),
-      mkChip('分岐', be?`${be}`:'-'),
-      mkChip('残り', remaining),
+      mkChip('収支分岐まで', remaining),
       mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-'),
-      // チップも1回あたりの差額基準に合わせる
       mkChip(diffPerVisit>=0?'割高':'割安', `${Math.abs(diffPerVisit).toLocaleString()}円`)
     );
   }
