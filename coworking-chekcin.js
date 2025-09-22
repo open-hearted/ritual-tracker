@@ -608,7 +608,8 @@ function renderFinanceStats(attendedOverride){
       makeStat(`損益分岐の回数: <b>${be}</b> 回 / 今月の出席: <b>${attended}</b> 回`),
       makeStat(`分岐まで残り: <b>${remaining}</b> 回`),
       makeStat(`現在の実質1回単価(月額/出席): <b>${eff.toLocaleString()}円</b>`),
-      makeStat(`${delta>=0?'日割より割高':'日割より割安'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
+      // 誤記修正: 日割 → 日割り
+      makeStat(`${delta>=0?'日割りより割高':'日割りより割安'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
     );
   }
 
