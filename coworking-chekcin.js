@@ -415,11 +415,11 @@ function renderMedSessionList(){
     if(starts.length>idx) starts.splice(idx,1);
     if(ids.length>idx) ids.splice(idx,1);
     if(sessions.length){
-      const obj = { sessions, starts, ids, dayTs:new Date().toISOString() };
+      const obj = { sessions, starts, ids, dayTs: new Date().toISOString() };
       obj.replace = true; // セッション削除は置換扱い
       md[medEditTarget.dateKey] = obj;
     } else {
-      md[medEditTarget.dateKey] = { __deleted:true, ts:new Date().toISOString() };
+      md[medEditTarget.dateKey] = { __deleted:true, ts: new Date().toISOString() };
     }
     writeMonth(state.uid, state.year, state.month, md);
     if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
@@ -598,7 +598,7 @@ function renderFinanceStats(attendedOverride){
   const be = perVisit>0 ? Math.ceil(monthly / perVisit) : 0;
   const remaining = Math.max(0, be - attended);
   const eff = attended>0 ? Math.round(monthly/attended) : monthly;
-  const delta = attended*perVisit - monthly; // +なら日割より損、-なら得
+  const delta = attended*perVisit - monthly; // +なら月額が「日割りより割安」、-なら「日割りより割高」
 
   const box = $('financeStats');
   if(box){
@@ -608,8 +608,8 @@ function renderFinanceStats(attendedOverride){
       makeStat(`損益分岐の回数: <b>${be}</b> 回 / 今月の出席: <b>${attended}</b> 回`),
       makeStat(`分岐まで残り: <b>${remaining}</b> 回`),
       makeStat(`現在の実質1回単価(月額/出席): <b>${eff.toLocaleString()}円</b>`),
-      // 誤記修正: 日割 → 日割り
-      makeStat(`${delta>=0?'日割りより割高':'日割りより割安'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
+      // ラベルを反転（delta>=0 → 割安、delta<0 → 割高）
+      makeStat(`${delta>=0?'日割りより割安':'日割りより割高'}: <b>${Math.abs(delta).toLocaleString()}円</b>`),
     );
   }
 
@@ -624,7 +624,8 @@ function renderFinanceStats(attendedOverride){
       mkChip('分岐', be?`${be}`:'-'),
       mkChip('残り', remaining),
       mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-'),
-      mkChip(delta>=0?'損差':'現損', `${Math.abs(delta).toLocaleString()}円`)
+      // チップのラベルも整合させる
+      mkChip(delta>=0?'割安':'割高', `${Math.abs(delta).toLocaleString()}円`)
     );
   }
 }
