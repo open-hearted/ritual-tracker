@@ -1619,8 +1619,14 @@ function showMedAlert(message){
   keyHandler = (ev)=>{ if(ev.key === 'Escape'){ close(); } };
   window.addEventListener('keydown', keyHandler, true);
 
-  btn.addEventListener('click', close);
-  overlay.addEventListener('click', (ev)=>{ if(ev.target === overlay) close(); });
+  btn.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    close();
+  });
+  overlay.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    if(ev.target === overlay) close();
+  });
 
   dialog.append(msgEl, btn);
   overlay.appendChild(dialog);
