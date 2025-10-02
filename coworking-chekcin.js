@@ -564,6 +564,26 @@ function setTimerButtons({start,pause,resume,cancel}){
   const bC=medEditorEl?.querySelector('#medTimerCancel'); if(bC) bC.disabled=!cancel;
 }
 
+function resetStartButtonMode(){
+  const btn = medEditorEl?.querySelector('#medTimerStart');
+  if(!btn) return;
+  btn.textContent = '開始';
+  btn.dataset.mode = 'start';
+  btn.classList.remove('alarm-stop');
+}
+function switchStartButtonToAlarmStop(){
+  const btn = medEditorEl?.querySelector('#medTimerStart');
+  if(!btn) return;
+  btn.textContent = '消音';
+  btn.dataset.mode = 'alarm-stop';
+  btn.classList.add('alarm-stop');
+}
+function handleMedTimerStartButton(ev){
+  const btn = ev.currentTarget;
+  if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(); return; }
+  startMedTimer();
+}
+
 function startAlarm(){
   try{
     if(medAlarm.on) return;
