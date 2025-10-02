@@ -515,12 +515,14 @@ function renderMedSessionList(){
     const row=document.createElement('div');
     row.className='med-row';
     row.style.display='grid';
-    row.style.gridTemplateColumns='1fr auto';
+    row.style.gridTemplateColumns='1fr';
     row.style.alignItems='center';
     row.innerHTML=`
-      <span class="min" style="font-weight:700;">${m}分</span>
-      <span class="meta" style="font-size:0.45em; justify-self:end;">開始 ${startTxt}</span>
-      <span class="actions" style="grid-column:1 / -1; display:flex; gap:12px; font-size:0.5em;">
+      <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;">
+        <span class="time">開始 ${startTxt}</span>
+        <span class="min">${m}分</span>
+      </div>
+      <span class="actions" style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:12px; font-size:0.5em;">
         <button data-edit="${i}" title="編集">✏</button>
         <button data-del="${i}" title="削除">✕</button>
       </span>`;
