@@ -301,33 +301,73 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   medEditTarget.dateKey = dateKey; medEditTarget.anchor = anchorEl;
   const box = medEditorEl;
 
-  // 表示してサイズを測れるようにする＋ビューポート内に収まる上限を付与
-  box.style.display='block';
-  box.style.maxWidth = '96vw';
-  box.style.maxHeight = 'calc(100vh - 16px)';
-  box.style.overflow = 'auto';
+  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+  if (isMobile) {
+    Object.assign(box.style, {
+      display: 'flex',
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      right: '0',
+      bottom: '0',
+      width: '100vw',
+      height: '100vh',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      padding: '16px',
+      borderRadius: '0',
+      border: '0',
+      boxShadow: 'none',
+      overflow: 'auto',
+      zIndex: '2000'
+    });
+    box.scrollTop = 0;
+  } else {
+    Object.assign(box.style, {
+      display: 'block',
+      position: 'absolute',
+      maxWidth: '96vw',
+      maxHeight: 'calc(100vh - 16px)',
+      width: '',
+      height: '',
+      right: '',
+      bottom: '',
+      padding: '',
+      borderRadius: '',
+      border: '',
+      boxShadow: '',
+      overflow: 'auto',
+      zIndex: '2000'
+    });
 
-  const r = anchorEl.getBoundingClientRect();
-  const margin = 8;
-  const bw = box.offsetWidth || 240;
-  const bh = box.offsetHeight || 200;
+    // 表示してサイズを測れるようにする＋ビューポート内に収まる上限を付与
+    box.style.display='block';
+    box.style.maxWidth = '96vw';
+    box.style.maxHeight = 'calc(100vh - 16px)';
+    box.style.overflow = 'auto';
 
-  // 横位置: 左端/右端をクランプ
-  let left = Math.max(margin, Math.min(r.left, window.innerWidth - bw - margin));
-  // 縦位置: 下に出す→はみ出すなら上→それでも無理なら中央寄せ（上下クランプ）
-  let top = r.bottom + 6;
-  if (top + bh > window.innerHeight - margin) {
-    const aboveTop = r.top - bh - 6;
-    if (aboveTop >= margin) {
-      top = aboveTop; // 上に出す
-    } else {
-      // ビューポート中央寄せ（上下クランプ）
-      top = Math.max(margin, Math.min(window.innerHeight - bh - margin, r.top + (r.height/2) - (bh/2)));
+    const r = anchorEl.getBoundingClientRect();
+    const margin = 8;
+    const bw = box.offsetWidth || 240;
+    const bh = box.offsetHeight || 200;
+
+    // 横位置: 左端/右端をクランプ
+    let left = Math.max(margin, Math.min(r.left, window.innerWidth - bw - margin));
+    // 縦位置: 下に出す→はみ出すなら上→それでも無理なら中央寄せ（上下クランプ）
+    let top = r.bottom + 6;
+    if (top + bh > window.innerHeight - margin) {
+      const aboveTop = r.top - bh - 6;
+      if (aboveTop >= margin) {
+        top = aboveTop; // 上に出す
+      } else {
+        // ビューポート中央寄せ（上下クランプ）
+        top = Math.max(margin, Math.min(window.innerHeight - bh - margin, r.top + (r.height/2) - (bh/2)));
+      }
     }
-  }
 
-  box.style.left = Math.round(left) + 'px';
-  box.style.top  = Math.round(top)  + 'px';
+    box.style.left = Math.round(left) + 'px';
+    box.style.top  = Math.round(top)  + 'px';
+  }
 
   box.querySelector('#medEditDate').textContent = dateKey;
   renderMedSessionList();
@@ -926,7 +966,7 @@ function mergePayload(localP, remoteP){
             const cur = byFp.get(f);
             if(!cur) byFp.set(f,o); else {
               const curReal = /^m[0-9a-z]/.test(cur.id);
-              const oReal = /^m[0-9a-z]/.test(o.id);
+              const oReal = /^m[0-9a]/.test(o.id);
               if(oReal && !curReal) byFp.set(f,o);
             }
           });
