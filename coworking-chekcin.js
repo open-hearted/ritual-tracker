@@ -1248,3 +1248,116 @@ setTimeout(startAutoSync, 1500);
 window.forcePull = autoPull;
 // 修正: 未定義の markDirty を呼ばない
 window.forcePush = ()=>{ markDirtyImmediate(); };
+
+if (typeof window.openMeditationEditor !== 'function') {
+  window.openMeditationEditor = function(dateKey, cellEl, sessions){
+    try{
+      let host = document.getElementById('medEditor');
+      if(!host){
+        host = document.createElement('div');
+        host.id = 'medEditor';
+        document.body.appendChild(host);
+      }
+      window.medEditorEl = host;
+
+      const [y,m,d] = dateKey.split('-').map((v,i)=> i===1? (parseInt(v,10)-1) : parseInt(v,10));
+      const month = readMonth(state.uid, y, m);
+      const base = normalizeMeditationRecord(month[dateKey]);
+      const list = base.sessions.slice();
+      const starts = base.starts.slice();
+      const ids = Array.isArray(base.ids) ? base.ids.slice(0, list.length) : [];
+      while(ids.length < list.length) ids.push('');
+
+      const isMobile = window.matchMedia('(max-width: 600px)').matches;
+      host.classList.toggle('mobile-fullscreen', isMobile);
+      host.style.position = 'fixed';
+      host.style.zIndex = '2000';
+      host.style.background = 'var(--card, #111)';
+      if(isMobile){
+        host.style.right = '';
+        host.style.bottom = '';
+        host.style.left = '';
+        host.style.top = '';
+      }else{
+        host.style.right = '12px';
+        host.style.bottom = '12px';
+        host.style.left = '';
+        host.style.top = '';
+        host.style.border = '1px solid rgba(148,163,184,.25)';
+        host.style.borderRadius = '12px';
+        host.style.padding = '12px';
+        host.style.boxShadow = '0 12px 32px rgba(0,0,0,.5)';
+        host.style.maxWidth = 'min(96vw, 380px)';
+        host.style.maxHeight = '';
+      }
+
+      host.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="font-weight:800">${y}年 ${m+1}月 ${d}日</div>
+          <button id="medClose" class="btn" style="padding:6px 10px;">閉じる</button>
+        </div>
+        <div class="sep" style="height:1px;background:rgba(148,163,184,.18);margin:${isMobile?'0':'10px 0'}"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:${isMobile?'0':'8px'}">
+          <input id="medNewMin" type="number" placeholder="分" inputmode="numeric" style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid rgba(148,163,184,.25);background:#0b1220;color:#e5e7eb;">
+          <button id="medAdd" class="btn primary" style="padding:8px 12px">追加</button>
+          <button id="medTimerStart" style="position:absolute;left:-9999px;top:-9999px">開始</button>
+        </div>
+        <div id="medSessList" style="display:grid;gap:6px;${isMobile?'flex:1;overflow:auto;':''}max-height:${isMobile?'none':'160px'};overflow:${isMobile?'auto':'auto'}"></div>
+      `;
+
+      const closeBtn = host.querySelector('#medClose');
+      if(closeBtn){
+        closeBtn.addEventListener('click', ()=>{ host.style.display='none'; });
+      }
+
+      const listEl = host.querySelector('#medSessList');
+      if(listEl){
+        listEl.innerHTML = '';
+        if(!list.length){
+          listEl.innerHTML = '<div class="empty">記録なし</div>';
+        } else {
+          let total = 0;
+          list.forEach((m,i)=>{ total += m; const row=document.createElement('div'); row.className='med-row'; row.innerHTML=`<span class="min">${m}分</span><span class="actions"><button data-edit="${i}" title="編集">✏</button><button data-del="${i}" title="削除">✕</button></span>`; listEl.appendChild(row); });
+          const sum=document.createElement('div'); sum.className='med-total'; sum.textContent = `合計 ${total}分 / ${list.length}回`; listEl.appendChild(sum);
+          listEl.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>{ 
+            const idx = parseInt(b.getAttribute('data-edit'),10);
+            const cur = readMedSessions(); const curVal=cur[idx];
+            const nvStr = prompt('新しい分数', curVal);
+            if(nvStr===null) return; const nv=parseFloat(nvStr); if(!Number.isFinite(nv)||nv<=0){ alert('正の数'); return; }
+            const next = cur.slice(); next[idx]=nv;
+            writeMedSessions(next);
+          }));
+          listEl.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{ 
+            const idx = parseInt(b.getAttribute('data-del'),10);
+            // delete both sessions and starts
+            const md = readMonth(state.uid, state.year, state.month);
+            const rec = md[medEditTarget.dateKey] || {};
+            const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
+            const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
+            const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
+            const oldLen = sessions.length;
+            sessions.splice(idx,1);
+            if(starts.length>idx) starts.splice(idx,1);
+            if(ids.length>idx) ids.splice(idx,1);
+            if(sessions.length){
+              const obj = { sessions, starts, ids, dayTs: new Date().toISOString() };
+              obj.replace = true; // セッション削除は置換扱い
+              md[medEditTarget.dateKey] = obj;
+            } else {
+              md[medEditTarget.dateKey] = { __deleted:true, ts: new Date().toISOString() };
+            }
+            writeMonth(state.uid, state.year, state.month, md);
+            if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
+            renderCalendar(); renderMedSessionList();
+          }));
+        }
+      }
+
+      const inp = host.querySelector('#medNewMin');
+      inp.setAttribute('step','0.1');
+      inp.focus();
+    }catch(e){
+      console.warn('[med-editor] failed:', e);
+    }
+  };
+}
