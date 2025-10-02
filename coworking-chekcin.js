@@ -500,8 +500,15 @@ function addMedSessionWithStart(min, startedAt){
 function renderMedSessionList(){
   if(!medEditorEl) return;
   const wrap = medEditorEl.querySelector('#medSessions');
-  wrap.style.fontSize = 'clamp(1.8rem, 6vw, 3.4rem)';
-  wrap.style.lineHeight = '1.35';
+  const timerDisplay = medEditorEl.querySelector('#medTimerDisplay');
+  if(timerDisplay){
+    const timerStyle = window.getComputedStyle(timerDisplay);
+    wrap.style.fontSize = timerStyle.fontSize;
+    wrap.style.lineHeight = timerStyle.lineHeight === 'normal' ? '1.25' : timerStyle.lineHeight;
+  } else {
+    wrap.style.fontSize = 'clamp(1.8rem, 6vw, 3.4rem)';
+    wrap.style.lineHeight = '1.35';
+  }
   wrap.style.gap = '18px';
   const md = readMonth(state.uid, state.year, state.month);
   const rec = md[medEditTarget.dateKey] || {};
@@ -518,9 +525,9 @@ function renderMedSessionList(){
     row.style.gridTemplateColumns='1fr';
     row.style.alignItems='center';
     row.innerHTML=`
-      <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;">
-        <span class="time">開始 ${startTxt}</span>
-        <span class="min">${m}分</span>
+      <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:1em;">
+        <span class="time" style="font-size:1em;">開始 ${startTxt}</span>
+        <span class="min" style="font-size:1em;">${m}分</span>
       </div>
       <span class="actions" style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:12px; font-size:0.5em;">
         <button data-edit="${i}" title="編集">✏</button>
