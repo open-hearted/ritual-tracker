@@ -532,7 +532,7 @@ function renderMedSessionList(){
     row.style.alignItems='center';
     row.innerHTML=`
       <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:1.12em;letter-spacing:0.025em;">
-        <span class="time" style="font-size:1em;">開始 ${startTxt}</span>
+        <span class="time" style="font-size:1em;">${startTxt}</span>
         <span class="min" style="font-size:1em;">${m}分</span>
       </div>
       <span class="actions" style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:12px; font-size:0.5em;">
