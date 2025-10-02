@@ -421,7 +421,8 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
         background: 'rgba(15,23,42,0.6)',
         boxShadow: 'inset 0 0 0 1px rgba(148,163,184,0.12)',
         display: 'grid',
-        gap: '10px'
+        gap: '10px',
+        gridTemplateColumns: '1fr'
       });
     } else {
       medSessionsEl.removeAttribute('style');
@@ -500,6 +501,8 @@ function addMedSessionWithStart(min, startedAt){
 function renderMedSessionList(){
   if(!medEditorEl) return;
   const wrap = medEditorEl.querySelector('#medSessions');
+  wrap.style.fontSize = '200%';
+  wrap.style.lineHeight = '1.6';
   const sessions = readMedSessions();
   wrap.innerHTML = '';
   if(!sessions.length){ wrap.innerHTML = '<div class="empty">記録なし</div>'; return; }
