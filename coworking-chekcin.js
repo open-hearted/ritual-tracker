@@ -284,7 +284,7 @@ function ensureMedEditor(){
   medEditorEl.querySelector('#medNewMin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addMedSession(); }});
   medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ clearMedDay(); });
   // Timer bindings
-  medEditorEl.querySelector('#medTimerStart').addEventListener('click', startMedTimer);
+  medEditorEl.querySelector('#medTimerStart').addEventListener('click', handleMedTimerStartButton);
   medEditorEl.querySelector('#medTimerPause').addEventListener('click', pauseMedTimer);
   medEditorEl.querySelector('#medTimerResume').addEventListener('click', resumeMedTimer);
   medEditorEl.querySelector('#medTimerCancel').addEventListener('click', cancelMedTimer);
@@ -293,6 +293,7 @@ function ensureMedEditor(){
     if(!medEditorEl) return;
     if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
   });
+  resetStartButtonMode();
   return medEditorEl;
 }
 let medEditTarget = { dateKey:null, anchor:null };
@@ -565,6 +566,25 @@ function setTimerButtons({start,pause,resume,cancel}){
   const bC=medEditorEl?.querySelector('#medTimerCancel'); if(bC) bC.disabled=!cancel;
   const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=!medAlarm.on;
 }
+function resetStartButtonMode(){
+  const btn = medEditorEl?.querySelector('#medTimerStart');
+  if(!btn) return;
+  btn.textContent = '開始';
+  btn.dataset.mode = 'start';
+  btn.classList.remove('alarm-stop');
+}
+function switchStartButtonToAlarmStop(){
+  const btn = medEditorEl?.querySelector('#medTimerStart');
+  if(!btn) return;
+  btn.textContent = '消音';
+  btn.dataset.mode = 'alarm-stop';
+  btn.classList.add('alarm-stop');
+}
+function handleMedTimerStartButton(ev){
+  const btn = ev.currentTarget;
+  if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(); return; }
+  startMedTimer();
+}
 function startAlarm(){
   try{
     if(medAlarm.on) return;
@@ -590,6 +610,7 @@ function startAlarm(){
     const bA = medEditorEl?.querySelector('#medAlarmStop'); if (bA) bA.disabled = false;
   } catch { }
   if (navigator.vibrate) try { navigator.vibrate([200, 150, 200, 150, 200]); } catch { }
+  switchStartButtonToAlarmStop();
 }
 function stopAlarm(){
   try {
@@ -598,8 +619,11 @@ function stopAlarm(){
     if (medAlarm.ctx) { medAlarm.ctx.close(); }
   } catch { }
   medAlarm = { ctx: null, osc: null, gain: null, on: false, _beepInt: null };
+  resetStartButtonMode();
+  setTimerButtons({start:true,pause:false,resume:false,cancel:false});
 }
 function startMedTimer(){
+  resetStartButtonMode();
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
   if(min<=0){ alert('分を入力してください'); return; }
   alert('リファクタリング中');
@@ -623,7 +647,7 @@ function startMedTimer(){
 }
 function pauseMedTimer(){ if(!medTimer.running) return; medTimer.running=false; medTimer.remaining = Math.max(0, medTimer.endAt - Date.now()); clearInterval(medTimer.id); medTimer.id=null; setTimerButtons({start:false,pause:false,resume:true,cancel:true}); updateTimerDisplay(); }
 function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
-function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
+function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; resetStartButtonMode(); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
 
 // clearThisMonth 機能削除 (UI 簡略化)
 
@@ -1254,7 +1278,7 @@ function cleanupLegacyMeditationDuplicates(){
         const rec = month[dayKey];
         if(!rec || rec.__deleted) continue;
         if(!Array.isArray(rec.sessions)) continue;
-        const sess = rec.sessions; const starts = Array.isArray(rec.starts)? rec.starts:[]; const ids = Array.isArray(rec.ids)? rec.ids: [];
+        const sess = rec.sessions; const starts = Array.isArray(rec.starts)? rec.starts:[]; const ids = Array.isArray(rec.ids)? rec ids: [];
         const fp = (m,s)=> (Math.round(m*100)/100)+'|'+s;
         const map = new Map();
         const newSess=[]; const newStarts=[]; const newIds=[];
