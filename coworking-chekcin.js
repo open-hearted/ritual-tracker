@@ -505,15 +505,15 @@ function renderMedSessionList(){
     const timerStyle = window.getComputedStyle(timerDisplay);
     const basePx = parseFloat(timerStyle.fontSize) || 0;
     if(basePx){
-      wrap.style.fontSize = `${Math.round(basePx * 1.28)}px`;
-      wrap.style.lineHeight = '1.3';
+      wrap.style.fontSize = `${Math.round(basePx * 1.45)}px`;
+      wrap.style.lineHeight = '1.36';
     } else {
-      wrap.style.fontSize = 'clamp(2.2rem, 7vw, 4.4rem)';
-      wrap.style.lineHeight = '1.3';
+      wrap.style.fontSize = 'clamp(2.6rem, 7vw, 4.8rem)';
+      wrap.style.lineHeight = '1.36';
     }
   } else {
-    wrap.style.fontSize = 'clamp(2.2rem, 7vw, 4.4rem)';
-    wrap.style.lineHeight = '1.3';
+    wrap.style.fontSize = 'clamp(2.6rem, 7vw, 4.8rem)';
+    wrap.style.lineHeight = '1.36';
   }
   wrap.style.gap = '18px';
   const md = readMonth(state.uid, state.year, state.month);
@@ -531,7 +531,7 @@ function renderMedSessionList(){
     row.style.gridTemplateColumns='1fr';
     row.style.alignItems='center';
     row.innerHTML=`
-      <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:1.06em;letter-spacing:0.02em;">
+      <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:1.12em;letter-spacing:0.025em;">
         <span class="time" style="font-size:1em;">開始 ${startTxt}</span>
         <span class="min" style="font-size:1em;">${m}分</span>
       </div>
