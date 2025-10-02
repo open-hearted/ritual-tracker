@@ -268,7 +268,7 @@ function ensureMedEditor(){
   '<div class="med-sessions" id="medSessions"></div>'+
   '<div class="med-timer" id="medTimerBox">'+
     // 既定値を30分へ
-    '<input id="medTimerMin" type="number" min="0.01" step="0.01" value="0.01" title="カウントダウン分" />'+
+    '<input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" title="カウントダウン分" />'+
     '<span id="medTimerDisplay">--:--</span>'+
     '<span class="med-startat">開始: <b id="medTimerStartedAt">--:--</b></span>'+
     '<button id="medTimerStart">開始</button>'+
