@@ -665,7 +665,11 @@ function startMedTimer(){
   resetStartButtonMode();
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
   if(min<=0){ alert('分を入力してください'); return; }
-  showMedAlert('リファクタリング中');
+  showMedAlert([
+    'イヤホンが刺さっていないですか？',
+    'BLUETOOTHイヤホンに繋がっていないですか？',
+    '<span style="color:#38bdf8;font-weight:800;">メディア</span>音量が十分か目視確認して下さい'
+  ]);
   medTimer.startedAt = new Date();
   medTimer.remaining = Math.round(min*60*1000);
   medTimer.endAt = Date.now() + medTimer.remaining;
@@ -1557,9 +1561,21 @@ if (typeof window.openMeditationEditor !== 'function') {
 
 function showMedAlert(message){
   const existing = document.getElementById('medAlertOverlay');
+  const applyMessage = (target, content)=>{
+    if(!target) return;
+    if(Array.isArray(content)){
+      target.innerHTML = content.map(line=>`<div>${line}</div>`).join('');
+    } else if(content instanceof HTMLElement){
+      target.innerHTML = '';
+      target.appendChild(content);
+    } else {
+      target.innerHTML = content ?? '';
+    }
+  };
+
   if(existing){
     const msg = existing.querySelector('#medAlertMessage');
-    if(msg) msg.textContent = message;
+    applyMessage(msg, message);
     existing.style.display = 'flex';
     existing.querySelector('button')?.focus();
     return;
@@ -1595,7 +1611,7 @@ function showMedAlert(message){
   const msgEl = document.createElement('div');
   msgEl.id = 'medAlertMessage';
   Object.assign(msgEl.style, { fontWeight: '700', fontSize: '1.05rem', letterSpacing: '0.01em' });
-  msgEl.textContent = message;
+  applyMessage(msgEl, message);
 
   const btn = document.createElement('button');
   btn.type = 'button';
