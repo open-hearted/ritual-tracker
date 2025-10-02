@@ -275,7 +275,6 @@ function ensureMedEditor(){
     '<button id="medTimerPause" disabled>一時停止</button>'+
     '<button id="medTimerResume" disabled>再開</button>'+
     '<button id="medTimerCancel" disabled>中止</button>'+
-    '<button id="medAlarmStop" disabled>消音</button>'+
   '</div>'+
   '<div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
   document.body.appendChild(medEditorEl);
@@ -288,7 +287,6 @@ function ensureMedEditor(){
   medEditorEl.querySelector('#medTimerPause').addEventListener('click', pauseMedTimer);
   medEditorEl.querySelector('#medTimerResume').addEventListener('click', resumeMedTimer);
   medEditorEl.querySelector('#medTimerCancel').addEventListener('click', cancelMedTimer);
-  medEditorEl.querySelector('#medAlarmStop').addEventListener('click', stopAlarm);
   document.addEventListener('click', (e)=>{
     if(!medEditorEl) return;
     if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
@@ -564,27 +562,8 @@ function setTimerButtons({start,pause,resume,cancel}){
   const bP=medEditorEl?.querySelector('#medTimerPause'); if(bP) bP.disabled=!pause;
   const bR=medEditorEl?.querySelector('#medTimerResume'); if(bR) bR.disabled=!resume;
   const bC=medEditorEl?.querySelector('#medTimerCancel'); if(bC) bC.disabled=!cancel;
-  const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=!medAlarm.on;
 }
-function resetStartButtonMode(){
-  const btn = medEditorEl?.querySelector('#medTimerStart');
-  if(!btn) return;
-  btn.textContent = '開始';
-  btn.dataset.mode = 'start';
-  btn.classList.remove('alarm-stop');
-}
-function switchStartButtonToAlarmStop(){
-  const btn = medEditorEl?.querySelector('#medTimerStart');
-  if(!btn) return;
-  btn.textContent = '消音';
-  btn.dataset.mode = 'alarm-stop';
-  btn.classList.add('alarm-stop');
-}
-function handleMedTimerStartButton(ev){
-  const btn = ev.currentTarget;
-  if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(); return; }
-  startMedTimer();
-}
+
 function startAlarm(){
   try{
     if(medAlarm.on) return;
@@ -607,7 +586,6 @@ function startAlarm(){
         if (medAlarm.gain) medAlarm.gain.gain.setValueAtTime(0, medAlarm.ctx.currentTime);
       }, 400);
     }, 500);
-    const bA = medEditorEl?.querySelector('#medAlarmStop'); if (bA) bA.disabled = false;
   } catch { }
   if (navigator.vibrate) try { navigator.vibrate([200, 150, 200, 150, 200]); } catch { }
   switchStartButtonToAlarmStop();
