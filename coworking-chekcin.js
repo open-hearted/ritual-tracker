@@ -268,14 +268,13 @@ function ensureMedEditor(){
   '<div class="med-sessions" id="medSessions"></div>'+
   '<div class="med-timer" id="medTimerBox">'+
     // 既定値を30分へ
-    '<input id="medTimerMin" type="number" min="0.1" step="0.5" value="30" title="カウントダウン分" />'+
+    '<input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" title="カウントダウン分" />'+
     '<span id="medTimerDisplay">--:--</span>'+
     '<span class="med-startat">開始: <b id="medTimerStartedAt">--:--</b></span>'+
     '<button id="medTimerStart">開始</button>'+
     '<button id="medTimerPause" disabled>一時停止</button>'+
     '<button id="medTimerResume" disabled>再開</button>'+
     '<button id="medTimerCancel" disabled>中止</button>'+
-    '<button id="medAlarmStop" disabled>消音</button>'+
   '</div>'+
   '<div class="med-add"><input id="medNewMin" type="number" min="1" placeholder="分" /><button id="medAddBtn">追加</button><button id="medClearDay" class="danger">日クリア</button></div>';
   document.body.appendChild(medEditorEl);
@@ -284,15 +283,15 @@ function ensureMedEditor(){
   medEditorEl.querySelector('#medNewMin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addMedSession(); }});
   medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ clearMedDay(); });
   // Timer bindings
-  medEditorEl.querySelector('#medTimerStart').addEventListener('click', startMedTimer);
+  medEditorEl.querySelector('#medTimerStart').addEventListener('click', handleMedTimerStartButton);
   medEditorEl.querySelector('#medTimerPause').addEventListener('click', pauseMedTimer);
   medEditorEl.querySelector('#medTimerResume').addEventListener('click', resumeMedTimer);
   medEditorEl.querySelector('#medTimerCancel').addEventListener('click', cancelMedTimer);
-  medEditorEl.querySelector('#medAlarmStop').addEventListener('click', stopAlarm);
   document.addEventListener('click', (e)=>{
     if(!medEditorEl) return;
     if(!medEditorEl.contains(e.target) && !e.target.closest('.cell')) hideMedEditor();
   });
+  resetStartButtonMode();
   return medEditorEl;
 }
 let medEditTarget = { dateKey:null, anchor:null };
@@ -301,33 +300,148 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
   medEditTarget.dateKey = dateKey; medEditTarget.anchor = anchorEl;
   const box = medEditorEl;
 
-  // 表示してサイズを測れるようにする＋ビューポート内に収まる上限を付与
-  box.style.display='block';
-  box.style.maxWidth = '96vw';
-  box.style.maxHeight = 'calc(100vh - 16px)';
-  box.style.overflow = 'auto';
+  const isMobile = window.matchMedia('(max-width: 640px)').matches;
+  if (isMobile) {
+    Object.assign(box.style, {
+      display: 'flex',
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      right: '0',
+      bottom: '0',
+      width: '100vw',
+      height: '100vh',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      padding: '24px clamp(18px, 6vw, 28px) calc(24px + env(safe-area-inset-bottom))',
+      borderRadius: '0',
+      border: '0',
+      boxShadow: 'none',
+      overflow: 'auto',
+      zIndex: '2000',
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: '18px',
+      justifyContent: 'flex-start',
+      background: 'var(--card, #0b1220)'
+    });
+    box.scrollTop = 0;
+  } else {
+    Object.assign(box.style, {
+      display: 'block',
+      position: 'absolute',
+      maxWidth: '96vw',
+      maxHeight: 'calc(100vh - 16px)',
+      width: '',
+      height: '',
+      right: '',
+      bottom: '',
+      padding: '',
+      borderRadius: '',
+      border: '',
+      boxShadow: '',
+      overflow: 'auto',
+      zIndex: '2000',
+      flexDirection: '',
+      alignItems: '',
+      gap: '',
+      justifyContent: '',
+      background: ''
+    });
 
-  const r = anchorEl.getBoundingClientRect();
-  const margin = 8;
-  const bw = box.offsetWidth || 240;
-  const bh = box.offsetHeight || 200;
+    // 表示してサイズを測れるようにする＋ビューポート内に収まる上限を付与
+    box.style.display='block';
+    box.style.maxWidth = '96vw';
+    box.style.maxHeight = 'calc(100vh - 16px)';
+    box.style.overflow = 'auto';
 
-  // 横位置: 左端/右端をクランプ
-  let left = Math.max(margin, Math.min(r.left, window.innerWidth - bw - margin));
-  // 縦位置: 下に出す→はみ出すなら上→それでも無理なら中央寄せ（上下クランプ）
-  let top = r.bottom + 6;
-  if (top + bh > window.innerHeight - margin) {
-    const aboveTop = r.top - bh - 6;
-    if (aboveTop >= margin) {
-      top = aboveTop; // 上に出す
+    const r = anchorEl.getBoundingClientRect();
+    const margin = 8;
+    const bw = box.offsetWidth || 240;
+    const bh = box.offsetHeight || 200;
+
+    // 横位置: 左端/右端をクランプ
+    let left = Math.max(margin, Math.min(r.left, window.innerWidth - bw - margin));
+    // 縦位置: 下に出す→はみ出すなら上→それでも無理なら中央寄せ（上下クランプ）
+    let top = r.bottom + 6;
+    if (top + bh > window.innerHeight - margin) {
+      const aboveTop = r.top - bh - 6;
+      if (aboveTop >= margin) {
+        top = aboveTop; // 上に出す
+      } else {
+        // ビューポート中央寄せ（上下クランプ）
+        top = Math.max(margin, Math.min(window.innerHeight - bh - margin, r.top + (r.height/2) - (bh/2)));
+      }
+    }
+
+    box.style.left = Math.round(left) + 'px';
+    box.style.top  = Math.round(top)  + 'px';
+  }
+
+  const medHead = box.querySelector('.med-head');
+  if (medHead) {
+    if (isMobile) {
+      Object.assign(medHead.style, {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        padding: '0'
+      });
     } else {
-      // ビューポート中央寄せ（上下クランプ）
-      top = Math.max(margin, Math.min(window.innerHeight - bh - margin, r.top + (r.height/2) - (bh/2)));
+      medHead.removeAttribute('style');
     }
   }
 
-  box.style.left = Math.round(left) + 'px';
-  box.style.top  = Math.round(top)  + 'px';
+  const medTimerBox = box.querySelector('#medTimerBox');
+  if (medTimerBox) {
+    if (isMobile) {
+      Object.assign(medTimerBox.style, {
+        display: 'grid',
+        gap: '10px',
+        padding: '16px',
+        borderRadius: '16px',
+        background: 'rgba(15,23,42,0.78)',
+        boxShadow: '0 0 0 1px rgba(148,163,184,0.18)'
+      });
+    } else {
+      medTimerBox.removeAttribute('style');
+    }
+  }
+
+  const medSessionsEl = box.querySelector('#medSessions');
+  if (medSessionsEl) {
+    if (isMobile) {
+      Object.assign(medSessionsEl.style, {
+        flex: '1',
+        minHeight: '0',
+        overflow: 'auto',
+        padding: '14px 12px',
+        borderRadius: '16px',
+        background: 'rgba(15,23,42,0.6)',
+        boxShadow: 'inset 0 0 0 1px rgba(148,163,184,0.12)',
+        display: 'grid',
+        gap: '10px',
+        gridTemplateColumns: '1fr'
+      });
+    } else {
+      medSessionsEl.removeAttribute('style');
+    }
+  }
+
+  const medAddRow = box.querySelector('.med-add');
+  if (medAddRow) {
+    if (isMobile) {
+      Object.assign(medAddRow.style, {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr) auto auto',
+        gap: '10px',
+        alignItems: 'center'
+      });
+    } else {
+      medAddRow.removeAttribute('style');
+    }
+  }
 
   box.querySelector('#medEditDate').textContent = dateKey;
   renderMedSessionList();
@@ -366,7 +480,6 @@ function writeMedSessions(arr){
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); // re-render calendar & stats
-  renderMedSessionList();
 }
 function addMedSessionWithStart(min, startedAt){
   const md = readMonth(state.uid, state.year, state.month);
@@ -387,12 +500,47 @@ function addMedSessionWithStart(min, startedAt){
 function renderMedSessionList(){
   if(!medEditorEl) return;
   const wrap = medEditorEl.querySelector('#medSessions');
-  const sessions = readMedSessions();
+  const timerDisplay = medEditorEl.querySelector('#medTimerDisplay');
+  if(timerDisplay){
+    const timerStyle = window.getComputedStyle(timerDisplay);
+    const basePx = parseFloat(timerStyle.fontSize) || 0;
+    if(basePx){
+      wrap.style.fontSize = `${Math.round(basePx * 1.45)}px`;
+      wrap.style.lineHeight = '1.36';
+    } else {
+      wrap.style.fontSize = 'clamp(2.6rem, 7vw, 4.8rem)';
+      wrap.style.lineHeight = '1.36';
+    }
+  } else {
+    wrap.style.fontSize = 'clamp(2.6rem, 7vw, 4.8rem)';
+    wrap.style.lineHeight = '1.36';
+  }
+  wrap.style.gap = '18px';
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[medEditTarget.dateKey] || {};
+  const sessions = Array.isArray(rec.sessions)? rec.sessions : [];
+  const starts = Array.isArray(rec.starts)? rec.starts : [];
   wrap.innerHTML = '';
   if(!sessions.length){ wrap.innerHTML = '<div class="empty">記録なし</div>'; return; }
-  let total = 0;
-  sessions.forEach((m,i)=>{ total += m; const row=document.createElement('div'); row.className='med-row'; row.innerHTML=`<span class="min">${m}分</span><span class="actions"><button data-edit="${i}" title="編集">✏</button><button data-del="${i}" title="削除">✕</button></span>`; wrap.appendChild(row); });
-  const sum=document.createElement('div'); sum.className='med-total'; sum.textContent = `合計 ${total}分 / ${sessions.length}回`; wrap.appendChild(sum);
+  sessions.forEach((m,i)=>{
+    const startIso = starts[i] || '';
+    const startTxt = startIso ? new Date(startIso).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '--:--';
+    const row=document.createElement('div');
+    row.className='med-row';
+    row.style.display='grid';
+    row.style.gridTemplateColumns='1fr';
+    row.style.alignItems='center';
+    row.innerHTML=`
+      <div class="entry" style="display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:1.12em;letter-spacing:0.025em;">
+        <span class="time" style="font-size:1em;">${startTxt}</span>
+        <span class="min" style="font-size:1em;">${m}分</span>
+      </div>
+      <span class="actions" style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:12px; font-size:0.5em;">
+        <button data-edit="${i}" title="編集">✏</button>
+        <button data-del="${i}" title="削除">✕</button>
+      </span>`;
+    wrap.appendChild(row);
+  });
   wrap.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>{
     const idx = parseInt(b.getAttribute('data-edit'),10);
     const cur = readMedSessions(); const curVal=cur[idx];
@@ -449,8 +597,34 @@ function setTimerButtons({start,pause,resume,cancel}){
   const bP=medEditorEl?.querySelector('#medTimerPause'); if(bP) bP.disabled=!pause;
   const bR=medEditorEl?.querySelector('#medTimerResume'); if(bR) bR.disabled=!resume;
   const bC=medEditorEl?.querySelector('#medTimerCancel'); if(bC) bC.disabled=!cancel;
-  const bA=medEditorEl?.querySelector('#medAlarmStop'); if(bA) bA.disabled=!medAlarm.on;
 }
+
+function resetStartButtonMode(){
+  const btn = medEditorEl?.querySelector('#medTimerStart');
+  if(!btn) return;
+  btn.textContent = '開始';
+  btn.dataset.mode = 'start';
+  btn.classList.remove('alarm-stop');
+  btn.style.background = '';
+  btn.style.color = '';
+  btn.style.boxShadow = '';
+}
+function switchStartButtonToAlarmStop(){
+  const btn = medEditorEl?.querySelector('#medTimerStart');
+  if(!btn) return;
+  btn.textContent = '消音';
+  btn.dataset.mode = 'alarm-stop';
+  btn.classList.add('alarm-stop');
+  btn.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.95), rgba(185,28,28,0.92))';
+  btn.style.color = '#fff';
+  btn.style.boxShadow = '0 0 0 2px rgba(248,113,113,0.35)';
+}
+function handleMedTimerStartButton(ev){
+  const btn = ev.currentTarget;
+  if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(); return; }
+  startMedTimer();
+}
+
 function startAlarm(){
   try{
     if(medAlarm.on) return;
@@ -473,9 +647,9 @@ function startAlarm(){
         if (medAlarm.gain) medAlarm.gain.gain.setValueAtTime(0, medAlarm.ctx.currentTime);
       }, 400);
     }, 500);
-    const bA = medEditorEl?.querySelector('#medAlarmStop'); if (bA) bA.disabled = false;
   } catch { }
   if (navigator.vibrate) try { navigator.vibrate([200, 150, 200, 150, 200]); } catch { }
+  switchStartButtonToAlarmStop();
 }
 function stopAlarm(){
   try {
@@ -484,13 +658,18 @@ function stopAlarm(){
     if (medAlarm.ctx) { medAlarm.ctx.close(); }
   } catch { }
   medAlarm = { ctx: null, osc: null, gain: null, on: false, _beepInt: null };
+  resetStartButtonMode();
+  setTimerButtons({start:true,pause:false,resume:false,cancel:false});
 }
 function startMedTimer(){
+  resetStartButtonMode();
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
   if(min<=0){ alert('分を入力してください'); return; }
-  // Pre-flight reminders
-  alert('イヤホンをつないでいませんか（有線）？\nイヤホンをつないでいませんか（ブルートゥース）？\n端末がミュートになっていないか確認してください。\n(画面上または本体の音量表示でミュート解除を目視確認してください)');
-  // record start time
+  showMedAlert([
+    'イヤホンが刺さっていないですか？',
+    'BLUETOOTHイヤホンに繋がっていないですか？',
+    '<span style="color:#38bdf8;font-weight:800;">メディア</span>音量が十分か目視確認して下さい'
+  ]);
   medTimer.startedAt = new Date();
   medTimer.remaining = Math.round(min*60*1000);
   medTimer.endAt = Date.now() + medTimer.remaining;
@@ -511,7 +690,7 @@ function startMedTimer(){
 }
 function pauseMedTimer(){ if(!medTimer.running) return; medTimer.running=false; medTimer.remaining = Math.max(0, medTimer.endAt - Date.now()); clearInterval(medTimer.id); medTimer.id=null; setTimerButtons({start:false,pause:false,resume:true,cancel:true}); updateTimerDisplay(); }
 function resumeMedTimer(){ if(medTimer.running || !medTimer.remaining) return; medTimer.running=true; medTimer.endAt = Date.now() + medTimer.remaining; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); if(medTimer.id) clearInterval(medTimer.id); medTimer.id=setInterval(()=>{ const left=medTimer.endAt-Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id=null; medTimer.running=false; medTimer.remaining=0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0, medTimer.startedAt?.toISOString()||''); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
-function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
+function cancelMedTimer(){ if(medTimer.id) clearInterval(medTimer.id); medTimer={id:null,running:false,endAt:0,remaining:0,startedAt:null}; resetStartButtonMode(); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); updateTimerDisplay(); }
 
 // clearThisMonth 機能削除 (UI 簡略化)
 
@@ -927,8 +1106,8 @@ function mergePayload(localP, remoteP){
             const f = fp(o.m,o.s);
             const cur = byFp.get(f);
             if(!cur) byFp.set(f,o); else {
-              const curReal = /^m[0-9a-z]/.test(cur.id);
-              const oReal = /^m[0-9a-z]/.test(o.id);
+              const curReal = /^m[0-9a]/.test(cur.id);
+              const oReal = /^m[0-9a]/.test(o.id);
               if(oReal && !curReal) byFp.set(f,o);
             }
           });
@@ -1150,11 +1329,11 @@ function cleanupLegacyMeditationDuplicates(){
           const m = sess[i]; const s = starts[i]||''; const id = ids[i];
           const f = fp(m,s);
           const cur = map.get(f);
-          const real = id && /^m[0-9a-z]/.test(id);
+          const real = id && /^m[0-9a]/.test(id);
           if(!cur){
             map.set(f,{m,s,id: real ? id : ('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7))});
           } else {
-            if(real && !/^m[0-9a-z]/.test(cur.id)) map.set(f,{m,s,id});
+            if(real && !/^m[0-9a]/.test(cur.id)) map.set(f,{m,s,id});
           }
         }
         for(const v of map.values()){ newSess.push(v.m); newStarts.push(v.s); newIds.push(v.id); }
@@ -1248,3 +1427,225 @@ setTimeout(startAutoSync, 1500);
 window.forcePull = autoPull;
 // 修正: 未定義の markDirty を呼ばない
 window.forcePush = ()=>{ markDirtyImmediate(); };
+
+if (typeof window.openMeditationEditor !== 'function') {
+  window.openMeditationEditor = function(dateKey, cellEl, sessions){
+    try{
+      let host = document.getElementById('medEditor');
+      if(!host){
+        host = document.createElement('div');
+        host.id = 'medEditor';
+        document.body.appendChild(host);
+      }
+      window.medEditorEl = host;
+
+      const [y,m,d] = dateKey.split('-').map((v,i)=> i===1? (parseInt(v,10)-1) : parseInt(v,10));
+      const month = readMonth(state.uid, y, m);
+      const base = normalizeMeditationRecord(month[dateKey]);
+      const list = base.sessions.slice();
+      const starts = base.starts.slice();
+      const ids = Array.isArray(base.ids) ? base.ids.slice(0, list.length) : [];
+      while(ids.length < list.length) ids.push('');
+
+      const isMobile = window.matchMedia('(max-width: 600px)').matches;
+      host.classList.toggle('mobile-fullscreen', isMobile);
+      host.style.position = 'fixed';
+      host.style.zIndex = '2000';
+      host.style.background = 'var(--card, #111)';
+      host.style.display = isMobile ? 'flex' : 'block';
+      if(isMobile){
+        host.style.top = '0';
+        host.style.left = '0';
+        host.style.right = '0';
+        host.style.bottom = '0';
+        host.style.width = '100vw';
+        host.style.height = '100vh';
+        host.style.maxWidth = '100vw';
+        host.style.maxHeight = '100vh';
+        host.style.border = '0';
+        host.style.borderRadius = '0';
+        host.style.padding = '18px clamp(16px, 4vw, 24px) calc(18px + env(safe-area-inset-bottom))';
+        host.style.boxShadow = 'none';
+        host.style.flexDirection = 'column';
+        host.style.gap = '12px';
+        host.style.overflow = 'hidden';
+      } else {
+        host.style.top = '';
+        host.style.left = '';
+        host.style.width = '';
+        host.style.height = '';
+        host.style.maxWidth = 'min(96vw, 380px)';
+        host.style.maxHeight = '';
+        host.style.border = '1px solid rgba(148,163,184,.25)';
+        host.style.borderRadius = '12px';
+        host.style.padding = '12px';
+        host.style.boxShadow = '0 12px 32px rgba(0,0,0,.5)';
+        host.style.flexDirection = '';
+        host.style.gap = '';
+        host.style.overflow = 'auto';
+        host.style.right = '12px';
+        host.style.bottom = '12px';
+      }
+
+      host.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div style="font-weight:800">${y}年 ${m+1}月 ${d}日</div>
+          <button id="medClose" class="btn" style="padding:6px 10px;">閉じる</button>
+        </div>
+        <div class="sep" style="height:1px;background:rgba(148,163,184,.18);margin:${isMobile?'0':'10px 0'}"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:${isMobile?'0':'8px'}">
+          <input id="medNewMin" type="number" placeholder="分" inputmode="numeric" style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid rgba(148,163,184,.25);background:#0b1220;color:#e5e7eb;">
+          <button id="medAdd" class="btn primary" style="padding:8px 12px">追加</button>
+          <span title="リファクタリング中" style="font-size:20px;line-height:1;">🛠️</span>
+          <button id="medTimerStart" style="position:absolute;left:-9999px;top:-9999px">リファクタリング中</button>
+        </div>
+        <div id="medSessList" style="display:grid;gap:6px;${isMobile?'flex:1;overflow:auto;':''}max-height:${isMobile?'none':'160px'};overflow:${isMobile?'auto':'auto'}"></div>
+      `;
+
+      host.querySelector('#medClose').addEventListener('click', ()=>{
+        host.style.display='none';
+        host.classList.remove('mobile-fullscreen');
+      });
+
+      const listEl = host.querySelector('#medSessList');
+      if(listEl){
+        listEl.innerHTML = '';
+        if(!list.length){
+          listEl.innerHTML = '<div class="empty">記録なし</div>';
+        } else {
+          let total = 0;
+          list.forEach((m,i)=>{ total += m; const row=document.createElement('div'); row.className='med-row'; row.innerHTML=`<span class="min">${m}分</span><span class="actions"><button data-edit="${i}" title="編集">✏</button><button data-del="${i}" title="削除">✕</button></span>`; listEl.appendChild(row); });
+          const sum=document.createElement('div'); sum.className='med-total'; sum.textContent = `合計 ${total}分 / ${list.length}回`; listEl.appendChild(sum);
+          listEl.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>{ 
+            const idx = parseInt(b.getAttribute('data-edit'),10);
+            const cur = readMedSessions(); const curVal=cur[idx];
+            const nvStr = prompt('新しい分数', curVal);
+            if(nvStr===null) return; const nv=parseFloat(nvStr); if(!Number.isFinite(nv)||nv<=0){ alert('正の数'); return; }
+            const next = cur.slice(); next[idx]=nv;
+            writeMedSessions(next);
+          }));
+          listEl.querySelectorAll('button[data-del]').forEach(b=> b.addEventListener('click', ()=>{ 
+            const idx = parseInt(b.getAttribute('data-del'),10);
+            // delete both sessions and starts
+            const md = readMonth(state.uid, state.year, state.month);
+            const rec = md[medEditTarget.dateKey] || {};
+            const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
+            const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
+            const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
+            const oldLen = sessions.length;
+            sessions.splice(idx,1);
+            if(starts.length>idx) starts.splice(idx,1);
+            if(ids.length>idx) ids.splice(idx,1);
+            if(sessions.length){
+              const obj = { sessions, starts, ids, dayTs: new Date().toISOString() };
+              obj.replace = true; // セッション削除は置換扱い
+              md[medEditTarget.dateKey] = obj;
+            } else {
+              md[medEditTarget.dateKey] = { __deleted:true, ts: new Date().toISOString() };
+            }
+            writeMonth(state.uid, state.year, state.month, md);
+            if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
+            renderCalendar(); renderMedSessionList();
+          }));
+        }
+      }
+
+      const inp = host.querySelector('#medNewMin');
+      inp.setAttribute('step','0.1');
+      inp.focus();
+    }catch(e){
+      console.warn('[med-editor] failed:', e);
+    }
+  };
+}
+
+function showMedAlert(message){
+  const existing = document.getElementById('medAlertOverlay');
+  const applyMessage = (target, content)=>{
+    if(!target) return;
+    if(Array.isArray(content)){
+      target.innerHTML = content.map(line=>`<div>${line}</div>`).join('');
+    } else if(content instanceof HTMLElement){
+      target.innerHTML = '';
+      target.appendChild(content);
+    } else {
+      target.innerHTML = content ?? '';
+    }
+  };
+
+  if(existing){
+    const msg = existing.querySelector('#medAlertMessage');
+    applyMessage(msg, message);
+    existing.style.display = 'flex';
+    existing.querySelector('button')?.focus();
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'medAlertOverlay';
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(15,23,42,0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '4000'
+  });
+
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'alertdialog');
+  Object.assign(dialog.style, {
+    minWidth: '220px',
+    maxWidth: '90vw',
+    borderRadius: '14px',
+    padding: '22px 24px 18px',
+    background: 'var(--card,#0f172a)',
+    color: '#e2e8f0',
+    boxShadow: '0 18px 40px rgba(15,23,42,0.45), 0 0 0 1px rgba(148,163,184,0.18)',
+    display: 'grid',
+    gap: '18px',
+    textAlign: 'center'
+  });
+
+  const msgEl = document.createElement('div');
+  msgEl.id = 'medAlertMessage';
+  Object.assign(msgEl.style, { fontWeight: '700', fontSize: '1.05rem', letterSpacing: '0.01em' });
+  applyMessage(msgEl, message);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'OK';
+  Object.assign(btn.style, {
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '0',
+    background: 'linear-gradient(135deg,#38bdf8,#a855f7)',
+    color: '#fff',
+    fontWeight: '700',
+    cursor: 'pointer'
+  });
+
+  let keyHandler;
+  const close = ()=>{
+    overlay.remove();
+    if(keyHandler) window.removeEventListener('keydown', keyHandler, true);
+  };
+
+  keyHandler = (ev)=>{ if(ev.key === 'Escape'){ close(); } };
+  window.addEventListener('keydown', keyHandler, true);
+
+  btn.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    close();
+  });
+  overlay.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    if(ev.target === overlay) close();
+  });
+
+  dialog.append(msgEl, btn);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  setTimeout(()=> btn.focus(), 0);
+}

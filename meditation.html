@@ -79,6 +79,29 @@
       overflow: auto;
       z-index: 1000;
     }
+    /* 追加: スマホ表示は画面いっぱい＆フレックスで縦配置 */
+    #medEditor.mobile-fullscreen{
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      max-height: none;
+      border-radius: 0;
+      border: 0;
+      padding: 18px clamp(16px, 4vw, 24px) calc(18px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--card, #111);
+      box-shadow: none;
+    }
+    #medEditor.mobile-fullscreen .sep{margin:0}
+    #medEditor.mobile-fullscreen #medSessList{
+      flex: 1;
+      max-height: none;
+      overflow: auto;
+    }
   </style>
 </head>
 <body>
