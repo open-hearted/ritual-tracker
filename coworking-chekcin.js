@@ -1273,22 +1273,39 @@ if (typeof window.openMeditationEditor !== 'function') {
       host.style.position = 'fixed';
       host.style.zIndex = '2000';
       host.style.background = 'var(--card, #111)';
+      host.style.display = isMobile ? 'flex' : 'block';
       if(isMobile){
-        host.style.right = '';
-        host.style.bottom = '';
-        host.style.left = '';
+        host.style.top = '0';
+        host.style.left = '0';
+        host.style.right = '0';
+        host.style.bottom = '0';
+        host.style.width = '100vw';
+        host.style.height = '100vh';
+        host.style.maxWidth = '100vw';
+        host.style.maxHeight = '100vh';
+        host.style.border = '0';
+        host.style.borderRadius = '0';
+        host.style.padding = '18px clamp(16px, 4vw, 24px) calc(18px + env(safe-area-inset-bottom))';
+        host.style.boxShadow = 'none';
+        host.style.flexDirection = 'column';
+        host.style.gap = '12px';
+        host.style.overflow = 'hidden';
+      } else {
         host.style.top = '';
-      }else{
-        host.style.right = '12px';
-        host.style.bottom = '12px';
         host.style.left = '';
-        host.style.top = '';
+        host.style.width = '';
+        host.style.height = '';
+        host.style.maxWidth = 'min(96vw, 380px)';
+        host.style.maxHeight = '';
         host.style.border = '1px solid rgba(148,163,184,.25)';
         host.style.borderRadius = '12px';
         host.style.padding = '12px';
         host.style.boxShadow = '0 12px 32px rgba(0,0,0,.5)';
-        host.style.maxWidth = 'min(96vw, 380px)';
-        host.style.maxHeight = '';
+        host.style.flexDirection = '';
+        host.style.gap = '';
+        host.style.overflow = 'auto';
+        host.style.right = '12px';
+        host.style.bottom = '12px';
       }
 
       host.innerHTML = `
@@ -1305,10 +1322,10 @@ if (typeof window.openMeditationEditor !== 'function') {
         <div id="medSessList" style="display:grid;gap:6px;${isMobile?'flex:1;overflow:auto;':''}max-height:${isMobile?'none':'160px'};overflow:${isMobile?'auto':'auto'}"></div>
       `;
 
-      const closeBtn = host.querySelector('#medClose');
-      if(closeBtn){
-        closeBtn.addEventListener('click', ()=>{ host.style.display='none'; });
-      }
+      host.querySelector('#medClose').addEventListener('click', ()=>{
+        host.style.display='none';
+        host.classList.remove('mobile-fullscreen');
+      });
 
       const listEl = host.querySelector('#medSessList');
       if(listEl){
