@@ -480,7 +480,6 @@ function writeMedSessions(arr){
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); // re-render calendar & stats
-  renderMedSessionList();
 }
 function addMedSessionWithStart(min, startedAt){
   const md = readMonth(state.uid, state.year, state.month);
@@ -501,14 +500,39 @@ function addMedSessionWithStart(min, startedAt){
 function renderMedSessionList(){
   if(!medEditorEl) return;
   const wrap = medEditorEl.querySelector('#medSessions');
-  wrap.style.fontSize = '200%';
-  wrap.style.lineHeight = '1.6';
-  const sessions = readMedSessions();
+  wrap.style.fontSize = 'clamp(1.8rem, 6vw, 3.4rem)';
+  wrap.style.lineHeight = '1.35';
+  wrap.style.gap = '18px';
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[medEditTarget.dateKey] || {};
+  const sessions = Array.isArray(rec.sessions)? rec.sessions : [];
+  const starts = Array.isArray(rec.starts)? rec.starts : [];
   wrap.innerHTML = '';
   if(!sessions.length){ wrap.innerHTML = '<div class="empty">記録なし</div>'; return; }
   let total = 0;
-  sessions.forEach((m,i)=>{ total += m; const row=document.createElement('div'); row.className='med-row'; row.innerHTML=`<span class="min">${m}分</span><span class="actions"><button data-edit="${i}" title="編集">✏</button><button data-del="${i}" title="削除">✕</button></span>`; wrap.appendChild(row); });
-  const sum=document.createElement('div'); sum.className='med-total'; sum.textContent = `合計 ${total}分 / ${sessions.length}回`; wrap.appendChild(sum);
+  sessions.forEach((m,i)=>{
+    total += m;
+    const startIso = starts[i] || '';
+    const startTxt = startIso ? new Date(startIso).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '--:--';
+    const row=document.createElement('div');
+    row.className='med-row';
+    row.style.display='grid';
+    row.style.gridTemplateColumns='1fr auto';
+    row.style.alignItems='center';
+    row.innerHTML=`
+      <span class="min" style="font-weight:700;">${m}分</span>
+      <span class="meta" style="font-size:0.45em; justify-self:end;">開始 ${startTxt}</span>
+      <span class="actions" style="grid-column:1 / -1; display:flex; gap:12px; font-size:0.5em;">
+        <button data-edit="${i}" title="編集">✏</button>
+        <button data-del="${i}" title="削除">✕</button>
+      </span>`;
+    wrap.appendChild(row);
+  });
+  const sum=document.createElement('div');
+  sum.className='med-total';
+  sum.style.fontSize='0.6em';
+  sum.textContent = `合計 ${total}分 / ${sessions.length}回`;
+  wrap.appendChild(sum);
   wrap.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>{
     const idx = parseInt(b.getAttribute('data-edit'),10);
     const cur = readMedSessions(); const curVal=cur[idx];
