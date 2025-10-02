@@ -314,12 +314,17 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
       height: '100vh',
       maxWidth: '100vw',
       maxHeight: '100vh',
-      padding: '16px',
+      padding: '24px clamp(18px, 6vw, 28px) calc(24px + env(safe-area-inset-bottom))',
       borderRadius: '0',
       border: '0',
       boxShadow: 'none',
       overflow: 'auto',
-      zIndex: '2000'
+      zIndex: '2000',
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: '18px',
+      justifyContent: 'flex-start',
+      background: 'var(--card, #0b1220)'
     });
     box.scrollTop = 0;
   } else {
@@ -337,7 +342,12 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
       border: '',
       boxShadow: '',
       overflow: 'auto',
-      zIndex: '2000'
+      zIndex: '2000',
+      flexDirection: '',
+      alignItems: '',
+      gap: '',
+      justifyContent: '',
+      background: ''
     });
 
     // 表示してサイズを測れるようにする＋ビューポート内に収まる上限を付与
@@ -367,6 +377,70 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
 
     box.style.left = Math.round(left) + 'px';
     box.style.top  = Math.round(top)  + 'px';
+  }
+
+  const medHead = box.querySelector('.med-head');
+  if (medHead) {
+    if (isMobile) {
+      Object.assign(medHead.style, {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        padding: '0'
+      });
+    } else {
+      medHead.removeAttribute('style');
+    }
+  }
+
+  const medTimerBox = box.querySelector('#medTimerBox');
+  if (medTimerBox) {
+    if (isMobile) {
+      Object.assign(medTimerBox.style, {
+        display: 'grid',
+        gap: '10px',
+        padding: '16px',
+        borderRadius: '16px',
+        background: 'rgba(15,23,42,0.78)',
+        boxShadow: '0 0 0 1px rgba(148,163,184,0.18)'
+      });
+    } else {
+      medTimerBox.removeAttribute('style');
+    }
+  }
+
+  const medSessionsEl = box.querySelector('#medSessions');
+  if (medSessionsEl) {
+    if (isMobile) {
+      Object.assign(medSessionsEl.style, {
+        flex: '1',
+        minHeight: '0',
+        overflow: 'auto',
+        padding: '14px 12px',
+        borderRadius: '16px',
+        background: 'rgba(15,23,42,0.6)',
+        boxShadow: 'inset 0 0 0 1px rgba(148,163,184,0.12)',
+        display: 'grid',
+        gap: '10px'
+      });
+    } else {
+      medSessionsEl.removeAttribute('style');
+    }
+  }
+
+  const medAddRow = box.querySelector('.med-add');
+  if (medAddRow) {
+    if (isMobile) {
+      Object.assign(medAddRow.style, {
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0,1fr) auto auto',
+        gap: '10px',
+        alignItems: 'center'
+      });
+    } else {
+      medAddRow.removeAttribute('style');
+    }
   }
 
   box.querySelector('#medEditDate').textContent = dateKey;
