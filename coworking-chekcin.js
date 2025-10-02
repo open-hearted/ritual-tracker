@@ -665,7 +665,7 @@ function startMedTimer(){
   resetStartButtonMode();
   const min = parseFloat(medEditorEl.querySelector('#medTimerMin').value)||0;
   if(min<=0){ alert('分を入力してください'); return; }
-  alert('リファクタリング中');
+  showMedAlert('リファクタリング中');
   medTimer.startedAt = new Date();
   medTimer.remaining = Math.round(min*60*1000);
   medTimer.endAt = Date.now() + medTimer.remaining;
@@ -1553,4 +1553,77 @@ if (typeof window.openMeditationEditor !== 'function') {
       console.warn('[med-editor] failed:', e);
     }
   };
+}
+
+function showMedAlert(message){
+  const existing = document.getElementById('medAlertOverlay');
+  if(existing){
+    const msg = existing.querySelector('#medAlertMessage');
+    if(msg) msg.textContent = message;
+    existing.style.display = 'flex';
+    existing.querySelector('button')?.focus();
+    return;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'medAlertOverlay';
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(15,23,42,0.55)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '4000'
+  });
+
+  const dialog = document.createElement('div');
+  dialog.setAttribute('role', 'alertdialog');
+  Object.assign(dialog.style, {
+    minWidth: '220px',
+    maxWidth: '90vw',
+    borderRadius: '14px',
+    padding: '22px 24px 18px',
+    background: 'var(--card,#0f172a)',
+    color: '#e2e8f0',
+    boxShadow: '0 18px 40px rgba(15,23,42,0.45), 0 0 0 1px rgba(148,163,184,0.18)',
+    display: 'grid',
+    gap: '18px',
+    textAlign: 'center'
+  });
+
+  const msgEl = document.createElement('div');
+  msgEl.id = 'medAlertMessage';
+  Object.assign(msgEl.style, { fontWeight: '700', fontSize: '1.05rem', letterSpacing: '0.01em' });
+  msgEl.textContent = message;
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = 'OK';
+  Object.assign(btn.style, {
+    padding: '10px 14px',
+    borderRadius: '10px',
+    border: '0',
+    background: 'linear-gradient(135deg,#38bdf8,#a855f7)',
+    color: '#fff',
+    fontWeight: '700',
+    cursor: 'pointer'
+  });
+
+  let keyHandler;
+  const close = ()=>{
+    overlay.remove();
+    if(keyHandler) window.removeEventListener('keydown', keyHandler, true);
+  };
+
+  keyHandler = (ev)=>{ if(ev.key === 'Escape'){ close(); } };
+  window.addEventListener('keydown', keyHandler, true);
+
+  btn.addEventListener('click', close);
+  overlay.addEventListener('click', (ev)=>{ if(ev.target === overlay) close(); });
+
+  dialog.append(msgEl, btn);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  setTimeout(()=> btn.focus(), 0);
 }
