@@ -570,6 +570,9 @@ function resetStartButtonMode(){
   btn.textContent = '開始';
   btn.dataset.mode = 'start';
   btn.classList.remove('alarm-stop');
+  btn.style.background = '';
+  btn.style.color = '';
+  btn.style.boxShadow = '';
 }
 function switchStartButtonToAlarmStop(){
   const btn = medEditorEl?.querySelector('#medTimerStart');
@@ -577,6 +580,9 @@ function switchStartButtonToAlarmStop(){
   btn.textContent = '消音';
   btn.dataset.mode = 'alarm-stop';
   btn.classList.add('alarm-stop');
+  btn.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.95), rgba(185,28,28,0.92))';
+  btn.style.color = '#fff';
+  btn.style.boxShadow = '0 0 0 2px rgba(248,113,113,0.35)';
 }
 function handleMedTimerStartButton(ev){
   const btn = ev.currentTarget;
