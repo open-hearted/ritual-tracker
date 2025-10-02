@@ -1318,7 +1318,7 @@ if (typeof window.openMeditationEditor !== 'function') {
           <input id="medNewMin" type="number" placeholder="分" inputmode="numeric" style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid rgba(148,163,184,.25);background:#0b1220;color:#e5e7eb;">
           <button id="medAdd" class="btn primary" style="padding:8px 12px">追加</button>
           <span title="リファクタリング中" style="font-size:20px;line-height:1;">🛠️</span>
-          <button id="medTimerStart" style="position:absolute;left:-9999px;top:-9999px">開始</button>
+          <button id="medTimerStart" style="position:absolute;left:-9999px;top:-9999px">リファクタリング中</button>
         </div>
         <div id="medSessList" style="display:grid;gap:6px;${isMobile?'flex:1;overflow:auto;':''}max-height:${isMobile?'none':'160px'};overflow:${isMobile?'auto':'auto'}"></div>
       `;
