@@ -1259,13 +1259,6 @@ async function autoPush(){
       }
       const { url } = await sign.json();
       const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
-        const txt = await sign.text().catch(()=> '');
-        if(txt.includes('S3_BUCKET not set')){ console.warn('[sync] server missing S3_BUCKET env (push)'); setSyncStatus('Server missing S3_BUCKET env var'); }
-        else { console.warn('[sync] sign-put failed', sign.status, txt); setSyncStatus('sign-put failed '+sign.status); }
-        __autoSync.dirty=true; break;
-      }
-      const { url } = await sign.json();
-      const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
       if(!put.ok){ console.warn('[sync] S3 PUT failed', put.status); __autoSync.dirty=true; break; }
       console.info('[sync] pushed v'+payload.__meta.version);
       setSyncStatus('pushed v'+payload.__meta.version+' (verifying)');
@@ -1317,11 +1310,11 @@ function cleanupLegacyMeditationDuplicates(){
           const m = sess[i]; const s = starts[i]||''; const id = ids[i];
           const f = fp(m,s);
           const cur = map.get(f);
-          const real = id && /^m[0-9a-z]/.test(id);
+          const real = id && /^m[0-9a]/.test(id);
           if(!cur){
             map.set(f,{m,s,id: real ? id : ('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7))});
           } else {
-            if(real && !/^m[0-9a-z]/.test(cur.id)) map.set(f,{m,s,id});
+            if(real && !/^m[0-9a]/.test(cur.id)) map.set(f,{m,s,id});
           }
         }
         for(const v of map.values()){ newSess.push(v.m); newStarts.push(v.s); newIds.push(v.id); }
