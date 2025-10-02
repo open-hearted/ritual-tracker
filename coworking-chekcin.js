@@ -509,9 +509,7 @@ function renderMedSessionList(){
   const starts = Array.isArray(rec.starts)? rec.starts : [];
   wrap.innerHTML = '';
   if(!sessions.length){ wrap.innerHTML = '<div class="empty">記録なし</div>'; return; }
-  let total = 0;
   sessions.forEach((m,i)=>{
-    total += m;
     const startIso = starts[i] || '';
     const startTxt = startIso ? new Date(startIso).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) : '--:--';
     const row=document.createElement('div');
@@ -528,11 +526,6 @@ function renderMedSessionList(){
       </span>`;
     wrap.appendChild(row);
   });
-  const sum=document.createElement('div');
-  sum.className='med-total';
-  sum.style.fontSize='0.6em';
-  sum.textContent = `合計 ${total}分 / ${sessions.length}回`;
-  wrap.appendChild(sum);
   wrap.querySelectorAll('button[data-edit]').forEach(b=> b.addEventListener('click', ()=>{
     const idx = parseInt(b.getAttribute('data-edit'),10);
     const cur = readMedSessions(); const curVal=cur[idx];
@@ -1094,7 +1087,7 @@ function mergePayload(localP, remoteP){
             const f = fp(o.m,o.s);
             const cur = byFp.get(f);
             if(!cur) byFp.set(f,o); else {
-              const curReal = /^m[0-9a-z]/.test(cur.id);
+              const curReal = /^m[0-9a]/.test(cur.id);
               const oReal = /^m[0-9a]/.test(o.id);
               if(oReal && !curReal) byFp.set(f,o);
             }
@@ -1259,6 +1252,13 @@ async function autoPush(){
       const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
       if(sign.status===401){ console.warn('[sync] push unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (push)'); __autoSync.dirty=true; break; }
       if(!sign.ok){
+        const txt = await sign.text().catch(()=> '');
+        if(txt.includes('S3_BUCKET not set')){ console.warn('[sync] server missing S3_BUCKET env (push)'); setSyncStatus('Server missing S3_BUCKET env var'); }
+        else { console.warn('[sync] sign-put failed', sign.status, txt); setSyncStatus('sign-put failed '+sign.status); }
+        __autoSync.dirty=true; break;
+      }
+      const { url } = await sign.json();
+      const put = await fetch(url, { method:'PUT', body: enc, headers:{'content-type':'application/octet-stream'} });
         const txt = await sign.text().catch(()=> '');
         if(txt.includes('S3_BUCKET not set')){ console.warn('[sync] server missing S3_BUCKET env (push)'); setSyncStatus('Server missing S3_BUCKET env var'); }
         else { console.warn('[sync] sign-put failed', sign.status, txt); setSyncStatus('sign-put failed '+sign.status); }
