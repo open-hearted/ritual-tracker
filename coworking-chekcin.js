@@ -967,10 +967,42 @@ function buildExerciseCard(def){
   card.dataset.type = def.type;
 
   const head = document.createElement('div');
-  head.style.display = 'flex';
-  head.style.justifyContent = 'space-between';
-  head.style.alignItems = 'center';
-  head.innerHTML = `<div style="font-weight:700;font-size:1rem">${def.icon} ${def.label}</div>`;
+  Object.assign(head.style, {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px'
+  });
+
+  const title = document.createElement('div');
+  Object.assign(title.style, {
+    fontWeight: '700',
+    fontSize: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  });
+  title.textContent = `${def.icon} ${def.label}`;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '5';
+  input.step = '5';
+  input.value = String(def.defaultSeconds);
+  input.dataset.role = `seconds-${def.type}`;
+  Object.assign(input.style, {
+    width: '3.6ch',
+    borderRadius: '8px',
+    border: '1px solid rgba(148,163,184,0.28)',
+    background: 'rgba(15,23,42,0.7)',
+    color: '#e2e8f0',
+    padding: '6px 8px',
+    fontWeight: '600',
+    fontSize: '0.95rem',
+    textAlign: 'right'
+  });
+
+  head.append(title, input);
 
   const display = document.createElement('div');
   display.dataset.role = `display-${def.type}`;
@@ -1015,30 +1047,7 @@ function buildExerciseCard(def){
   status.style.opacity = '0.75';
   status.textContent = '準備完了';
 
-  const controls = document.createElement('div');
-  controls.style.display = 'flex';
-  controls.style.gap = '12px';
-  controls.style.alignItems = 'center';
-
-  const input = document.createElement('input');
-  input.type = 'number';
-  input.min = '5';
-  input.step = '5';
-  input.value = String(def.defaultSeconds);
-  input.dataset.role = `seconds-${def.type}`;
-  Object.assign(input.style, {
-    width: '80px',
-    borderRadius: '10px',
-    border: '1px solid rgba(148,163,184,0.28)',
-    background: 'rgba(15,23,42,0.7)',
-    color: '#e2e8f0',
-    padding: '8px 10px',
-    fontWeight: '600'
-  });
-
-  controls.append(input);
-  controls.style.justifyContent = 'flex-end';
-  card.append(head, timerRow, status, controls);
+  card.append(head, timerRow, status);
 
   exerciseTimers[def.type] = {
     type: def.type,
