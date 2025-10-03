@@ -1248,9 +1248,15 @@ function updateExerciseTimerUI(type){
     if(state.alarmOn){
       state.startBtn.textContent = '消音';
       state.startBtn.disabled = false;
+      state.startBtn.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.95), rgba(185,28,28,0.92))';
+      state.startBtn.style.color = '#fff';
+      state.startBtn.style.boxShadow = '0 0 0 2px rgba(248,113,113,0.35)';
     } else {
       state.startBtn.textContent = '開始';
       state.startBtn.disabled = !!state.running;
+      state.startBtn.style.background = 'linear-gradient(135deg,#22d3ee,#6366f1)';
+      state.startBtn.style.color = '#0f172a';
+      state.startBtn.style.boxShadow = '';
     }
   }
   if(state.cancelBtn) state.cancelBtn.disabled = !(state.running || state.alarmOn);
