@@ -978,9 +978,36 @@ function buildExerciseCard(def){
     fontFamily: 'var(--mono, "Roboto Mono", "SFMono-Regular", monospace)',
     fontSize: 'clamp(2.4rem, 6vw, 3.4rem)',
     fontWeight: '700',
-    letterSpacing: '0.04em'
+    letterSpacing: '0.04em',
+    flex: '1',
+    minWidth: 0
   });
   display.innerHTML = formatSeconds(def.defaultSeconds);
+
+  const startBtn = document.createElement('button');
+  startBtn.type = 'button';
+  startBtn.dataset.role = `start-${def.type}`;
+  startBtn.textContent = '開始';
+  Object.assign(startBtn.style, {
+    flex: '0 0 auto',
+    borderRadius: '10px',
+    border: '0',
+    background: 'linear-gradient(135deg,#22d3ee,#6366f1)',
+    color: '#0f172a',
+    fontWeight: '700',
+    padding: '10px 18px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
+  });
+
+  const timerRow = document.createElement('div');
+  Object.assign(timerRow.style, {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+    justifyContent: 'space-between'
+  });
+  timerRow.append(display, startBtn);
 
   const status = document.createElement('div');
   status.dataset.role = `status-${def.type}`;
@@ -992,21 +1019,6 @@ function buildExerciseCard(def){
   controls.style.display = 'flex';
   controls.style.gap = '12px';
   controls.style.alignItems = 'center';
-
-  const startBtn = document.createElement('button');
-  startBtn.type = 'button';
-  startBtn.dataset.role = `start-${def.type}`;
-  startBtn.textContent = '開始';
-  Object.assign(startBtn.style, {
-    flex: '1',
-    borderRadius: '10px',
-    border: '0',
-    background: 'linear-gradient(135deg,#22d3ee,#6366f1)',
-    color: '#0f172a',
-    fontWeight: '700',
-    padding: '10px 14px',
-    cursor: 'pointer'
-  });
 
   const input = document.createElement('input');
   input.type = 'number';
@@ -1024,8 +1036,9 @@ function buildExerciseCard(def){
     fontWeight: '600'
   });
 
-  controls.append(startBtn, input);
-  card.append(head, display, status, controls);
+  controls.append(input);
+  controls.style.justifyContent = 'flex-end';
+  card.append(head, timerRow, status, controls);
 
   exerciseTimers[def.type] = {
     type: def.type,
