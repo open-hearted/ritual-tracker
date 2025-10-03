@@ -990,7 +990,7 @@ function buildExerciseCard(def){
 
   const controls = document.createElement('div');
   controls.style.display = 'flex';
-  controls.style.gap = '10px';
+  controls.style.gap = '12px';
   controls.style.alignItems = 'center';
 
   const startBtn = document.createElement('button');
@@ -1004,20 +1004,6 @@ function buildExerciseCard(def){
     background: 'linear-gradient(135deg,#22d3ee,#6366f1)',
     color: '#0f172a',
     fontWeight: '700',
-    padding: '10px 14px',
-    cursor: 'pointer'
-  });
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.type = 'button';
-  cancelBtn.dataset.role = `cancel-${def.type}`;
-  cancelBtn.textContent = 'リセット';
-  Object.assign(cancelBtn.style, {
-    borderRadius: '10px',
-    border: '1px solid rgba(148,163,184,0.35)',
-    background: 'transparent',
-    color: '#cbd5f5',
-    fontWeight: '600',
     padding: '10px 14px',
     cursor: 'pointer'
   });
@@ -1038,7 +1024,7 @@ function buildExerciseCard(def){
     fontWeight: '600'
   });
 
-  controls.append(startBtn, cancelBtn, input);
+  controls.append(startBtn, input);
   card.append(head, display, status, controls);
 
   exerciseTimers[def.type] = {
@@ -1054,7 +1040,6 @@ function buildExerciseCard(def){
     statusEl: status,
     inputEl: input,
     startBtn,
-    cancelBtn,
     alarmOn: false,
     alarmCtx: null,
     alarmOsc: null,
@@ -1063,7 +1048,6 @@ function buildExerciseCard(def){
   };
 
   startBtn.addEventListener('click', ()=> handleExerciseStartClick(def.type));
-  cancelBtn.addEventListener('click', ()=> cancelExerciseTimer(def.type));
 
   return card;
 }
@@ -1120,6 +1104,10 @@ function handleExerciseStartClick(type){
       state.finishedAt = new Date();
       updateExerciseTimerUI(type);
     }
+    return;
+  }
+  if(state.running){
+    cancelExerciseTimer(type);
     return;
   }
   startExerciseTimer(type);
@@ -1252,21 +1240,25 @@ function updateExerciseTimerUI(type){
   }
   if(state.displayEl) state.displayEl.textContent = formatSeconds(displaySeconds);
   if(state.startBtn){
+    state.startBtn.disabled = false;
+    state.startBtn.textContent = '開始';
+    state.startBtn.style.background = 'linear-gradient(135deg,#22d3ee,#6366f1)';
+    state.startBtn.style.color = '#0f172a';
+    state.startBtn.style.boxShadow = '';
+
+    if(state.running){
+      state.startBtn.textContent = 'リセット';
+      state.startBtn.style.background = 'linear-gradient(135deg, rgba(94,234,212,0.95), rgba(45,212,191,0.9))';
+      state.startBtn.style.boxShadow = '0 0 0 2px rgba(16,185,129,0.25)';
+    }
+
     if(state.alarmOn){
       state.startBtn.textContent = '消音';
-      state.startBtn.disabled = false;
       state.startBtn.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.95), rgba(185,28,28,0.92))';
       state.startBtn.style.color = '#fff';
       state.startBtn.style.boxShadow = '0 0 0 2px rgba(248,113,113,0.35)';
-    } else {
-      state.startBtn.textContent = '開始';
-      state.startBtn.disabled = !!state.running;
-      state.startBtn.style.background = 'linear-gradient(135deg,#22d3ee,#6366f1)';
-      state.startBtn.style.color = '#0f172a';
-      state.startBtn.style.boxShadow = '';
     }
   }
-  if(state.cancelBtn) state.cancelBtn.disabled = !(state.running || state.alarmOn);
   if(state.inputEl) state.inputEl.disabled = state.running || state.alarmOn;
   if(state.statusEl){
     if(state.alarmOn){
