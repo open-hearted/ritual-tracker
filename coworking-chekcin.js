@@ -328,9 +328,11 @@ function ensureMeditationChooser(){
     border: '0',
     fontSize: '1rem',
     fontWeight: '700',
-    background: 'linear-gradient(135deg,rgba(96,165,250,0.92),rgba(34,211,238,0.95))',
-    color: '#082f49',
+    background: 'linear-gradient(135deg,#f97316,#ef4444)',
+    color: '#ffffff',
+    textShadow: '0 1px 1px rgba(0,0,0,0.35)',
     cursor: 'pointer',
+    boxShadow: '0 14px 28px rgba(239,68,68,0.28)',
     transition: 'transform 0.18s ease, box-shadow 0.18s ease'
   });
 
@@ -344,9 +346,11 @@ function ensureMeditationChooser(){
     border: '0',
     fontSize: '1rem',
     fontWeight: '700',
-    background: 'linear-gradient(135deg,#38bdf8,#a855f7)',
-    color: '#0b1120',
+    background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+    color: '#ffffff',
+    textShadow: '0 1px 1px rgba(0,0,0,0.35)',
     cursor: 'pointer',
+    boxShadow: '0 14px 28px rgba(99,102,241,0.26)',
     transition: 'transform 0.18s ease, box-shadow 0.18s ease'
   });
 
