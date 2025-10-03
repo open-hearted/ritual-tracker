@@ -992,7 +992,7 @@ function buildExerciseCard(def){
   input.dataset.role = `seconds-${def.type}`;
   input.classList.add('exercise-seconds-input');
   Object.assign(input.style, {
-    width: '4.0ch',
+    width: '4.2ch',
     borderRadius: '8px',
     border: '1px solid rgba(148,163,184,0.28)',
     background: 'rgba(15,23,42,0.7)',
