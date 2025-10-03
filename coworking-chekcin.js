@@ -371,7 +371,7 @@ function ensureMeditationChooser(){
   closeRow.appendChild(closeBtn);
 
   btnWrap.append(btnExercise, btnMeditation);
-  dialog.append(heading, summary, btnWrap, closeRow);
+  dialog.append(btnWrap, heading, summary, closeRow);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
