@@ -321,7 +321,7 @@ function ensureMeditationChooser(){
   const btnExercise = document.createElement('button');
   btnExercise.type = 'button';
   btnExercise.dataset.action = 'exercise';
-  btnExercise.textContent = 'エクササイズを記録';
+  btnExercise.textContent = 'エクササイズ';
   Object.assign(btnExercise.style, {
     padding: '14px 16px',
     borderRadius: '12px',
@@ -337,7 +337,7 @@ function ensureMeditationChooser(){
   const btnMeditation = document.createElement('button');
   btnMeditation.type = 'button';
   btnMeditation.dataset.action = 'meditation';
-  btnMeditation.textContent = '瞑想を記録';
+  btnMeditation.textContent = '瞑想';
   Object.assign(btnMeditation.style, {
     padding: '14px 16px',
     borderRadius: '12px',
