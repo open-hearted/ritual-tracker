@@ -34,6 +34,17 @@ button:hover{filter:brightness(1.1)}
 input, select{background:#0e183c;border:1px solid rgba(255,255,255,0.12); padding:10px 12px; border-radius:12px}
 input::placeholder{color:#9fb0ff99}
 
+.exercise-seconds-input{
+	appearance:textfield;
+	-moz-appearance:textfield;
+	-webkit-appearance:none;
+}
+.exercise-seconds-input::-webkit-outer-spin-button,
+.exercise-seconds-input::-webkit-inner-spin-button{
+	-webkit-appearance:none;
+	margin:0;
+}
+
 .calendar{margin-top:12px}
 .cal-head{display:flex; justify-content:space-between; align-items:center; gap:12px}
 .cal-title{font-weight:700; font-size:18px}
