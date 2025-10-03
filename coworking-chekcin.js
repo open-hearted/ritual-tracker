@@ -1045,13 +1045,7 @@ function buildExerciseCard(def){
   });
   timerRow.append(display, startBtn);
 
-  const status = document.createElement('div');
-  status.dataset.role = `status-${def.type}`;
-  status.style.fontSize = '0.85rem';
-  status.style.opacity = '0.75';
-  status.textContent = '準備完了';
-
-  card.append(head, timerRow, status);
+  card.append(head, timerRow);
 
   exerciseTimers[def.type] = {
     type: def.type,
@@ -1063,7 +1057,6 @@ function buildExerciseCard(def){
     finishedAt: null,
     endAt: 0,
     displayEl: display,
-    statusEl: status,
     inputEl: input,
     startBtn,
     alarmOn: false,
@@ -1286,17 +1279,6 @@ function updateExerciseTimerUI(type){
     }
   }
   if(state.inputEl) state.inputEl.disabled = state.running || state.alarmOn;
-  if(state.statusEl){
-    if(state.alarmOn){
-      state.statusEl.textContent = '完了！消音してください';
-    } else if(state.running && state.startedAt){
-      state.statusEl.textContent = `開始: ${formatTime(state.startedAt)}`;
-    } else if(state.finishedAt){
-      state.statusEl.textContent = `完了: ${formatTime(state.finishedAt)}`;
-    } else {
-      state.statusEl.textContent = '準備完了';
-    }
-  }
 }
 
 function recordExerciseSession(session){
