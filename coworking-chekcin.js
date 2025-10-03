@@ -980,7 +980,7 @@ function buildExerciseCard(def){
     fontWeight: '700',
     letterSpacing: '0.04em'
   });
-  display.textContent = formatSeconds(def.defaultSeconds);
+  display.innerHTML = formatSeconds(def.defaultSeconds);
 
   const status = document.createElement('div');
   status.dataset.role = `status-${def.type}`;
@@ -1238,7 +1238,7 @@ function updateExerciseTimerUI(type){
   } else {
     displaySeconds = Math.max(0, Math.round(Number(state.inputEl?.value) || state.defaultSeconds));
   }
-  if(state.displayEl) state.displayEl.textContent = formatSeconds(displaySeconds);
+  if(state.displayEl) state.displayEl.innerHTML = formatSeconds(displaySeconds);
   if(state.startBtn){
     state.startBtn.disabled = false;
     state.startBtn.textContent = '開始';
@@ -1395,7 +1395,7 @@ function formatSeconds(totalSeconds){
   const m = Math.floor(sec/60);
   const s = sec % 60;
   if(m>0){ return `${m}:${String(s).padStart(2,'0')}`; }
-  return `${s}秒`;
+  return `${s}<span style="font-size:0.5em; display:inline-block; margin-left:0.08em; line-height:1; transform-origin:left bottom;">秒</span>`;
 }
 
 function formatTime(value){
