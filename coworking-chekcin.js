@@ -962,7 +962,7 @@ function buildExerciseCard(def){
     padding: '16px',
     background: 'rgba(30,41,59,0.6)',
     display: 'grid',
-    gap: '12px'
+    gap: '10px'
   });
   card.dataset.type = def.type;
 
@@ -1040,7 +1040,7 @@ function buildExerciseCard(def){
   Object.assign(timerRow.style, {
     display: 'flex',
     alignItems: 'center',
-    gap: '14px',
+    gap: '12px',
     justifyContent: 'space-between'
   });
   timerRow.append(display, startBtn);
