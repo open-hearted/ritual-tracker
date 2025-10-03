@@ -1044,15 +1044,21 @@ function buildExerciseCard(def){
     timerId: null,
     remainingMs: def.defaultSeconds * 1000,
     startedAt: null,
+    finishedAt: null,
     endAt: 0,
     displayEl: display,
     statusEl: status,
     inputEl: input,
     startBtn,
-    cancelBtn
+    cancelBtn,
+    alarmOn: false,
+    alarmCtx: null,
+    alarmOsc: null,
+    alarmGain: null,
+    alarmInterval: null
   };
 
-  startBtn.addEventListener('click', ()=> startExerciseTimer(def.type));
+  startBtn.addEventListener('click', ()=> handleExerciseStartClick(def.type));
   cancelBtn.addEventListener('click', ()=> cancelExerciseTimer(def.type));
 
   return card;
@@ -1086,18 +1092,85 @@ function closeExercisePanel(){
 function resetAllExerciseTimers(){
   Object.values(exerciseTimers).forEach(state=>{
     if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+    if(state.alarmOn) stopExerciseAlarm(state.type, { update:false });
     state.running = false;
     const baseSeconds = Number(state.inputEl?.value) || state.defaultSeconds;
     state.remainingMs = baseSeconds * 1000;
     state.startedAt = null;
+    state.finishedAt = null;
     state.endAt = 0;
     updateExerciseTimerUI(state.type);
   });
 }
 
+function handleExerciseStartClick(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  if(state.alarmOn){
+    const hadFinished = !!state.finishedAt;
+    stopExerciseAlarm(type);
+    if(!hadFinished){
+      state.finishedAt = new Date();
+      updateExerciseTimerUI(type);
+    }
+    return;
+  }
+  startExerciseTimer(type);
+}
+
+function startExerciseAlarm(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  stopExerciseAlarm(type, { update:false });
+  state.alarmOn = true;
+  try{
+    const C = window.AudioContext || window.webkitAudioContext;
+    if(C){
+      state.alarmCtx = new C();
+      state.alarmOsc = state.alarmCtx.createOscillator();
+      state.alarmGain = state.alarmCtx.createGain();
+      state.alarmOsc.type = 'square';
+      state.alarmOsc.frequency.value = 820;
+      state.alarmGain.gain.value = 0.08;
+      state.alarmOsc.connect(state.alarmGain).connect(state.alarmCtx.destination);
+      state.alarmOsc.start();
+      state.alarmInterval = setInterval(()=>{
+        if(!state.alarmGain || !state.alarmCtx) return;
+        try{
+          const t = state.alarmCtx.currentTime;
+          state.alarmGain.gain.setValueAtTime(0.08, t);
+          state.alarmGain.gain.setValueAtTime(0.0, t + 0.25);
+        }catch{}
+      }, 450);
+    }
+  }catch(e){ console.warn('[exercise] alarm failed', e); }
+  if(typeof navigator !== 'undefined' && navigator.vibrate){
+    try { navigator.vibrate([200, 120, 200]); } catch {}
+  }
+  updateExerciseTimerUI(type);
+}
+
+function stopExerciseAlarm(type, opts){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  if(state.alarmInterval){ clearInterval(state.alarmInterval); state.alarmInterval=null; }
+  try{ state.alarmOsc?.stop?.(); }catch{}
+  try{ state.alarmGain?.disconnect?.(); }catch{}
+  try{ state.alarmCtx?.close?.(); }catch{}
+  state.alarmCtx = null;
+  state.alarmOsc = null;
+  state.alarmGain = null;
+  state.alarmOn = false;
+  if(typeof navigator !== 'undefined' && navigator.vibrate){
+    try { navigator.vibrate(0); } catch {}
+  }
+  if(opts?.update !== false) updateExerciseTimerUI(type);
+}
+
 function startExerciseTimer(type){
   const state = exerciseTimers[type];
   if(!state || state.running) return;
+  stopExerciseAlarm(type, { update:false });
   const seconds = Number(state.inputEl?.value)||state.defaultSeconds;
   if(!Number.isFinite(seconds) || seconds<=0){
     alert('正の秒数を入力してください');
@@ -1106,6 +1179,7 @@ function startExerciseTimer(type){
   }
   state.remainingMs = seconds*1000;
   state.startedAt = new Date();
+  state.finishedAt = null;
   state.endAt = Date.now() + state.remainingMs;
   state.running = true;
   state.seconds = seconds;
@@ -1133,23 +1207,27 @@ function finishExerciseTimer(type){
   const startedAt = state.startedAt ? new Date(state.startedAt) : new Date();
   state.running = false;
   state.remainingMs = 0;
+  state.finishedAt = new Date();
   updateExerciseTimerUI(type);
   recordExerciseSession({
     type,
     seconds: state.seconds || Number(state.inputEl?.value)||state.defaultSeconds,
     startedAt: startedAt.toISOString(),
-    completedAt: new Date().toISOString()
+    completedAt: state.finishedAt.toISOString()
   });
+  startExerciseAlarm(type);
 }
 
 function cancelExerciseTimer(type){
   const state = exerciseTimers[type];
   if(!state) return;
   if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  stopExerciseAlarm(type, { update:false });
   state.running = false;
   const baseSeconds = Number(state.inputEl?.value) || state.defaultSeconds;
   state.remainingMs = baseSeconds * 1000;
   state.startedAt = null;
+  state.finishedAt = null;
   state.endAt = 0;
   updateExerciseTimerUI(type);
 }
@@ -1157,19 +1235,43 @@ function cancelExerciseTimer(type){
 function updateExerciseTimerUI(type){
   const state = exerciseTimers[type];
   if(!state) return;
-  const remaining = state.running ? Math.max(0, state.remainingMs) : (Number(state.inputEl?.value)||state.defaultSeconds)*1000;
-  const seconds = Math.ceil(remaining/1000);
-  if(state.displayEl) state.displayEl.textContent = formatSeconds(seconds);
+  let displaySeconds;
+  if(state.running){
+    displaySeconds = Math.ceil(Math.max(0, state.remainingMs)/1000);
+  } else if(state.alarmOn){
+    displaySeconds = 0;
+  } else {
+    displaySeconds = Math.max(0, Math.round(Number(state.inputEl?.value) || state.defaultSeconds));
+  }
+  if(state.displayEl) state.displayEl.textContent = formatSeconds(displaySeconds);
+  if(state.startBtn){
+    if(state.alarmOn){
+      state.startBtn.textContent = '消音';
+      state.startBtn.disabled = false;
+      state.startBtn.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.95), rgba(185,28,28,0.92))';
+      state.startBtn.style.color = '#fff';
+      state.startBtn.style.boxShadow = '0 0 0 2px rgba(248,113,113,0.35)';
+    } else {
+      state.startBtn.textContent = '開始';
+      state.startBtn.disabled = !!state.running;
+      state.startBtn.style.background = 'linear-gradient(135deg,#22d3ee,#6366f1)';
+      state.startBtn.style.color = '#0f172a';
+      state.startBtn.style.boxShadow = '';
+    }
+  }
+  if(state.cancelBtn) state.cancelBtn.disabled = !(state.running || state.alarmOn);
+  if(state.inputEl) state.inputEl.disabled = state.running || state.alarmOn;
   if(state.statusEl){
-    if(state.running && state.startedAt){
+    if(state.alarmOn){
+      state.statusEl.textContent = '完了！消音してください';
+    } else if(state.running && state.startedAt){
       state.statusEl.textContent = `開始: ${formatTime(state.startedAt)}`;
+    } else if(state.finishedAt){
+      state.statusEl.textContent = `完了: ${formatTime(state.finishedAt)}`;
     } else {
       state.statusEl.textContent = '準備完了';
     }
   }
-  if(state.startBtn) state.startBtn.disabled = !!state.running;
-  if(state.cancelBtn) state.cancelBtn.disabled = !state.running;
-  if(state.inputEl) state.inputEl.disabled = !!state.running;
 }
 
 function recordExerciseSession(session){
@@ -1244,7 +1346,7 @@ function writeExerciseSessions(dateKey, sessions){
     } else {
       delete next.exercise;
     }
-    next.dayTs = next.dayTs || nowIso;
+    next.dayTs = nowIso;
     md[dateKey] = next;
   }
   writeMonth(state.uid, year, month, md);
@@ -1262,7 +1364,7 @@ function renderExerciseLog(){
   const list = readExerciseSessions(exerciseCtx.dateKey).sort((a,b)=>{
     const aTime = a.completedAt || a.startedAt;
     const bTime = b.completedAt || b.startedAt;
-    return (aTime||'').localeCompare(bTime||'');
+    return (bTime||'').localeCompare(aTime||'');
   });
   if(!list.length){
     wrap.innerHTML = '<div class="empty">記録なし</div>';
@@ -2299,6 +2401,10 @@ if (typeof window.openMeditationEditor !== 'function') {
       console.warn('[med-editor] failed:', e);
     }
   };
+}
+
+if(typeof window.openExercisePanel !== 'function'){
+  window.openExercisePanel = (opts)=> openExercisePanel(opts || {});
 }
 
 function showMedAlert(message){
