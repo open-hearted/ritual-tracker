@@ -41,6 +41,70 @@ function simpleHash(s){
 // Data shape: users[uid].data["YYYY-MM"]["YYYY-MM-DD"] = 0|1 (0: off, 1: went)
 function getMonthKey(y,m){ return `${y}-${String(m+1).padStart(2,'0')}`; }
 function getDateKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+function parseDateKeyParts(dateKey){
+  if(!dateKey) return { year: state.year, month: state.month, day: 1 };
+  const [yy, mm, dd] = dateKey.split('-');
+  const year = parseInt(yy, 10) || state.year;
+  const month = (parseInt(mm, 10) || (state.month+1)) - 1;
+  const day = parseInt(dd, 10) || 1;
+  return { year, month, day };
+}
+
+function cloneExerciseData(exercise){
+  if(!exercise) return undefined;
+  const sessions = Array.isArray(exercise.sessions) ? exercise.sessions.map(item=>({
+    id: item?.id || '',
+    type: item?.type || 'exercise',
+    seconds: Number(item?.seconds)||0,
+    startedAt: item?.startedAt || '',
+    completedAt: item?.completedAt || ''
+  })) : [];
+  const copy = { ...exercise, sessions };
+  if(!copy.updatedAt && exercise.dayTs) copy.updatedAt = exercise.dayTs;
+  return copy;
+}
+
+function mergeExerciseData(left, right){
+  const norm = (src)=>{
+    if(!src) return null;
+    const sessions = Array.isArray(src.sessions) ? src.sessions.map(item=>({
+      id: typeof item?.id === 'string' ? item.id : '',
+      type: item?.type || 'exercise',
+      seconds: Number(item?.seconds)||0,
+      startedAt: item?.startedAt || '',
+      completedAt: item?.completedAt || ''
+    })) : [];
+    const updatedAt = src.updatedAt || src.dayTs || '1970';
+    return { sessions, updatedAt };
+  };
+  const L = norm(left);
+  const R = norm(right);
+  if(!L) return R;
+  if(!R) return L;
+  const map = new Map();
+  const keyOf = (item)=> item.id || `${item.type}|${item.startedAt}|${item.seconds}`;
+  const put = (item)=>{
+    const key = keyOf(item);
+    const existing = map.get(key);
+    if(!existing){
+      map.set(key, { ...item, id: item.id || ('e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)) });
+    } else {
+      const existingTime = existing.completedAt || existing.startedAt || '1970';
+      const incomingTime = item.completedAt || item.startedAt || '1970';
+      const preferIncoming = incomingTime > existingTime;
+      if(preferIncoming){
+        map.set(key, { ...item, id: item.id || existing.id || ('e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)) });
+      } else if(!existing.id && item.id){
+        map.set(key, { ...item });
+      }
+    }
+  };
+  L.sessions.forEach(put);
+  R.sessions.forEach(put);
+  const sessions = [...map.values()];
+  const updatedAt = (R.updatedAt||'1970') > (L.updatedAt||'1970') ? R.updatedAt : L.updatedAt;
+  return { sessions, updatedAt };
+}
 
 function readMonth(uid, y, m){
   const u = getUser(uid); if(!u) return {};
@@ -109,25 +173,34 @@ function renderCalendar(){
     if(dow===0 || dow===6) el.dataset.weekend='1';
     el.dataset.dow = String(dow);
     if(isMeditation()){
-      const rec = monthData[dk]; // {sessions:[minutes,...]}
+      const rec = monthData[dk] || {};
       const sessions = Array.isArray(rec?.sessions)? rec.sessions : [];
       const totalMin = sessions.reduce((a,b)=>a+b,0);
+      const exerciseSessions = Array.isArray(rec?.exercise?.sessions) ? rec.exercise.sessions : [];
+      const exerciseSeconds = exerciseSessions.reduce((sum,item)=> sum + (Number(item?.seconds)||0), 0);
+      const exerciseLabel = exerciseSessions.length ? `EX ${exerciseSessions.length}回 / ${exerciseSeconds}秒` : '';
       el.dataset.sessions = String(sessions.length);
+      el.dataset.exercise = String(exerciseSessions.length);
       if(isToday) el.setAttribute('data-today','true');
-      // meditation cell layout
-  el.innerHTML = `<div class="d">${d}</div><div class="med-summary">${sessions.length ? (totalMin+'<span class="med-min-unit">分</span>') : ''}</div>`;
-      // ツールチップ更新（右クリックでタイマー）
-      el.title = sessions.length ? `瞑想 ${sessions.length}回 合計${totalMin}分 (クリックで編集 / 右クリックでタイマー)` : '未記録（クリックで追加 / 右クリックでタイマー）';
-      el.addEventListener('click', (ev)=>{
-        openMeditationEditor(dk, el, sessions);
-      });
-      // 右クリックでタイマーを開く（日クリアは廃止）
-      el.addEventListener('contextmenu', (e)=>{
-        e.preventDefault();
-        openMeditationEditor(dk, el, sessions);
-        // 開始ボタンへフォーカス
-        setTimeout(()=>{ medEditorEl?.querySelector('#medTimerStart')?.focus(); }, 0);
-      });
+      const medSummaryHtml = sessions.length ? (totalMin+"<span class=\"med-min-unit\">分</span>") : '';
+      const exerciseHtml = exerciseLabel ? `<div class="ex-summary">${exerciseLabel}</div>` : '';
+      el.innerHTML = `<div class="d">${d}</div><div class="med-summary">${medSummaryHtml}</div>${exerciseHtml}`;
+      const tooltipBase = [];
+      if(sessions.length){ tooltipBase.push(`瞑想 ${sessions.length}回 合計${totalMin}分`); }
+      if(exerciseSessions.length){ tooltipBase.push(`エクササイズ ${exerciseSessions.length}回 ${exerciseSeconds}秒`); }
+      el.title = tooltipBase.length ? `${tooltipBase.join(' / ')} (クリックで選択)` : '未記録（クリックで選択）';
+      const handleOpen = (event)=>{
+        if(event) event.preventDefault();
+        openMeditationChooser({
+          dateKey: dk,
+          anchor: el,
+          meditationSessions: sessions,
+          exerciseSessions,
+          rawRecord: rec
+        });
+      };
+      el.addEventListener('click', handleOpen);
+      el.addEventListener('contextmenu', handleOpen);
     } else {
       const val = monthData[dk] || 0;
   const present = (typeof val==='object') ? (!!val && !val.__deleted && val.work===1) : (val===1);
@@ -195,6 +268,185 @@ function renderStats(){
     );
   }
   renderFinanceStats(attendedForFinance);
+}
+
+// ===== Meditation vs Exercise chooser =====
+let medChooserEl = null;
+let medChooserCtx = { dateKey: null, anchor: null, meditationSessions: [], exerciseSessions: [], rawRecord: null, prevFocus: null };
+
+function ensureMeditationChooser(){
+  if(medChooserEl) return medChooserEl;
+  const overlay = document.createElement('div');
+  overlay.id = 'medChooserOverlay';
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(15,23,42,0.55)',
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '3500',
+    padding: ' clamp(18px, 8vw, 32px) '
+  });
+
+  const dialog = document.createElement('div');
+  dialog.className = 'med-chooser-dialog';
+  Object.assign(dialog.style, {
+    width: 'min(92vw, 360px)',
+    display: 'grid',
+    gap: '18px',
+    background: 'var(--card, #0f172a)',
+    color: '#e2e8f0',
+    borderRadius: '16px',
+    padding: '24px clamp(20px, 7vw, 32px)',
+    boxShadow: '0 22px 48px rgba(15,23,42,0.55), 0 0 0 1px rgba(148,163,184,0.18)'
+  });
+
+  const heading = document.createElement('div');
+  heading.style.display = 'grid';
+  heading.style.gap = '6px';
+  heading.innerHTML = `<div style="font-size:1.1rem;font-weight:800;letter-spacing:0.01em">記録を選択</div><div id="medChooserDate" style="opacity:0.75;font-weight:600;font-size:0.95rem"></div>`;
+
+  const summary = document.createElement('div');
+  summary.id = 'medChooserSummary';
+  summary.style.display = 'grid';
+  summary.style.gap = '4px';
+  summary.style.fontSize = '0.92rem';
+  summary.style.color = '#cbd5f5';
+
+  const btnWrap = document.createElement('div');
+  btnWrap.style.display = 'grid';
+  btnWrap.style.gap = '12px';
+
+  const btnExercise = document.createElement('button');
+  btnExercise.type = 'button';
+  btnExercise.dataset.action = 'exercise';
+  btnExercise.textContent = 'エクササイズ';
+  Object.assign(btnExercise.style, {
+    padding: '14px 16px',
+    borderRadius: '12px',
+    border: '0',
+    fontSize: '1rem',
+    fontWeight: '700',
+    background: 'linear-gradient(135deg,#f97316,#ef4444)',
+    color: '#ffffff',
+    textShadow: '0 1px 1px rgba(0,0,0,0.35)',
+    cursor: 'pointer',
+    boxShadow: '0 14px 28px rgba(239,68,68,0.28)',
+    transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+  });
+
+  const btnMeditation = document.createElement('button');
+  btnMeditation.type = 'button';
+  btnMeditation.dataset.action = 'meditation';
+  btnMeditation.textContent = '瞑想';
+  Object.assign(btnMeditation.style, {
+    padding: '14px 16px',
+    borderRadius: '12px',
+    border: '0',
+    fontSize: '1rem',
+    fontWeight: '700',
+    background: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
+    color: '#ffffff',
+    textShadow: '0 1px 1px rgba(0,0,0,0.35)',
+    cursor: 'pointer',
+    boxShadow: '0 14px 28px rgba(99,102,241,0.26)',
+    transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+  });
+
+  const closeRow = document.createElement('div');
+  closeRow.style.display = 'flex';
+  closeRow.style.justifyContent = 'center';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'キャンセル';
+  Object.assign(closeBtn.style, {
+    border: '0',
+    background: 'transparent',
+    color: '#94a3b8',
+    fontSize: '0.95rem',
+    fontWeight: '600',
+    cursor: 'pointer'
+  });
+  closeRow.appendChild(closeBtn);
+
+  btnWrap.append(btnExercise, btnMeditation);
+  dialog.append(btnWrap, heading, summary, closeRow);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  const handleClose = ()=> closeMeditationChooser();
+  closeBtn.addEventListener('click', handleClose);
+  overlay.addEventListener('click', (ev)=>{ if(ev.target === overlay) handleClose(); });
+  btnExercise.addEventListener('click', ()=>{
+    const ctx = medChooserCtx;
+    closeMeditationChooser();
+    setTimeout(()=>{
+      openExercisePanel({ dateKey: ctx.dateKey, anchor: ctx.anchor, record: ctx.rawRecord });
+    }, 10);
+  });
+  btnMeditation.addEventListener('click', ()=>{
+    const ctx = medChooserCtx;
+    closeMeditationChooser();
+    setTimeout(()=>{
+      openMeditationEditor(ctx.dateKey, ctx.anchor, ctx.meditationSessions);
+    }, 0);
+  });
+
+  const handleKey = (ev)=>{
+    if(overlay.style.display !== 'flex') return;
+    if(ev.key === 'Escape'){
+      ev.stopPropagation();
+      closeMeditationChooser();
+    }
+  };
+  document.addEventListener('keydown', handleKey, true);
+
+  overlay._close = handleClose;
+  overlay._handleKey = handleKey;
+  overlay._btnPrimary = btnExercise;
+  overlay._summary = summary;
+  overlay._dateLabel = heading.querySelector('#medChooserDate');
+  medChooserEl = overlay;
+  return medChooserEl;
+}
+
+function closeMeditationChooser(){
+  if(!medChooserEl) return;
+  medChooserEl.style.display = 'none';
+  medChooserEl.removeAttribute('data-open');
+  const prev = medChooserCtx.prevFocus;
+  medChooserCtx = { dateKey: null, anchor: null, meditationSessions: [], exerciseSessions: [], rawRecord: null, prevFocus: null };
+  if(prev && typeof prev.focus === 'function'){
+    setTimeout(()=> prev.focus(), 0);
+  }
+}
+
+function openMeditationChooser({ dateKey, anchor, meditationSessions, exerciseSessions, rawRecord }){
+  const overlay = ensureMeditationChooser();
+  medChooserCtx = {
+    dateKey,
+    anchor,
+    meditationSessions: Array.isArray(meditationSessions)? meditationSessions : [],
+    exerciseSessions: Array.isArray(exerciseSessions)? exerciseSessions : [],
+    rawRecord: rawRecord || {},
+    prevFocus: document.activeElement instanceof HTMLElement ? document.activeElement : null
+  };
+  const { _summary, _dateLabel, _btnPrimary } = overlay;
+  if(_dateLabel) _dateLabel.textContent = dateKey;
+  if(_summary){
+    const medCount = medChooserCtx.meditationSessions.length;
+    const medTotal = medChooserCtx.meditationSessions.reduce((sum,v)=> sum+v, 0);
+    const exCount = medChooserCtx.exerciseSessions.length;
+    const exTotal = medChooserCtx.exerciseSessions.reduce((sum,v)=> sum + (Number(v?.seconds)||0), 0);
+    const lines = [];
+    lines.push(`瞑想: ${medCount}回 / ${medTotal}分`);
+    lines.push(`エクササイズ: ${exCount}回 / ${exTotal}秒`);
+    _summary.innerHTML = lines.map(l=> `<div>${l}</div>`).join('');
+  }
+  overlay.style.display = 'flex';
+  overlay.setAttribute('data-open','1');
+  setTimeout(()=>{ _btnPrimary?.focus(); }, 20);
 }
 
 function makeStat(html){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=html; return d; }
@@ -458,11 +710,25 @@ function readMedSessions(){
 }
 function writeMedSessions(arr){
   const md = readMonth(state.uid, state.year, state.month);
+  const existing = md[medEditTarget.dateKey] || {};
+  const exerciseCopy = cloneExerciseData(existing.exercise);
   // preserve starts alignment if exists
   if(arr.length===0){
-    md[medEditTarget.dateKey] = { __deleted:true, ts:new Date().toISOString() };
+    const hasExercise = Array.isArray(exerciseCopy?.sessions) && exerciseCopy.sessions.length>0;
+    if(hasExercise){
+      const obj = {
+        sessions: [],
+        starts: [],
+        ids: [],
+        dayTs: new Date().toISOString(),
+        replace: true
+      };
+      if(exerciseCopy) obj.exercise = exerciseCopy;
+      md[medEditTarget.dateKey] = obj;
+    } else {
+      md[medEditTarget.dateKey] = { __deleted:true, ts:new Date().toISOString() };
+    }
   } else {
-    const existing = md[medEditTarget.dateKey] || {};
     let starts = Array.isArray(existing.starts) ? existing.starts.slice() : [];
     let ids = Array.isArray(existing.ids) ? existing.ids.slice() : [];
     // trim/extend starts to match sessions length
@@ -473,7 +739,13 @@ function writeMedSessions(arr){
       for(let i=ids.length;i<arr.length;i++){ ids.push('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)); }
     }
     const oldLen = Array.isArray(existing.sessions) ? existing.sessions.length : 0;
-    const obj = { sessions: arr, starts, ids, dayTs: new Date().toISOString() };
+    const obj = {
+      sessions: arr,
+      starts,
+      ids,
+      dayTs: new Date().toISOString()
+    };
+    if(exerciseCopy) obj.exercise = exerciseCopy;
     if(arr.length < oldLen){ obj.replace = true; } // 減少編集は置換扱い
     md[medEditTarget.dateKey] = obj;
   }
@@ -491,7 +763,10 @@ function addMedSessionWithStart(min, startedAt){
   sessions.push(min);
   starts.push(startedAt||'');
   ids.push(newId);
-  md[medEditTarget.dateKey] = { sessions, starts, ids, dayTs:new Date().toISOString() };
+  const exerciseCopy = cloneExerciseData(rec.exercise);
+  const obj = { sessions, starts, ids, dayTs:new Date().toISOString() };
+  if(exerciseCopy) obj.exercise = exerciseCopy;
+  md[medEditTarget.dateKey] = obj;
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar();
@@ -561,12 +836,20 @@ function renderMedSessionList(){
     sessions.splice(idx,1);
     if(starts.length>idx) starts.splice(idx,1);
     if(ids.length>idx) ids.splice(idx,1);
+    const exerciseCopy = cloneExerciseData(rec.exercise);
     if(sessions.length){
-      const obj = { sessions, starts, ids, dayTs: new Date().toISOString() };
-      obj.replace = true; // セッション削除は置換扱い
+      const obj = { sessions, starts, ids, dayTs: new Date().toISOString(), replace: true };
+      if(exerciseCopy) obj.exercise = exerciseCopy;
       md[medEditTarget.dateKey] = obj;
     } else {
-      md[medEditTarget.dateKey] = { __deleted:true, ts: new Date().toISOString() };
+      const hasExercise = Array.isArray(exerciseCopy?.sessions) && exerciseCopy.sessions.length>0;
+      if(hasExercise){
+        const obj = { sessions: [], starts: [], ids: [], dayTs: new Date().toISOString(), replace: true };
+        obj.exercise = exerciseCopy;
+        md[medEditTarget.dateKey] = obj;
+      } else {
+        md[medEditTarget.dateKey] = { __deleted:true, ts: new Date().toISOString() };
+      }
     }
     writeMonth(state.uid, state.year, state.month, md);
     if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
@@ -579,6 +862,558 @@ function addMedSession(){
   addMedSessionWithStart(v, ''); inp.value=''; inp.focus();
 }
 function clearMedDay(){ writeMedSessions([]); hideMedEditor(); }
+
+// ===== Exercise session panel =====
+const EXERCISE_TYPES = [
+  { type:'plank', label:'プランク', icon:'🧘', defaultSeconds:30 },
+  { type:'wall-sit', label:'空気椅子', icon:'🪑', defaultSeconds:30 }
+];
+
+let exercisePanelEl = null;
+let exerciseCtx = { dateKey: null, anchor: null };
+const exerciseTimers = {};
+
+function ensureExercisePanel(){
+  if(exercisePanelEl) return exercisePanelEl;
+  const overlay = document.createElement('div');
+  overlay.id = 'exerciseOverlay';
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    inset: '0',
+    background: 'rgba(15,23,42,0.58)',
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: '3600',
+    padding: 'clamp(18px, 8vw, 32px)'
+  });
+
+  const dialog = document.createElement('div');
+  dialog.className = 'exercise-dialog';
+  Object.assign(dialog.style, {
+    width: 'min(96vw, 420px)',
+    maxHeight: '92vh',
+    overflow: 'auto',
+    display: 'grid',
+    gap: '20px',
+    background: 'var(--card, #0f172a)',
+    color: '#e2e8f0',
+    borderRadius: '18px',
+    padding: '26px clamp(22px,7vw,34px)',
+    boxShadow: '0 24px 48px rgba(15,23,42,0.55), 0 0 0 1px rgba(148,163,184,0.18)'
+  });
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.justifyContent = 'space-between';
+  header.style.alignItems = 'center';
+  header.style.gap = '12px';
+
+  const titleBox = document.createElement('div');
+  titleBox.innerHTML = `<div style="font-size:1.05rem;font-weight:800">エクササイズ記録</div><div id="exerciseDateLabel" style="font-size:0.92rem;opacity:0.7;"></div>`;
+  header.appendChild(titleBox);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = '閉じる';
+  Object.assign(closeBtn.style, {
+    border: '1px solid rgba(148,163,184,0.35)',
+    borderRadius: '10px',
+    padding: '6px 12px',
+    background: 'transparent',
+    color: '#cbd5f5',
+    fontWeight: '600',
+    cursor: 'pointer'
+  });
+  header.appendChild(closeBtn);
+
+  const cardsWrap = document.createElement('div');
+  cardsWrap.style.display = 'grid';
+  cardsWrap.style.gap = '16px';
+
+  EXERCISE_TYPES.forEach(def=> cardsWrap.appendChild(buildExerciseCard(def)) );
+
+  const logBox = document.createElement('div');
+  logBox.innerHTML = `<div style="font-weight:700;font-size:0.95rem">今日の記録</div><div id="exerciseLog" style="display:grid;gap:10px;margin-top:10px"></div>`;
+
+  dialog.append(header, cardsWrap, logBox);
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  closeBtn.addEventListener('click', ()=> closeExercisePanel());
+  overlay.addEventListener('click', (ev)=>{ if(ev.target === overlay) closeExercisePanel(); });
+  document.addEventListener('keydown', (ev)=>{
+    if(overlay.style.display !== 'flex') return;
+    if(ev.key === 'Escape'){ ev.stopPropagation(); closeExercisePanel(); }
+  }, true);
+
+  overlay._dateLabel = titleBox.querySelector('#exerciseDateLabel');
+  overlay._log = logBox.querySelector('#exerciseLog');
+  exercisePanelEl = overlay;
+  return exercisePanelEl;
+}
+
+function buildExerciseCard(def){
+  const card = document.createElement('div');
+  card.className = 'exercise-card';
+  Object.assign(card.style, {
+    borderRadius: '14px',
+    border: '1px solid rgba(148,163,184,0.22)',
+    padding: '16px',
+    background: 'rgba(30,41,59,0.6)',
+    display: 'grid',
+    gap: '10px'
+  });
+  card.dataset.type = def.type;
+
+  const head = document.createElement('div');
+  Object.assign(head.style, {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px'
+  });
+
+  const title = document.createElement('div');
+  Object.assign(title.style, {
+    fontWeight: '700',
+    fontSize: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px'
+  });
+  title.textContent = `${def.icon} ${def.label}`;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.min = '5';
+  input.step = '5';
+  input.value = String(def.defaultSeconds);
+  input.dataset.role = `seconds-${def.type}`;
+  input.classList.add('exercise-seconds-input');
+  Object.assign(input.style, {
+    width: '4.2ch',
+    borderRadius: '8px',
+    border: '1px solid rgba(148,163,184,0.28)',
+    background: 'rgba(15,23,42,0.7)',
+    color: '#e2e8f0',
+    padding: '6px 8px',
+    fontWeight: '600',
+    fontSize: '0.95rem',
+    textAlign: 'right',
+    appearance: 'textfield'
+  });
+  input.style.MozAppearance = 'textfield';
+  input.style.WebkitAppearance = 'none';
+
+  head.append(title, input);
+
+  const display = document.createElement('div');
+  display.dataset.role = `display-${def.type}`;
+  Object.assign(display.style, {
+    fontFamily: 'var(--mono, "Roboto Mono", "SFMono-Regular", monospace)',
+    fontSize: 'clamp(2.4rem, 6vw, 3.4rem)',
+    fontWeight: '700',
+    letterSpacing: '0.04em',
+    flex: '1',
+    minWidth: 0
+  });
+  display.innerHTML = formatSeconds(def.defaultSeconds);
+
+  const startBtn = document.createElement('button');
+  startBtn.type = 'button';
+  startBtn.dataset.role = `start-${def.type}`;
+  startBtn.textContent = '開始';
+  Object.assign(startBtn.style, {
+    flex: '0 0 auto',
+    borderRadius: '10px',
+    border: '0',
+    background: 'linear-gradient(135deg,#22d3ee,#6366f1)',
+    color: '#0f172a',
+    fontWeight: '700',
+    padding: '10px 18px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap'
+  });
+
+  const timerRow = document.createElement('div');
+  Object.assign(timerRow.style, {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    justifyContent: 'space-between'
+  });
+  timerRow.append(display, startBtn);
+
+  card.append(head, timerRow);
+
+  exerciseTimers[def.type] = {
+    type: def.type,
+    defaultSeconds: def.defaultSeconds,
+    running: false,
+    timerId: null,
+    remainingMs: def.defaultSeconds * 1000,
+    startedAt: null,
+    finishedAt: null,
+    endAt: 0,
+    displayEl: display,
+    inputEl: input,
+    startBtn,
+    alarmOn: false,
+    alarmCtx: null,
+    alarmOsc: null,
+    alarmGain: null,
+    alarmInterval: null
+  };
+
+  startBtn.addEventListener('click', ()=> handleExerciseStartClick(def.type));
+
+  return card;
+}
+
+function openExercisePanel({ dateKey, anchor }){
+  const overlay = ensureExercisePanel();
+  exerciseCtx = { dateKey, anchor: anchor || null };
+  if(overlay._dateLabel) overlay._dateLabel.textContent = dateKey;
+  overlay.style.display = 'flex';
+  overlay.setAttribute('data-open','1');
+  resetAllExerciseTimers();
+  renderExerciseLog();
+  setTimeout(()=>{
+    const firstStart = overlay.querySelector('button[data-role^="start-"]');
+    firstStart?.focus();
+  }, 20);
+}
+
+function closeExercisePanel(){
+  if(!exercisePanelEl) return;
+  exercisePanelEl.style.display = 'none';
+  exercisePanelEl.removeAttribute('data-open');
+  const prevAnchor = exerciseCtx.anchor;
+  resetAllExerciseTimers();
+  if(prevAnchor && typeof prevAnchor.focus === 'function'){
+    setTimeout(()=>{
+      try{ prevAnchor.focus(); }catch{}
+    }, 0);
+  }
+  exerciseCtx = { dateKey: null, anchor: null };
+}
+
+function resetAllExerciseTimers(){
+  Object.values(exerciseTimers).forEach(state=>{
+    if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+    if(state.alarmOn) stopExerciseAlarm(state.type, { update:false });
+    state.running = false;
+    const baseSeconds = Number(state.inputEl?.value) || state.defaultSeconds;
+    state.remainingMs = baseSeconds * 1000;
+    state.startedAt = null;
+    state.finishedAt = null;
+    state.endAt = 0;
+    updateExerciseTimerUI(state.type);
+  });
+}
+
+function handleExerciseStartClick(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  if(state.alarmOn){
+    const hadFinished = !!state.finishedAt;
+    stopExerciseAlarm(type);
+    if(!hadFinished){
+      state.finishedAt = new Date();
+      updateExerciseTimerUI(type);
+    }
+    return;
+  }
+  if(state.running){
+    cancelExerciseTimer(type);
+    return;
+  }
+  startExerciseTimer(type);
+}
+
+function startExerciseAlarm(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  stopExerciseAlarm(type, { update:false });
+  state.alarmOn = true;
+  try{
+    const C = window.AudioContext || window.webkitAudioContext;
+    if(C){
+      state.alarmCtx = new C();
+      state.alarmOsc = state.alarmCtx.createOscillator();
+      state.alarmGain = state.alarmCtx.createGain();
+      state.alarmOsc.type = 'square';
+      state.alarmOsc.frequency.value = 820;
+      state.alarmGain.gain.value = 0.08;
+      state.alarmOsc.connect(state.alarmGain).connect(state.alarmCtx.destination);
+      state.alarmOsc.start();
+      state.alarmInterval = setInterval(()=>{
+        if(!state.alarmGain || !state.alarmCtx) return;
+        try{
+          const t = state.alarmCtx.currentTime;
+          state.alarmGain.gain.setValueAtTime(0.08, t);
+          state.alarmGain.gain.setValueAtTime(0.0, t + 0.25);
+        }catch{}
+      }, 450);
+    }
+  }catch(e){ console.warn('[exercise] alarm failed', e); }
+  if(typeof navigator !== 'undefined' && navigator.vibrate){
+    try { navigator.vibrate([200, 120, 200]); } catch {}
+  }
+  updateExerciseTimerUI(type);
+}
+
+function stopExerciseAlarm(type, opts){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  if(state.alarmInterval){ clearInterval(state.alarmInterval); state.alarmInterval=null; }
+  try{ state.alarmOsc?.stop?.(); }catch{}
+  try{ state.alarmGain?.disconnect?.(); }catch{}
+  try{ state.alarmCtx?.close?.(); }catch{}
+  state.alarmCtx = null;
+  state.alarmOsc = null;
+  state.alarmGain = null;
+  state.alarmOn = false;
+  if(typeof navigator !== 'undefined' && navigator.vibrate){
+    try { navigator.vibrate(0); } catch {}
+  }
+  if(opts?.update !== false) updateExerciseTimerUI(type);
+}
+
+function startExerciseTimer(type){
+  const state = exerciseTimers[type];
+  if(!state || state.running) return;
+  stopExerciseAlarm(type, { update:false });
+  const seconds = Number(state.inputEl?.value)||state.defaultSeconds;
+  if(!Number.isFinite(seconds) || seconds<=0){
+    alert('正の秒数を入力してください');
+    state.inputEl?.focus();
+    return;
+  }
+  state.remainingMs = seconds*1000;
+  state.startedAt = new Date();
+  state.finishedAt = null;
+  state.endAt = Date.now() + state.remainingMs;
+  state.running = true;
+  state.seconds = seconds;
+  if(state.timerId) clearInterval(state.timerId);
+  state.timerId = setInterval(()=> tickExerciseTimer(type), 200);
+  updateExerciseTimerUI(type);
+}
+
+function tickExerciseTimer(type){
+  const state = exerciseTimers[type];
+  if(!state || !state.running) return;
+  const left = state.endAt - Date.now();
+  if(left <= 0){
+    finishExerciseTimer(type);
+  } else {
+    state.remainingMs = left;
+    updateExerciseTimerUI(type);
+  }
+}
+
+function finishExerciseTimer(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  const startedAt = state.startedAt ? new Date(state.startedAt) : new Date();
+  state.running = false;
+  state.remainingMs = 0;
+  state.finishedAt = new Date();
+  updateExerciseTimerUI(type);
+  recordExerciseSession({
+    type,
+    seconds: state.seconds || Number(state.inputEl?.value)||state.defaultSeconds,
+    startedAt: startedAt.toISOString(),
+    completedAt: state.finishedAt.toISOString()
+  });
+  startExerciseAlarm(type);
+}
+
+function cancelExerciseTimer(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  if(state.timerId){ clearInterval(state.timerId); state.timerId=null; }
+  stopExerciseAlarm(type, { update:false });
+  state.running = false;
+  const baseSeconds = Number(state.inputEl?.value) || state.defaultSeconds;
+  state.remainingMs = baseSeconds * 1000;
+  state.startedAt = null;
+  state.finishedAt = null;
+  state.endAt = 0;
+  updateExerciseTimerUI(type);
+}
+
+function updateExerciseTimerUI(type){
+  const state = exerciseTimers[type];
+  if(!state) return;
+  let displaySeconds;
+  if(state.running){
+    displaySeconds = Math.ceil(Math.max(0, state.remainingMs)/1000);
+  } else if(state.alarmOn){
+    displaySeconds = 0;
+  } else {
+    displaySeconds = Math.max(0, Math.round(Number(state.inputEl?.value) || state.defaultSeconds));
+  }
+  if(state.displayEl) state.displayEl.innerHTML = formatSeconds(displaySeconds);
+  if(state.startBtn){
+    state.startBtn.disabled = false;
+    state.startBtn.textContent = '開始';
+    state.startBtn.style.background = 'linear-gradient(135deg,#22d3ee,#6366f1)';
+    state.startBtn.style.color = '#0f172a';
+    state.startBtn.style.boxShadow = '';
+
+    if(state.running){
+      state.startBtn.textContent = 'リセット';
+      state.startBtn.style.background = 'linear-gradient(135deg, rgba(94,234,212,0.95), rgba(45,212,191,0.9))';
+      state.startBtn.style.boxShadow = '0 0 0 2px rgba(16,185,129,0.25)';
+    }
+
+    if(state.alarmOn){
+      state.startBtn.textContent = '消音';
+      state.startBtn.style.background = 'linear-gradient(135deg, rgba(248,113,113,0.95), rgba(185,28,28,0.92))';
+      state.startBtn.style.color = '#fff';
+      state.startBtn.style.boxShadow = '0 0 0 2px rgba(248,113,113,0.35)';
+    }
+  }
+  if(state.inputEl) state.inputEl.disabled = state.running || state.alarmOn;
+}
+
+function recordExerciseSession(session){
+  if(!exerciseCtx.dateKey) return;
+  const list = readExerciseSessions(exerciseCtx.dateKey);
+  const newId = 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  list.push({
+    id: session.id || newId,
+    type: session.type,
+    seconds: Number(session.seconds)||0,
+    startedAt: session.startedAt || new Date().toISOString(),
+    completedAt: session.completedAt || new Date().toISOString()
+  });
+  writeExerciseSessions(exerciseCtx.dateKey, list);
+  renderExerciseLog();
+}
+
+function deleteExerciseSession(id){
+  if(!exerciseCtx.dateKey) return;
+  const list = readExerciseSessions(exerciseCtx.dateKey).filter(item=> item.id !== id);
+  writeExerciseSessions(exerciseCtx.dateKey, list);
+  renderExerciseLog();
+}
+
+function readExerciseSessions(dateKey){
+  const { year, month } = parseDateKeyParts(dateKey);
+  const md = readMonth(state.uid, year, month);
+  const rec = md[dateKey];
+  const items = Array.isArray(rec?.exercise?.sessions) ? rec.exercise.sessions : [];
+  return items.map(item=>({
+    id: typeof item?.id === 'string' ? item.id : 'e'+Math.random().toString(36).slice(2,7),
+    type: item?.type || 'plank',
+    seconds: Number(item?.seconds)||0,
+    startedAt: item?.startedAt || '',
+    completedAt: item?.completedAt || ''
+  }));
+}
+
+function writeExerciseSessions(dateKey, sessions){
+  const { year, month } = parseDateKeyParts(dateKey);
+  const md = readMonth(state.uid, year, month);
+  const existing = md[dateKey] || {};
+  const medSessions = Array.isArray(existing.sessions) ? existing.sessions.slice() : [];
+  const starts = Array.isArray(existing.starts) ? existing.starts.slice() : [];
+  const ids = Array.isArray(existing.ids) ? existing.ids.slice() : [];
+  const nowIso = new Date().toISOString();
+  const normalized = sessions.map(item=>({
+    id: typeof item?.id === 'string' ? item.id : 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+    type: item?.type || 'plank',
+    seconds: Number(item?.seconds)||0,
+    startedAt: item?.startedAt || nowIso,
+    completedAt: item?.completedAt || nowIso
+  }));
+
+  const hasMeditation = medSessions.length > 0;
+  if(normalized.length === 0 && !hasMeditation){
+    md[dateKey] = { __deleted:true, ts: nowIso };
+  } else {
+    const next = { ...existing };
+    if(hasMeditation){
+      next.sessions = medSessions;
+      next.starts = starts;
+      next.ids = ids;
+    } else {
+      next.sessions = Array.isArray(next.sessions) ? next.sessions : [];
+      next.starts = Array.isArray(next.starts) ? next.starts : [];
+      next.ids = Array.isArray(next.ids) ? next.ids : [];
+    }
+    delete next.__deleted;
+    if(normalized.length){
+      next.exercise = { sessions: normalized, updatedAt: nowIso };
+    } else {
+      delete next.exercise;
+    }
+    next.dayTs = nowIso;
+    md[dateKey] = next;
+  }
+  writeMonth(state.uid, year, month, md);
+  renderCalendar();
+  if(window.syncAfterExerciseUpdate) window.syncAfterExerciseUpdate();
+}
+
+function renderExerciseLog(){
+  if(!exercisePanelEl) return;
+  const wrap = exercisePanelEl._log;
+  if(!wrap || !exerciseCtx.dateKey){
+    if(wrap) wrap.innerHTML = '<div class="empty">記録なし</div>';
+    return;
+  }
+  const list = readExerciseSessions(exerciseCtx.dateKey).sort((a,b)=>{
+    const aTime = a.completedAt || a.startedAt;
+    const bTime = b.completedAt || b.startedAt;
+    return (bTime||'').localeCompare(aTime||'');
+  });
+  if(!list.length){
+    wrap.innerHTML = '<div class="empty">記録なし</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  list.forEach(item=>{
+    const row = document.createElement('div');
+    row.className = 'exercise-row';
+    Object.assign(row.style, {
+      borderRadius: '10px',
+      border: '1px solid rgba(148,163,184,0.24)',
+      padding: '10px 12px',
+      display: 'grid',
+      gap: '4px',
+      background: 'rgba(30,41,59,0.55)'
+    });
+    const timeText = item.startedAt ? formatTime(item.startedAt) : '--:--';
+    const typeDef = EXERCISE_TYPES.find(def=> def.type===item.type);
+    const label = typeDef ? `${typeDef.icon} ${typeDef.label}` : item.type;
+    row.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span style="font-weight:700">${label}</span><span style="font-size:0.85rem;opacity:0.7">${timeText}</span></div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span style="font-size:0.95rem;font-weight:700">${item.seconds}秒</span><button type="button" data-del="${item.id}" style="border:0;border-radius:8px;padding:6px 10px;background:rgba(248,113,113,0.18);color:#fca5a5;font-weight:700;cursor:pointer">削除</button></div>`;
+    row.querySelector('button[data-del]')?.addEventListener('click', ()=> deleteExerciseSession(item.id));
+    wrap.appendChild(row);
+  });
+}
+
+function formatSeconds(totalSeconds){
+  const sec = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(sec/60);
+  const s = sec % 60;
+  if(m>0){ return `${m}:${String(s).padStart(2,'0')}`; }
+  return `${s}<span style="font-size:0.5em; display:inline-block; margin-left:0.08em; line-height:1; transform-origin:left bottom;">秒</span>`;
+}
+
+function formatTime(value){
+  if(!value) return '--:--';
+  try{
+    const date = (value instanceof Date) ? value : new Date(value);
+    if(Number.isNaN(date.getTime())) return '--:--';
+    return date.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  }catch{ return '--:--'; }
+}
 
 // ===== Timer (countdown with sound) =====
 let medTimer = { id:null, running:false, endAt:0, remaining:0, startedAt:null };
@@ -1112,7 +1947,12 @@ function mergePayload(localP, remoteP){
             }
           });
           const uniq = [...byFp.values()].slice(0,48);
-          mergedMonth[dk] = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
+          const mergedObj = { sessions: uniq.map(o=>o.m), starts: uniq.map(o=>o.s), ids: uniq.map(o=>o.id), dayTs: (lVal.dayTs||rVal.dayTs||new Date().toISOString()) };
+          const mergedExercise = mergeExerciseData(lVal.exercise, rVal.exercise);
+          if(mergedExercise && Array.isArray(mergedExercise.sessions) && mergedExercise.sessions.length){
+            mergedObj.exercise = mergedExercise;
+          }
+          mergedMonth[dk] = mergedObj;
         } else if(isAttendanceObj(lVal) || isAttendanceObj(rVal)){
           // --- Attendance object merge ---
           const norm = v => {
@@ -1178,7 +2018,17 @@ function mergePayload(localP, remoteP){
     Object.keys(mergedMonth).forEach(dk=>{
       const v = mergedMonth[dk];
       if(v && v.__deleted){ return; }
-      if(v && typeof v==='object' && Array.isArray(v.sessions) && v.sessions.length===0) delete mergedMonth[dk];
+      if(v && typeof v==='object'){
+        const hasMeditation = Array.isArray(v.sessions) && v.sessions.length>0;
+        const hasExercise = Array.isArray(v.exercise?.sessions) && v.exercise.sessions.length>0;
+        if(!hasMeditation && !hasExercise){
+          delete mergedMonth[dk];
+        } else if(!hasMeditation){
+          v.sessions = Array.isArray(v.sessions)? v.sessions : [];
+          v.starts = Array.isArray(v.starts)? v.starts : [];
+          v.ids = Array.isArray(v.ids)? v.ids : [];
+        }
+      }
     });
     result.data[mk] = mergedMonth;
   }
@@ -1357,6 +2207,7 @@ setTimeout(()=>{ cleanupLegacyMeditationDuplicates(); }, 500);
 window.syncAfterNewMeditationSession = ()=>{ markDirtyImmediate(); };
 window.syncAfterNewWorkToggle = ()=>{ markDirtyImmediate(); };
 window.syncAfterFinanceSave = ()=>{ markDirtyImmediate(); };
+window.syncAfterExerciseUpdate = ()=>{ markDirtyImmediate(); };
 // ---- Editing soft-lock for meditation editor ----
 window.beginMeditationEdit = ()=>{
   if(!__autoSync.editing){
@@ -1557,6 +2408,10 @@ if (typeof window.openMeditationEditor !== 'function') {
       console.warn('[med-editor] failed:', e);
     }
   };
+}
+
+if(typeof window.openExercisePanel !== 'function'){
+  window.openExercisePanel = (opts)=> openExercisePanel(opts || {});
 }
 
 function showMedAlert(message){
