@@ -1086,9 +1086,12 @@ function closeExercisePanel(){
   if(!exercisePanelEl) return;
   exercisePanelEl.style.display = 'none';
   exercisePanelEl.removeAttribute('data-open');
+  const prevAnchor = exerciseCtx.anchor;
   resetAllExerciseTimers();
-  if(exerciseCtx.anchor && typeof exerciseCtx.anchor.focus === 'function'){
-    setTimeout(()=> exerciseCtx.anchor.focus(), 0);
+  if(prevAnchor && typeof prevAnchor.focus === 'function'){
+    setTimeout(()=>{
+      try{ prevAnchor.focus(); }catch{}
+    }, 0);
   }
   exerciseCtx = { dateKey: null, anchor: null };
 }
