@@ -999,8 +999,11 @@ function buildExerciseCard(def){
     padding: '6px 8px',
     fontWeight: '600',
     fontSize: '0.95rem',
-    textAlign: 'right'
+    textAlign: 'right',
+    appearance: 'textfield'
   });
+  input.style.MozAppearance = 'textfield';
+  input.style.WebkitAppearance = 'none';
 
   head.append(title, input);
 
