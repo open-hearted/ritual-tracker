@@ -318,22 +318,6 @@ function ensureMeditationChooser(){
   btnWrap.style.display = 'grid';
   btnWrap.style.gap = '12px';
 
-  const btnMeditation = document.createElement('button');
-  btnMeditation.type = 'button';
-  btnMeditation.dataset.action = 'meditation';
-  btnMeditation.textContent = '瞑想を記録';
-  Object.assign(btnMeditation.style, {
-    padding: '14px 16px',
-    borderRadius: '12px',
-    border: '0',
-    fontSize: '1rem',
-    fontWeight: '700',
-    background: 'linear-gradient(135deg,#38bdf8,#a855f7)',
-    color: '#0b1120',
-    cursor: 'pointer',
-    transition: 'transform 0.18s ease, box-shadow 0.18s ease'
-  });
-
   const btnExercise = document.createElement('button');
   btnExercise.type = 'button';
   btnExercise.dataset.action = 'exercise';
@@ -346,6 +330,22 @@ function ensureMeditationChooser(){
     fontWeight: '700',
     background: 'linear-gradient(135deg,rgba(96,165,250,0.92),rgba(34,211,238,0.95))',
     color: '#082f49',
+    cursor: 'pointer',
+    transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+  });
+
+  const btnMeditation = document.createElement('button');
+  btnMeditation.type = 'button';
+  btnMeditation.dataset.action = 'meditation';
+  btnMeditation.textContent = '瞑想を記録';
+  Object.assign(btnMeditation.style, {
+    padding: '14px 16px',
+    borderRadius: '12px',
+    border: '0',
+    fontSize: '1rem',
+    fontWeight: '700',
+    background: 'linear-gradient(135deg,#38bdf8,#a855f7)',
+    color: '#0b1120',
     cursor: 'pointer',
     transition: 'transform 0.18s ease, box-shadow 0.18s ease'
   });
@@ -366,7 +366,7 @@ function ensureMeditationChooser(){
   });
   closeRow.appendChild(closeBtn);
 
-  btnWrap.append(btnMeditation, btnExercise);
+  btnWrap.append(btnExercise, btnMeditation);
   dialog.append(heading, summary, btnWrap, closeRow);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
@@ -374,19 +374,19 @@ function ensureMeditationChooser(){
   const handleClose = ()=> closeMeditationChooser();
   closeBtn.addEventListener('click', handleClose);
   overlay.addEventListener('click', (ev)=>{ if(ev.target === overlay) handleClose(); });
-  btnMeditation.addEventListener('click', ()=>{
-    const ctx = medChooserCtx;
-    closeMeditationChooser();
-    setTimeout(()=>{
-      openMeditationEditor(ctx.dateKey, ctx.anchor, ctx.meditationSessions);
-    }, 0);
-  });
   btnExercise.addEventListener('click', ()=>{
     const ctx = medChooserCtx;
     closeMeditationChooser();
     setTimeout(()=>{
       openExercisePanel({ dateKey: ctx.dateKey, anchor: ctx.anchor, record: ctx.rawRecord });
     }, 10);
+  });
+  btnMeditation.addEventListener('click', ()=>{
+    const ctx = medChooserCtx;
+    closeMeditationChooser();
+    setTimeout(()=>{
+      openMeditationEditor(ctx.dateKey, ctx.anchor, ctx.meditationSessions);
+    }, 0);
   });
 
   const handleKey = (ev)=>{
@@ -400,7 +400,7 @@ function ensureMeditationChooser(){
 
   overlay._close = handleClose;
   overlay._handleKey = handleKey;
-  overlay._btnMeditation = btnMeditation;
+  overlay._btnPrimary = btnExercise;
   overlay._summary = summary;
   overlay._dateLabel = heading.querySelector('#medChooserDate');
   medChooserEl = overlay;
@@ -428,7 +428,7 @@ function openMeditationChooser({ dateKey, anchor, meditationSessions, exerciseSe
     rawRecord: rawRecord || {},
     prevFocus: document.activeElement instanceof HTMLElement ? document.activeElement : null
   };
-  const { _summary, _dateLabel, _btnMeditation } = overlay;
+  const { _summary, _dateLabel, _btnPrimary } = overlay;
   if(_dateLabel) _dateLabel.textContent = dateKey;
   if(_summary){
     const medCount = medChooserCtx.meditationSessions.length;
@@ -442,7 +442,7 @@ function openMeditationChooser({ dateKey, anchor, meditationSessions, exerciseSe
   }
   overlay.style.display = 'flex';
   overlay.setAttribute('data-open','1');
-  setTimeout(()=>{ _btnMeditation?.focus(); }, 20);
+  setTimeout(()=>{ _btnPrimary?.focus(); }, 20);
 }
 
 function makeStat(html){ const d=document.createElement('div'); d.className='stat'; d.innerHTML=html; return d; }
