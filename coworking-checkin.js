@@ -2017,21 +2017,25 @@ function mergePayload(localP, remoteP){
       }
     }
     // prune empty days for meditation object if sessions empty
-    Object.keys(mergedMonth).forEach(dk=>{
-      const v = mergedMonth[dk];
-      if(v && v.__deleted){ return; }
-      if(v && typeof v==='object'){
-        const hasMeditation = Array.isArray(v.sessions) && v.sessions.length>0;
-        const hasExercise = Array.isArray(v.exercise?.sessions) && v.exercise.sessions.length>0;
-        if(!hasMeditation && !hasExercise){
-          delete mergedMonth[dk];
-        } else if(!hasMeditation){
-          v.sessions = Array.isArray(v.sessions)? v.sessions : [];
-          v.starts = Array.isArray(v.starts)? v.starts : [];
-          v.ids = Array.isArray(v.ids)? v.ids : [];
+    // Only apply this pruning on the meditation page; otherwise attendance objects
+    // (work:0/1) would be accidentally removed during merge.
+    if(isMeditation()){
+      Object.keys(mergedMonth).forEach(dk=>{
+        const v = mergedMonth[dk];
+        if(v && v.__deleted){ return; }
+        if(v && typeof v==='object'){
+          const hasMeditation = Array.isArray(v.sessions) && v.sessions.length>0;
+          const hasExercise = Array.isArray(v.exercise?.sessions) && v.exercise.sessions.length>0;
+          if(!hasMeditation && !hasExercise){
+            delete mergedMonth[dk];
+          } else if(!hasMeditation){
+            v.sessions = Array.isArray(v.sessions)? v.sessions : [];
+            v.starts = Array.isArray(v.starts)? v.starts : [];
+            v.ids = Array.isArray(v.ids)? v.ids : [];
+          }
         }
-      }
-    });
+      });
+    }
     result.data[mk] = mergedMonth;
   }
   // meta: choose newer updatedAt
