@@ -2089,7 +2089,7 @@ function mergePayload(localP, remoteP){
 }
 
 async function autoPull(){
-  const cfg = getS3Cfg();
+  const cfg = getEffectiveS3Cfg();
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
   if(__autoSync.editing){
     __autoSync.pendingPull = true;
@@ -2154,7 +2154,7 @@ async function autoPush(force){
   if(!__autoSync.dirty || __autoSync.pushing) {
     if(!force) return;
   }
-  const cfg = getS3Cfg();
+  const cfg = getEffectiveS3Cfg();
   if(!force && (!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password)) return;
   if(force && (!cfg.docId || !cfg.passphrase || !cfg.password)){
     // 必須設定が足りない場合はユーザーに通知し早期終了
@@ -2303,8 +2303,10 @@ function resetEditIdleTimer(){
   window.__medEditIdleTimer = setTimeout(()=>{ window.endMeditationEdit(); }, 8000);
 }
 
-function startAutoSync(){
-  const cfg = getS3Cfg();
+async function startAutoSync(){
+  // Try to restore credentials from the browser (autofill / credential manager) before evaluating config
+  await ensureCredentialRestore();
+  const cfg = getEffectiveS3Cfg();
   if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password){
     const miss=[];
     if(!cfg.auto) miss.push('auto=false');
@@ -2312,7 +2314,7 @@ function startAutoSync(){
     if(!cfg.passphrase) miss.push('passphrase');
     if(!cfg.password) miss.push('APP_PASSWORD');
     console.info('[sync] auto sync disabled or incomplete config -> missing:', miss.join(','));
-    setSyncStatus('config incomplete: '+miss.join(', '));
+    setSyncStatus('config incomplete: '+miss.join(','));
     return;
   }
   installAutoSyncHooks();
@@ -2347,7 +2349,7 @@ function restartAutoSync(){
 }
 
 // Start after DOM load & potential auto restore
-setTimeout(startAutoSync, 1500);
+setTimeout(()=>{ startAutoSync().catch(e=> console.info('[sync] startAutoSync failed', e)); }, 1500);
 
 // Manual debug helpers
 window.forcePull = autoPull;
@@ -2578,4 +2580,22 @@ function showMedAlert(message){
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
   setTimeout(()=> btn.focus(), 0);
+}
+
+// Build an effective config by merging saved config, DOM inputs, and credential manager (best-effort)
+function getEffectiveS3Cfg(){
+  const saved = getS3Cfg() || {};
+  const docId = (document.getElementById('s3DocId')?.value || saved.docId || '').trim();
+  const passphrase = (document.getElementById('s3Passphrase')?.value || saved.passphrase || '').toString();
+  // APP_PASSWORD we do NOT persist; attempt to read from DOM (autofill) or saved (should be empty)
+  const password = (document.getElementById('s3Password')?.value || saved.password || '').toString();
+  const auto = document.getElementById('s3AutoRestore')?.checked ?? !!saved.auto;
+  return { docId, passphrase, password, auto };
+}
+
+// Synchronous attempt to restore password credential (best-effort wrapper)
+async function ensureCredentialRestore(){
+  try{
+    await tryRestorePassphraseFromBrowser();
+  }catch(e){ console.info('[sync] credential restore attempt failed', e); }
 }
