@@ -1697,11 +1697,28 @@ function renderS3Inputs(){
 async function tryRestorePassphraseFromBrowser(){
   if(typeof navigator === 'undefined' || !navigator.credentials || !navigator.credentials.get) return;
   try{
-    // mediation optional allows silent retrieval when available
-    const cred = await navigator.credentials.get({ password: true, mediation: 'optional' });
+    // Try several mediation strategies to increase chance of retrieval across browsers
+    const modes = ['silent','optional', undefined];
+    let cred = null;
+    for(const m of modes){
+      try{
+        console.info('[sync] tryRestorePassphraseFromBrowser mediation=', m);
+        cred = await navigator.credentials.get({ password: true, mediation: m });
+        console.info('[sync] credential retrieval attempt returned', cred);
+        if(cred) break;
+      }catch(e){ console.info('[sync] credential.get failed for mediation', m, e); }
+    }
     if(cred && cred.type === 'password' && cred.password){
       const inp = document.getElementById('s3Passphrase');
-      if(inp && !inp.value){ inp.value = cred.password; persistS3ConfigAndMaybeStart(); }
+      if(inp){
+        // always set from credential (overwrite) and persist passphrase (not APP_PASSWORD)
+        inp.value = cred.password;
+        try{ persistS3ConfigAndMaybeStart(); }catch(e){ console.warn('[sync] persist after cred restore failed', e); }
+        setSyncStatus('restored passphrase from browser');
+        console.info('[sync] passphrase restored from Credential Manager');
+      }
+    } else {
+      console.info('[sync] no password credential found');
     }
   }catch(e){ /* ignore if unsupported */ }
 }
