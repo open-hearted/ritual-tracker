@@ -372,6 +372,23 @@ function ensureMeditationChooser(){
   closeRow.appendChild(closeBtn);
 
   btnWrap.append(btnExercise, btnMeditation);
+  // 日記ボタンを追加
+  const btnDiary = document.createElement('button');
+  btnDiary.type = 'button';
+  btnDiary.dataset.action = 'diary';
+  btnDiary.textContent = '日記';
+  Object.assign(btnDiary.style, {
+    padding: '14px 16px',
+    borderRadius: '12px',
+    border: '0',
+    fontSize: '1rem',
+    fontWeight: '700',
+    background: 'linear-gradient(135deg,#10b981,#059669)',
+    color: '#ffffff',
+    cursor: 'pointer',
+    boxShadow: '0 10px 20px rgba(6,95,70,0.18)'
+  });
+  btnWrap.appendChild(btnDiary);
   dialog.append(btnWrap, heading, summary, closeRow);
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
@@ -392,6 +409,13 @@ function ensureMeditationChooser(){
     setTimeout(()=>{
       openMeditationEditor(ctx.dateKey, ctx.anchor, ctx.meditationSessions);
     }, 0);
+  });
+  btnDiary.addEventListener('click', ()=>{
+    const ctx = medChooserCtx;
+    closeMeditationChooser();
+    setTimeout(()=>{
+      openDiaryEditor({ dateKey: ctx.dateKey, anchor: ctx.anchor, rawRecord: ctx.rawRecord });
+    }, 10);
   });
 
   const handleKey = (ev)=>{
@@ -519,6 +543,12 @@ function ensureMedEditor(){
   medEditorEl.id = 'medEditor';
   medEditorEl.innerHTML = '<div class="med-head"><span id="medEditDate"></span><button id="medClose" title="閉じる">✕</button></div>'+
   '<div class="med-sessions" id="medSessions"></div>'+
+  // 日記エリアを追加
+  '<div class="med-diary" id="medDiaryBox" style="margin-top:12px">'+
+    '<div style="font-weight:700;margin-bottom:8px">日記</div>'+
+    '<textarea id="medDiaryText" placeholder="今日の気づきや感想を自由に書いてください" style="width:100%;min-height:86px;padding:10px;border-radius:10px;border:1px solid rgba(148,163,184,0.12);background:rgba(15,23,42,0.6);color:#e2e8f0"></textarea>'+
+    '<div style="display:flex;gap:8px;margin-top:8px"><button id="medDiarySave" style="padding:8px 12px;border-radius:10px;border:0;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">保存</button><button id="medDiaryClear" class="danger" style="padding:8px 12px;border-radius:10px;border:0;background:transparent;color:#cbd5f5;border:1px solid rgba(148,163,184,0.22)">消去</button></div>'+
+  '</div>'+
   '<div class="med-timer" id="medTimerBox">'+
     // 既定値を30分へ
     '<input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" title="カウントダウン分" />'+
@@ -534,6 +564,15 @@ function ensureMedEditor(){
   medEditorEl.querySelector('#medClose').addEventListener('click', ()=> hideMedEditor());
   medEditorEl.querySelector('#medAddBtn').addEventListener('click', ()=> addMedSession());
   medEditorEl.querySelector('#medNewMin').addEventListener('keydown', e=>{ if(e.key==='Enter'){ addMedSession(); }});
+  // 日記保存 / 消去
+  medEditorEl.querySelector('#medDiarySave').addEventListener('click', ()=>{
+    const txt = medEditorEl.querySelector('#medDiaryText')?.value || '';
+    writeMedDiary(txt);
+  });
+  medEditorEl.querySelector('#medDiaryClear').addEventListener('click', ()=>{
+    if(!confirm('日記を消去してもよいですか？')) return;
+    writeMedDiary('');
+  });
   medEditorEl.querySelector('#medClearDay').addEventListener('click', ()=>{ clearMedDay(); });
   // Timer bindings
   medEditorEl.querySelector('#medTimerStart').addEventListener('click', handleMedTimerStartButton);
@@ -698,6 +737,10 @@ function openMeditationEditor(dateKey, anchorEl, sessions){
 
   box.querySelector('#medEditDate').textContent = dateKey;
   renderMedSessionList();
+  // load diary text into editor textarea
+  const diaryTxt = readMedDiary(dateKey);
+  const diaryEl = box.querySelector('#medDiaryText');
+  if(diaryEl) diaryEl.value = diaryTxt;
   const inp = box.querySelector('#medNewMin');
   inp.setAttribute('step','0.1');
   setTimeout(()=>{ box.querySelector('#medTimerStart')?.focus(); }, 0);
@@ -708,6 +751,31 @@ function readMedSessions(){
   const md = readMonth(state.uid, state.year, state.month);
   const rec = md[medEditTarget.dateKey];
   return Array.isArray(rec?.sessions)? rec.sessions : [];
+}
+
+// Diary helpers: store diary as { text, updatedAt }
+function readMedDiary(dateKey){
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[dateKey] || {};
+  return rec.diary?.text ? String(rec.diary.text) : '';
+}
+
+function writeMedDiary(text){
+  const md = readMonth(state.uid, state.year, state.month);
+  const rec = md[medEditTarget.dateKey] || {};
+  const trimmed = (text||'').toString();
+  if(!trimmed){
+    // remove diary if empty
+    if(rec.diary) delete rec.diary;
+  } else {
+    rec.diary = { text: trimmed, updatedAt: new Date().toISOString() };
+  }
+  md[medEditTarget.dateKey] = rec;
+  writeMonth(state.uid, state.year, state.month, md);
+  if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
+  renderCalendar(); // refresh UI
+  // reflect in editor textarea
+  if(medEditorEl) medEditorEl.querySelector('#medDiaryText').value = trimmed;
 }
 function writeMedSessions(arr){
   const md = readMonth(state.uid, state.year, state.month);
@@ -2598,4 +2666,19 @@ async function ensureCredentialRestore(){
   try{
     await tryRestorePassphraseFromBrowser();
   }catch(e){ console.info('[sync] credential restore attempt failed', e); }
+}
+
+// Open a focused diary editor (reuses med editor UI)
+function openDiaryEditor({ dateKey, anchor }){
+  ensureMedEditor();
+  medEditTarget.dateKey = dateKey; medEditTarget.anchor = anchor || null;
+  const box = medEditorEl;
+  box.style.display = 'flex';
+  box.setAttribute('data-open','1');
+  box.querySelector('#medEditDate').textContent = dateKey;
+  renderMedSessionList();
+  const diaryEl = box.querySelector('#medDiaryText');
+  if(diaryEl) diaryEl.value = readMedDiary(dateKey);
+  setTimeout(()=>{ diaryEl?.focus(); diaryEl?.setSelectionRange(diaryEl.value.length, diaryEl.value.length); }, 30);
+  if(window.beginMeditationEdit) window.beginMeditationEdit();
 }
