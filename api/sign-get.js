@@ -11,7 +11,9 @@ function validateKey(raw){
 
 export default async function handler(req, res){
   try{
-    const { password, key } = req.query || {};
+    // only allow POST with JSON body to avoid leaking password in URL
+    if(req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+    const { password, key } = req.body || {};
     if(!password || password !== process.env.APP_PASSWORD) return res.status(401).send('Unauthorized');
     if(!key) return res.status(400).send('key required');
     const safeKey = validateKey(key);

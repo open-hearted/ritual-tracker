@@ -2054,7 +2054,7 @@ async function autoPull(){
     let useUrl = __fastPull.cachedGetUrl;
     const now = Date.now();
     if(!useUrl || (now - __fastPull.lastSignTime) > __fastPull.signTTL){
-      const r = await fetch(`/api/sign-get?key=${encodeURIComponent(cfg.docId+'.json.enc')}&password=${encodeURIComponent(cfg.password)}`);
+  const r = await fetch('/api/sign-get', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ key: cfg.docId + '.json.enc', password: cfg.password }) });
       if(r.status===401){ console.warn('[sync] pull unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (APP_PASSWORD?)'); return; }
       if(!r.ok){
         const txt = await r.text().catch(()=> '');
