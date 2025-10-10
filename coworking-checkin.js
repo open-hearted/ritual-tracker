@@ -1635,8 +1635,7 @@ function renderFinanceStats(attendedOverride){
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
     globalStats.append(
       mkChip('収支分岐まで', remaining),
-      mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-'),
-      mkChip(diffPerVisit>=0?'割高':'割安', `${Math.abs(diffPerVisit).toLocaleString()}円`)
+      mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-')
     );
   }
 }
