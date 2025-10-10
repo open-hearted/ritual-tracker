@@ -1692,6 +1692,19 @@ function renderS3Inputs(){
   $('s3AutoRestore').checked=!!c.auto;
 }
 
+// Try restore passphrase from browser credential manager (PasswordCredential)
+async function tryRestorePassphraseFromBrowser(){
+  if(typeof navigator === 'undefined' || !navigator.credentials || !navigator.credentials.get) return;
+  try{
+    // mediation optional allows silent retrieval when available
+    const cred = await navigator.credentials.get({ password: true, mediation: 'optional' });
+    if(cred && cred.type === 'password' && cred.password){
+      const inp = document.getElementById('s3Passphrase');
+      if(inp && !inp.value){ inp.value = cred.password; persistS3ConfigAndMaybeStart(); }
+    }
+  }catch(e){ /* ignore if unsupported */ }
+}
+
 $('s3Push').addEventListener('click', async()=>{
   try{
     const docId=$('s3DocId').value.trim();
@@ -1699,12 +1712,20 @@ $('s3Push').addEventListener('click', async()=>{
     const pass=$('s3Passphrase').value;
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
-    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
     // メタ管理付きの統一 autoPush を利用
     markDirtyImmediate();
     setSyncStatus('manual push queued');
     // 手動プッシュはユーザー操作なので auto フラグに関係なく強制実行する
     await autoPush(true);
+    // After successful manual push, suggest storing passphrase to browser password manager
+    try{
+      if(typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store){
+        const cc = new PasswordCredential({ id: docId || 's3-doc', password: pass });
+        await navigator.credentials.store(cc);
+        console.info('[sync] stored passphrase with Credential Management API');
+      }
+    }catch(e){ /* ignore gracefully */ }
   }catch(e){ alert(e.message||e); }
 });
 
@@ -1745,7 +1766,11 @@ function autoS3RestoreIfConfigured(){
 
 migrateOldS3CfgOnce(); // 追加: 旧S3設定を一度だけ移行
 renderS3Inputs();
-autoS3RestoreIfConfigured();
+// attempt to restore from browser password manager (best-effort)
+tryRestorePassphraseFromBrowser().then(()=>{
+  // after attempting browser restore, proceed with configured auto-restore
+  autoS3RestoreIfConfigured();
+});
 
 // ===== Encryption Helpers (AES-GCM, E2E) =====
 async function encryptJSON(obj, passphrase){
