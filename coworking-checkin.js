@@ -1704,7 +1704,8 @@ $('s3Push').addEventListener('click', async()=>{
     // メタ管理付きの統一 autoPush を利用
     markDirtyImmediate();
     setSyncStatus('manual push queued');
-    await autoPush();
+    // 手動プッシュはユーザー操作なので auto フラグに関係なく強制実行する
+    await autoPush(true);
   }catch(e){ alert(e.message||e); }
 });
 
@@ -1847,6 +1848,7 @@ let __fastPull = {
 function setSyncStatus(msg){
   const el = document.getElementById('syncStatus');
   if(el) el.textContent = msg;
+  try{ console.info('[sync status]', msg); }catch(e){}
 }
 
 function nowISO(){ return new Date().toISOString(); }
@@ -2100,10 +2102,18 @@ async function autoPull(){
   }
 }
 
-async function autoPush(){
-  if(!__autoSync.dirty || __autoSync.pushing) return;
+async function autoPush(force){
+  // force === true の場合は auto フラグに関係なく実行
+  if(!__autoSync.dirty || __autoSync.pushing) {
+    if(!force) return;
+  }
   const cfg = getS3Cfg();
-  if(!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password) return;
+  if(!force && (!cfg.auto || !cfg.docId || !cfg.passphrase || !cfg.password)) return;
+  if(force && (!cfg.docId || !cfg.passphrase || !cfg.password)){
+    // 必須設定が足りない場合はユーザーに通知し早期終了
+    setSyncStatus('config incomplete (docId/passphrase/password)');
+    return;
+  }
   try{
     __autoSync.pushing = true;
     let safety = 3; // 最大3連続 (バースト追加想定)
