@@ -2669,16 +2669,53 @@ async function ensureCredentialRestore(){
 }
 
 // Open a focused diary editor (reuses med editor UI)
+// Diary overlay (standalone) so diary can be edited separately from med editor
+let diaryOverlayEl = null;
+function ensureDiaryEditor(){
+  if(diaryOverlayEl) return diaryOverlayEl;
+  const overlay = document.createElement('div');
+  overlay.id = 'diaryOverlay';
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: '0', display: 'none', alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(8,12,18,0.6)', zIndex: '3800', padding: 'clamp(18px,6vw,32px)'
+  });
+  const dialog = document.createElement('div');
+  dialog.className = 'diary-dialog';
+  Object.assign(dialog.style, {
+    width: 'min(96vw,640px)', maxHeight: '92vh', overflow: 'auto', display: 'grid', gap: '12px',
+    background: 'var(--card,#071026)', color:'#e2e8f0', borderRadius:'14px', padding:'20px', boxShadow:'0 24px 48px rgba(0,0,0,0.6)'
+  });
+  dialog.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:800;font-size:1.05rem">日記</div><button id="diaryClose" title="閉じる">✕</button></div>`+
+    `<div id="diaryDateLabel" style="opacity:0.8;font-weight:600"></div>`+
+    `<textarea id="diaryTextArea" style="width:100%;min-height:240px;padding:12px;border-radius:10px;border:1px solid rgba(148,163,184,0.08);background:rgba(10,14,20,0.6);color:#e6eef8"></textarea>`+
+    `<div style="display:flex;gap:8px;justify-content:flex-end"><button id="diarySave" style="padding:8px 12px;border-radius:10px;border:0;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-weight:700">保存</button><button id="diaryCancel" style="padding:8px 12px;border-radius:10px;border:1px solid rgba(148,163,184,0.18);background:transparent;color:#cbd5f5">閉じる</button></div>`;
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+  overlay.querySelector('#diaryClose').addEventListener('click', ()=>{ overlay.style.display='none'; });
+  overlay.querySelector('#diaryCancel').addEventListener('click', ()=>{ overlay.style.display='none'; });
+  overlay.querySelector('#diarySave').addEventListener('click', ()=>{
+    const txt = overlay.querySelector('#diaryTextArea')?.value || '';
+    // use medEditTarget.dateKey if set, else fallback to overlay._dateKey
+    const dk = overlay._dateKey || medEditTarget.dateKey;
+    if(!dk){ alert('日付が不明です'); return; }
+    // temporarily set medEditTarget so writeMedDiary uses correct key
+    const prev = { ...medEditTarget };
+    medEditTarget.dateKey = dk;
+    writeMedDiary(txt);
+    medEditTarget = prev;
+    overlay.style.display='none';
+  });
+  overlay.addEventListener('click', (ev)=>{ if(ev.target === overlay) overlay.style.display='none'; });
+  diaryOverlayEl = overlay;
+  return diaryOverlayEl;
+}
+
 function openDiaryEditor({ dateKey, anchor }){
-  ensureMedEditor();
-  medEditTarget.dateKey = dateKey; medEditTarget.anchor = anchor || null;
-  const box = medEditorEl;
-  box.style.display = 'flex';
-  box.setAttribute('data-open','1');
-  box.querySelector('#medEditDate').textContent = dateKey;
-  renderMedSessionList();
-  const diaryEl = box.querySelector('#medDiaryText');
-  if(diaryEl) diaryEl.value = readMedDiary(dateKey);
-  setTimeout(()=>{ diaryEl?.focus(); diaryEl?.setSelectionRange(diaryEl.value.length, diaryEl.value.length); }, 30);
-  if(window.beginMeditationEdit) window.beginMeditationEdit();
+  const overlay = ensureDiaryEditor();
+  overlay._dateKey = dateKey;
+  overlay.querySelector('#diaryDateLabel').textContent = dateKey;
+  const ta = overlay.querySelector('#diaryTextArea');
+  ta.value = readMedDiary(dateKey);
+  overlay.style.display = 'flex';
+  setTimeout(()=>{ ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 20);
 }
