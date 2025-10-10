@@ -2128,6 +2128,24 @@ async function autoPush(force){
       setAllUsers(users);
       if(payload.finance){ payload.finance.__updatedAt = payload.__meta.updatedAt; }
       const enc = await encryptJSON(payload, cfg.passphrase);
+      // まずサーバ側直接 upload API を試みる（クライアントに presigned URL を渡さずに済む）
+      try{
+        const b64 = b64FromBuf(new Uint8Array(enc));
+        const up = await fetch('/api/put-object', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream', data: b64 }) });
+        if(!up.ok){
+          // サーバ側アップロードが未対応、あるいはエラー → フォールバック
+          console.warn('[sync] server-side put-object failed', up.status);
+          // fallthrough to presign flow below
+        } else {
+          // success
+          console.info('[sync] server-side pushed v'+payload.__meta.version);
+          setSyncStatus('pushed v'+payload.__meta.version+' (server)');
+          try{ const oldETag = __fastPull.lastETag; __fastPull.lastETag = null; await autoPull(); if(!__fastPull.lastETag) __fastPull.lastETag = oldETag; }catch(e){ console.warn('[sync] immediate verify pull failed', e); }
+          safety--; continue; // next loop
+        }
+      }catch(e){ console.warn('[sync] server-side put attempt error', e); }
+
+      // fallback: presigned URL flow (既存)
       const sign = await fetch('/api/sign-put', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ password: cfg.password, key: `${cfg.docId}.json.enc`, contentType:'application/octet-stream' }) });
       if(sign.status===401){ console.warn('[sync] push unauthorized (APP_PASSWORD mismatch?)'); setSyncStatus('401 Unauthorized (push)'); __autoSync.dirty=true; break; }
       if(!sign.ok){
