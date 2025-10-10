@@ -176,9 +176,10 @@ function renderCalendar(){
       const rec = monthData[dk] || {};
       const sessions = Array.isArray(rec?.sessions)? rec.sessions : [];
       const totalMin = sessions.reduce((a,b)=>a+b,0);
-      const exerciseSessions = Array.isArray(rec?.exercise?.sessions) ? rec.exercise.sessions : [];
-      const exerciseSeconds = exerciseSessions.reduce((sum,item)=> sum + (Number(item?.seconds)||0), 0);
-      const exerciseLabel = exerciseSessions.length ? `EX ${exerciseSessions.length}回 / ${exerciseSeconds}秒` : '';
+  const exerciseSessions = Array.isArray(rec?.exercise?.sessions) ? rec.exercise.sessions : [];
+  const exerciseSeconds = exerciseSessions.reduce((sum,item)=> sum + (Number(item?.seconds)||0), 0);
+  // カレンダー表示では回数表示を省き、秒のみ表示する
+  const exerciseLabel = exerciseSessions.length ? `${exerciseSeconds}秒` : '';
       el.dataset.sessions = String(sessions.length);
       el.dataset.exercise = String(exerciseSessions.length);
       if(isToday) el.setAttribute('data-today','true');
