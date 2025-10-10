@@ -757,7 +757,10 @@ function writeMedDiary(text){
   writeMonth(state.uid, state.year, state.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); // refresh UI
-  if(medEditorEl) medEditorEl.querySelector('#medDiaryText').value = trimmed;
+  if(medEditorEl){
+    const el = medEditorEl.querySelector('#medDiaryText');
+    if(el) el.value = trimmed;
+  }
 }
 function writeMedSessions(arr){
   const md = readMonth(state.uid, state.year, state.month);
