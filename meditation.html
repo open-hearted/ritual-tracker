@@ -140,8 +140,9 @@
          inputmode="text" aria-autocomplete="none" data-masked="1" data-lpignore="true" data-1p-ignore="true" />
             <button type="button" id="togglePassMed" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
           </span>
-          <input id="s3Password" placeholder="APP_PASSWORD" type="password"
-                 name="app-password" autocomplete="section-app current-password" />
+     <input id="s3Password" placeholder="APP_PASSWORD" type="password"
+       name="app-password" autocomplete="section-app current-password" />
+          <!-- APP_PASSWORD はローカルストレージに平文で保存しません。ブラウザのパスワードマネージャを利用してください -->
         </div>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <button id="s3Push">保存</button>
