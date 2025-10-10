@@ -755,23 +755,56 @@ function readMedSessions(){
 
 // Diary helpers: store diary as { text, updatedAt }
 function readMedDiary(dateKey){
-  const md = readMonth(state.uid, state.year, state.month);
-  const rec = md[dateKey] || {};
-  return rec.diary?.text ? String(rec.diary.text) : '';
+  // Try reading diary from both meditation ('med') and coworking ('cw') prefixes
+  const parts = parseDateKeyParts(dateKey || medEditTarget.dateKey);
+  const mk = getMonthKey(parts.year, parts.month);
+  const prefixes = ['med','cw'];
+  for(const p of prefixes){
+    try{
+      const key = `${p}_users_v1`;
+      const map = JSON.parse(localStorage.getItem(key) || '{}') || {};
+      const u = map[state.uid] || {};
+      const month = u.data && u.data[mk] ? u.data[mk] : {};
+      if(month && month[dateKey]?.diary?.text) return String(month[dateKey].diary.text);
+      // older shape: day record at month[dateKey]
+      const rec = month[dateKey] || {};
+      if(rec.diary && rec.diary.text) return String(rec.diary.text);
+    }catch(e){ /* ignore parse errors */ }
+  }
+  return '';
 }
 
 function writeMedDiary(text){
-  const md = readMonth(state.uid, state.year, state.month);
-  const rec = md[medEditTarget.dateKey] || {};
+  const dateKey = medEditTarget.dateKey;
+  if(!dateKey) return;
+  const parts = parseDateKeyParts(dateKey);
+  const mk = getMonthKey(parts.year, parts.month);
   const trimmed = (text||'').toString();
-  if(!trimmed){
-    // remove diary if empty
-    if(rec.diary) delete rec.diary;
-  } else {
-    rec.diary = { text: trimmed, updatedAt: new Date().toISOString() };
+  const prefixes = ['med','cw'];
+  for(const p of prefixes){
+    try{
+      const lsKey = `${p}_users_v1`;
+      const map = JSON.parse(localStorage.getItem(lsKey) || '{}') || {};
+      map[state.uid] = map[state.uid] || { data: {} };
+      map[state.uid].data = map[state.uid].data || {};
+      const month = map[state.uid].data[mk] || {};
+      const rec = month[dateKey] || {};
+      if(!trimmed){
+        if(rec.diary) delete rec.diary;
+      } else {
+        rec.diary = { text: trimmed, updatedAt: new Date().toISOString() };
+      }
+      month[dateKey] = rec;
+      map[state.uid].data[mk] = month;
+      localStorage.setItem(lsKey, JSON.stringify(map));
+    }catch(e){ console.warn('[diary] write failed for prefix', p, e); }
   }
-  md[medEditTarget.dateKey] = rec;
-  writeMonth(state.uid, state.year, state.month, md);
+  // Also ensure current in-memory month store is updated via writeMonth for current PAGE_PREFIX
+  const md = readMonth(state.uid, parts.year, parts.month);
+  const rec2 = md[dateKey] || {};
+  if(!trimmed){ if(rec2.diary) delete rec2.diary; } else { rec2.diary = { text: trimmed, updatedAt: new Date().toISOString() }; }
+  md[dateKey] = rec2;
+  writeMonth(state.uid, parts.year, parts.month, md);
   if(window.syncAfterNewMeditationSession) window.syncAfterNewMeditationSession();
   renderCalendar(); // refresh UI
   // reflect in editor textarea
@@ -2418,6 +2451,46 @@ function restartAutoSync(){
 
 // Start after DOM load & potential auto restore
 setTimeout(()=>{ startAutoSync().catch(e=> console.info('[sync] startAutoSync failed', e)); }, 1500);
+
+// Migrate diary entries from the other page prefix (med <-> cw) into current PAGE_PREFIX if missing.
+function migrateDiaryFromOtherPrefix(){
+  try{
+    const current = PAGE_PREFIX; const other = current === 'med' ? 'cw' : 'med';
+    const curKey = `${current}_users_v1`; const othKey = `${other}_users_v1`;
+    const curMap = JSON.parse(localStorage.getItem(curKey) || '{}') || {};
+    const othMap = JSON.parse(localStorage.getItem(othKey) || '{}') || {};
+    if(!othMap[state.uid]) return; // nothing to copy
+    const srcData = othMap[state.uid].data || {};
+    curMap[state.uid] = curMap[state.uid] || { data: {} };
+    curMap[state.uid].data = curMap[state.uid].data || {};
+    let copied = 0;
+    for(const mk of Object.keys(srcData)){
+      const month = srcData[mk] || {};
+      for(const dateKey of Object.keys(month)){
+        try{
+          const rec = month[dateKey] || {};
+          if(rec && rec.diary && rec.diary.text){
+            const curMonth = curMap[state.uid].data[mk] || {};
+            const curRec = curMonth[dateKey] || {};
+            if(!curRec.diary || !curRec.diary.text){
+              curRec.diary = { text: String(rec.diary.text), updatedAt: rec.diary.updatedAt || new Date().toISOString() };
+              curMonth[dateKey] = curRec;
+              curMap[state.uid].data[mk] = curMonth;
+              copied++;
+            }
+          }
+        }catch(e){ /* continue */ }
+      }
+    }
+    if(copied>0){
+      localStorage.setItem(curKey, JSON.stringify(curMap));
+      console.info('[diary migrate] copied', copied, 'entries from', other, 'to', current);
+    }
+  }catch(e){ console.warn('[diary migrate] failed', e); }
+}
+
+// Run migration shortly after startup (non-blocking)
+setTimeout(()=>{ try{ migrateDiaryFromOtherPrefix(); }catch(e){ console.info('[diary migrate] err', e); } }, 2000);
 
 // Manual debug helpers
 window.forcePull = autoPull;
