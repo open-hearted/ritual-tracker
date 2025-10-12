@@ -2561,6 +2561,14 @@ if(typeof window.openExercisePanel !== 'function'){
 }
 
 function showMedAlert(message){
+  // Show all messages (including sync/auth related messages like APP_PASSWORD errors).
+  const toText = (m)=>{
+    if(m==null) return '';
+    if(Array.isArray(m)) return m.join('\n');
+    if(typeof m === 'string') return m;
+    if(m instanceof HTMLElement) return m.textContent||'';
+    return String(m);
+  };
   const existing = document.getElementById('medAlertOverlay');
   const applyMessage = (target, content)=>{
     if(!target) return;
