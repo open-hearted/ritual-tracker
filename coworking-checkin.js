@@ -1717,7 +1717,9 @@ function getS3Cfg(){
   try{ return JSON.parse(localStorage.getItem(LS_S3)||'null') || {}; }catch{ return {}; }
 }
 function saveS3Cfg(v){
-  localStorage.setItem(LS_S3, JSON.stringify(v));
+  try{
+    localStorage.setItem(LS_S3, JSON.stringify(v));
+  }catch(e){ console.warn('[sync] saveS3Cfg failed', e); }
 }
 
 // 互換: 過去の共有キーを「削除」ではなく「移行」
@@ -1750,17 +1752,14 @@ function renderS3Inputs(){
 async function tryRestorePassphraseFromBrowser(){
   if(typeof navigator === 'undefined' || !navigator.credentials || !navigator.credentials.get) return;
   try{
-    // Try several mediation strategies to increase chance of retrieval across browsers
-    const modes = ['silent','optional', undefined];
-    let cred = null;
-    for(const m of modes){
+      // Only attempt silent retrieval to avoid any interactive credential UI
+      // (do not try 'optional' or undefined mediation which can trigger browser prompts)
+      let cred = null;
       try{
-        console.info('[sync] tryRestorePassphraseFromBrowser mediation=', m);
-        cred = await navigator.credentials.get({ password: true, mediation: m });
+        console.info('[sync] tryRestorePassphraseFromBrowser mediation=silent');
+        cred = await navigator.credentials.get({ password: true, mediation: 'silent' });
         console.info('[sync] credential retrieval attempt returned', cred);
-        if(cred) break;
-      }catch(e){ console.info('[sync] credential.get failed for mediation', m, e); }
-    }
+      }catch(e){ console.info('[sync] credential.get failed for silent mediation', e); }
     if(cred && cred.type === 'password' && cred.password){
       const inp = document.getElementById('s3Passphrase');
       if(inp){
@@ -1789,14 +1788,10 @@ $('s3Push').addEventListener('click', async()=>{
     setSyncStatus('manual push queued');
     // 手動プッシュはユーザー操作なので auto フラグに関係なく強制実行する
     await autoPush(true);
-    // After successful manual push, suggest storing passphrase to browser password manager
-    try{
-      if(typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store){
-        const cc = new PasswordCredential({ id: docId || 's3-doc', password: pass });
-        await navigator.credentials.store(cc);
-        console.info('[sync] stored passphrase with Credential Management API');
-      }
-    }catch(e){ /* ignore gracefully */ }
+    // NOTE: intentionally DO NOT call navigator.credentials.store here to avoid
+    // triggering the browser's interactive "save password" prompt. We prefer
+    // a non-interactive sync-only flow where the user manages passwords via
+    // the browser/password manager UI manually.
   }catch(e){ alert(e.message||e); }
 });
 
@@ -1807,7 +1802,7 @@ $('s3Pull').addEventListener('click', async()=>{
     const pass=$('s3Passphrase').value;
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
-    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
     // __fastPull がまだ宣言前 (autoRestore の即時 click) なら次tickに遅延
     if(typeof __fastPull === 'undefined'){
       setTimeout(()=>{
@@ -1837,11 +1832,12 @@ function autoS3RestoreIfConfigured(){
 
 migrateOldS3CfgOnce(); // 追加: 旧S3設定を一度だけ移行
 renderS3Inputs();
-// attempt to restore from browser password manager (best-effort)
-tryRestorePassphraseFromBrowser().then(()=>{
-  // after attempting browser restore, proceed with configured auto-restore
-  autoS3RestoreIfConfigured();
-});
+// NOTE: Do not attempt automatic credential restore at startup. Restores are
+// user-initiated to avoid prompting browser password managers. The function
+// tryRestorePassphraseFromBrowser() can still be called manually if desired.
+autoS3RestoreIfConfigured();
+
+// (no cleanup) keep persisted APP_PASSWORD per user request
 
 // ===== Encryption Helpers (AES-GCM, E2E) =====
 async function encryptJSON(obj, passphrase){
@@ -2561,6 +2557,14 @@ if(typeof window.openExercisePanel !== 'function'){
 }
 
 function showMedAlert(message){
+  // Show all messages (including sync/auth related messages like APP_PASSWORD errors).
+  const toText = (m)=>{
+    if(m==null) return '';
+    if(Array.isArray(m)) return m.join('\n');
+    if(typeof m === 'string') return m;
+    if(m instanceof HTMLElement) return m.textContent||'';
+    return String(m);
+  };
   const existing = document.getElementById('medAlertOverlay');
   const applyMessage = (target, content)=>{
     if(!target) return;

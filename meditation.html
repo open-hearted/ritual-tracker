@@ -131,18 +131,16 @@
       <details>
         <summary>同期</summary>
         <div class="row tight" style="margin-top:4px; gap:6px">
-          <input id="s3DocId" placeholder="docId"
-                 name="docId" autocomplete="section-app username" />
+          <input id="s3DocId" placeholder="docId" autocomplete="off" data-no-save="1" />
           <span style="display:flex;align-items:center;gap:4px;flex:1;">
-            <!-- E2Eは別セクション + 初期readonlyでオートフィル抑止 -->
-       <input id="s3Passphrase" placeholder="E2Eキー" type="text" style="-webkit-text-security: disc; flex:1;"
-         name="e2e-secret" autocomplete="section-e2e new-password" autocapitalize="off" autocorrect="off" spellcheck="false"
-         inputmode="text" aria-autocomplete="none" data-masked="1" data-lpignore="true" data-1p-ignore="true" />
+            <!-- E2Eは別セッション。自動保存ダイアログ抑制のため autocomplete を off にする -->
+       <input id="s3Passphrase" placeholder="E2Eキ―" type="text" style="-webkit-text-security: disc; flex:1;"
+         autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+         inputmode="text" aria-autocomplete="none" data-masked="1" data-no-save="1" />
             <button type="button" id="togglePassMed" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
           </span>
-     <input id="s3Password" placeholder="APP_PASSWORD" type="password"
-       name="app-password" autocomplete="section-app current-password" />
-          <!-- APP_PASSWORD はローカルストレージに平文で保存しません。ブラウザのパスワードマネージャを利用してください -->
+  <input id="s3Password" placeholder="APP_PASSWORD" type="password" autocomplete="off" data-no-save="1" />
+    <!-- APP_PASSWORD はローカルストレージに平文で保存しません。ブラウザの自動保存ダイアログを出さない設定にしています -->
         </div>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <button id="s3Push">保存</button>
