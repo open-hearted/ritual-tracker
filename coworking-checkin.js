@@ -1717,7 +1717,11 @@ function getS3Cfg(){
   try{ return JSON.parse(localStorage.getItem(LS_S3)||'null') || {}; }catch{ return {}; }
 }
 function saveS3Cfg(v){
-  localStorage.setItem(LS_S3, JSON.stringify(v));
+  try{
+    const copy = Object.assign({}, v);
+    if(copy.hasOwnProperty('password')) delete copy.password; // never persist APP_PASSWORD
+    localStorage.setItem(LS_S3, JSON.stringify(copy));
+  }catch(e){ console.warn('[sync] saveS3Cfg failed', e); }
 }
 
 // 互換: 過去の共有キーを「削除」ではなく「移行」
@@ -1741,7 +1745,8 @@ function renderS3Inputs(){
   const c=getS3Cfg();
   $('s3DocId').value=c.docId||'';
   $('s3Passphrase').value=c.passphrase||'';
-  $('s3Password').value=c.password||'';
+  // Do not populate APP_PASSWORD from saved config to avoid plaintext secrets
+  $('s3Password').value='';
   // we intentionally do not restore or persist APP_PASSWORD into localStorage to avoid plaintext secrets
   $('s3AutoRestore').checked=!!c.auto;
 }
@@ -1780,7 +1785,7 @@ $('s3Push').addEventListener('click', async()=>{
     const pass=$('s3Passphrase').value;
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
-  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,auto:true});
     // メタ管理付きの統一 autoPush を利用
     markDirtyImmediate();
     setSyncStatus('manual push queued');
@@ -1800,7 +1805,7 @@ $('s3Pull').addEventListener('click', async()=>{
     const pass=$('s3Passphrase').value;
     const appPw=$('s3Password').value;
     if(!docId||!pass||!appPw){ alert('ドキュメントID/パスフレーズ/APP_PASSWORD を入力'); return; }
-    const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,password:appPw,auto:true});
+  const keep = $('s3AutoRestore').checked; if(keep) saveS3Cfg({docId,passphrase:pass,auto:true});
     // __fastPull がまだ宣言前 (autoRestore の即時 click) なら次tickに遅延
     if(typeof __fastPull === 'undefined'){
       setTimeout(()=>{
@@ -1820,21 +1825,34 @@ $('s3Pull').addEventListener('click', async()=>{
 
 function autoS3RestoreIfConfigured(){
   const c=getS3Cfg();
-  if(c.auto && c.docId && c.passphrase && c.password){
-    // silent pull
-    $('s3DocId').value=c.docId; $('s3Passphrase').value=c.passphrase; $('s3Password').value=c.password; $('s3AutoRestore').checked=true;
-    // __fastPull 定義完了後に確実に走るよう次tickへ
-    setTimeout(()=>{ const btn=$('s3Pull'); if(btn) btn.click(); },0);
+  // If auto is configured, populate docId/passphrase but DO NOT auto-fill APP_PASSWORD
+  if(c.auto && c.docId && c.passphrase){
+    $('s3DocId').value=c.docId; $('s3Passphrase').value=c.passphrase; $('s3AutoRestore').checked=true;
+    // Do not automatically trigger pull because APP_PASSWORD is not persisted here.
   }
 }
 
 migrateOldS3CfgOnce(); // 追加: 旧S3設定を一度だけ移行
 renderS3Inputs();
-// attempt to restore from browser password manager (best-effort)
-tryRestorePassphraseFromBrowser().then(()=>{
-  // after attempting browser restore, proceed with configured auto-restore
-  autoS3RestoreIfConfigured();
-});
+// NOTE: Do not attempt automatic credential restore at startup. Restores are
+// user-initiated to avoid prompting browser password managers. The function
+// tryRestorePassphraseFromBrowser() can still be called manually if desired.
+autoS3RestoreIfConfigured();
+
+// Cleanup: remove any persisted APP_PASSWORD from previous versions
+try{
+  const raw = localStorage.getItem(LS_S3);
+  if(raw){
+    try{
+      const parsed = JSON.parse(raw);
+      if(parsed && parsed.password){
+        delete parsed.password;
+        localStorage.setItem(LS_S3, JSON.stringify(parsed));
+        console.info('[sync] removed persisted APP_PASSWORD from localStorage');
+      }
+    }catch(e){}
+  }
+}catch(e){/* ignore */}
 
 // ===== Encryption Helpers (AES-GCM, E2E) =====
 async function encryptJSON(obj, passphrase){
