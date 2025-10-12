@@ -1750,17 +1750,14 @@ function renderS3Inputs(){
 async function tryRestorePassphraseFromBrowser(){
   if(typeof navigator === 'undefined' || !navigator.credentials || !navigator.credentials.get) return;
   try{
-    // Try several mediation strategies to increase chance of retrieval across browsers
-    const modes = ['silent','optional', undefined];
-    let cred = null;
-    for(const m of modes){
+      // Only attempt silent retrieval to avoid any interactive credential UI
+      // (do not try 'optional' or undefined mediation which can trigger browser prompts)
+      let cred = null;
       try{
-        console.info('[sync] tryRestorePassphraseFromBrowser mediation=', m);
-        cred = await navigator.credentials.get({ password: true, mediation: m });
+        console.info('[sync] tryRestorePassphraseFromBrowser mediation=silent');
+        cred = await navigator.credentials.get({ password: true, mediation: 'silent' });
         console.info('[sync] credential retrieval attempt returned', cred);
-        if(cred) break;
-      }catch(e){ console.info('[sync] credential.get failed for mediation', m, e); }
-    }
+      }catch(e){ console.info('[sync] credential.get failed for silent mediation', e); }
     if(cred && cred.type === 'password' && cred.password){
       const inp = document.getElementById('s3Passphrase');
       if(inp){
@@ -1789,14 +1786,10 @@ $('s3Push').addEventListener('click', async()=>{
     setSyncStatus('manual push queued');
     // 手動プッシュはユーザー操作なので auto フラグに関係なく強制実行する
     await autoPush(true);
-    // After successful manual push, suggest storing passphrase to browser password manager
-    try{
-      if(typeof navigator !== 'undefined' && navigator.credentials && navigator.credentials.store){
-        const cc = new PasswordCredential({ id: docId || 's3-doc', password: pass });
-        await navigator.credentials.store(cc);
-        console.info('[sync] stored passphrase with Credential Management API');
-      }
-    }catch(e){ /* ignore gracefully */ }
+    // NOTE: intentionally DO NOT call navigator.credentials.store here to avoid
+    // triggering the browser's interactive "save password" prompt. We prefer
+    // a non-interactive sync-only flow where the user manages passwords via
+    // the browser/password manager UI manually.
   }catch(e){ alert(e.message||e); }
 });
 
