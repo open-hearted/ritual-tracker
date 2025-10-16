@@ -15,8 +15,37 @@
     .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
     .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
     .cell[data-has] { background:#d1fae5 }
+    .cell.today { border:2px solid #3b82f6;background:#dbeafe }
     #diaryText{width:100%;min-height:160px}
   </style>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth() + 1;
+      const day = today.getDate();
+      const isoDate = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      
+      // Find today's cell - prefer data-date attribute, fallback to matching day number
+      let todayCell = document.querySelector(`.cell[data-date="${isoDate}"]`);
+      if (!todayCell) {
+        // Fallback: find by matching displayed day number
+        const cells = document.querySelectorAll('.cell');
+        for (const cell of cells) {
+          if (cell.textContent.trim() === String(day)) {
+            todayCell = cell;
+            break;
+          }
+        }
+      }
+      
+      if (todayCell) {
+        todayCell.classList.add('today');
+        document.getElementById('selectedDate').textContent = isoDate;
+        todayCell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    });
+  </script>
 </head>
 <body>
   <div class="top">
