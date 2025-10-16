@@ -16,6 +16,13 @@
     .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
     .cell[data-has] { background:#d1fae5 }
     #diaryText{width:100%;min-height:160px}
+
+    /* highlight for today's cell */
+    .cell.today {
+      outline: 3px solid #f59e0b;
+      background: #fff7ed;
+      box-shadow: 0 2px 6px rgba(245,158,11,0.12);
+    }
   </style>
 </head>
 <body>
@@ -39,5 +46,41 @@
   </div>
 
   <div id="msg" style="margin-top:8px;color:#6b7280;font-size:13px"></div>
+
+  <script>
+    // mark today's cell on load
+    document.addEventListener('DOMContentLoaded', () => {
+      const d = new Date();
+      const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+      // try data-date first
+      let cell = document.querySelector(`.cell[data-date="${iso}"]`);
+
+      // fallback: find a cell whose text starts with the day's number
+      if (!cell) {
+        const todayNum = d.getDate();
+        const cells = Array.from(document.querySelectorAll('.cell'));
+        cell = cells.find(c => {
+          const m = c.textContent.trim().match(/^\d+/);
+          if (!m) return false;
+          const n = parseInt(m[0], 10);
+          return n === todayNum;
+        });
+      }
+
+      if (cell) {
+        cell.classList.add('today');
+        const sel = document.getElementById('selectedDate');
+        if (sel) sel.textContent = iso;
+        // ensure it's visible (if calendar is scrollable)
+        if (typeof cell.scrollIntoView === 'function') {
+          cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        }
+      } else {
+        // nothing found — helpful console message for debugging
+        console.log('Today cell not found for', iso);
+      }
+    });
+  </script>
 </body>
 </html>
