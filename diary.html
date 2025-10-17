@@ -15,14 +15,14 @@
     .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
     .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
     .cell[data-has] { background:#d1fae5 }
-      .cell.today { box-shadow:0 0 0 2px rgba(99,102,241,0.3) inset; border:2px solid #6366f1; font-weight:700; }
     #diaryText{width:100%;min-height:160px}
 
-    /* highlight for today's cell */
+    /* highlight for today's cell: green border only, keep same background as other cells */
     .cell.today {
-      outline: 3px solid #f59e0b;
-      background: #fff7ed;
-      box-shadow: 0 2px 6px rgba(245,158,11,0.12);
+      border: 2px solid #16a34a; /* emerald-600 */
+      box-shadow: none;
+      background: inherit;
+      font-weight: 600;
     }
   </style>
   <script>
