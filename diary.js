@@ -87,6 +87,8 @@ function renderCalendar(){
   for(let d=1; d<=days; d++){
     const btn = document.createElement('button'); btn.type='button'; btn.className='cell';
     const dk = `${state.year}-${String(state.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    // add a machine-readable date attribute so other scripts can target cells reliably
+    btn.setAttribute('data-date', dk);
     const has = (state.diaryData && state.diaryData[dk] && state.diaryData[dk].text && state.diaryData[dk].text.length>0);
     if(has) btn.setAttribute('data-has','1');
     // mark today if this cell corresponds to today's date in the current viewed month
@@ -98,6 +100,37 @@ function renderCalendar(){
     btn.addEventListener('click', ()=>{ state.selected = dk; $('selectedDate').textContent = dk; $('diaryText').value = (state.diaryData[dk] && state.diaryData[dk].text) || ''; });
     grid.appendChild(btn);
   }
+
+  // if viewing the current month, auto-select today
+  (function autoSelectToday(){
+    const now = new Date();
+    if(now.getFullYear() === state.year && now.getMonth() === state.month){
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const el = document.querySelector(`.cell[data-date="${todayKey}"]`);
+      if(el){
+        el.classList.add('today');
+        state.selected = todayKey;
+        const sd = $('selectedDate'); if(sd) sd.textContent = todayKey;
+        const txt = $('diaryText'); if(txt) txt.value = (state.diaryData[todayKey] && state.diaryData[todayKey].text) || '';
+        try{ el.scrollIntoView({ block:'nearest' }); }catch{}
+      }
+    }
+  })();
+
+}
+
+// expose a helper for UI buttons to jump to today
+window.jumpToToday = function(){
+  const now = new Date();
+  const key = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const el = document.querySelector(`.cell[data-date="${key}"]`);
+  if(el){ el.click(); el.scrollIntoView({ block:'nearest' }); }
+  else {
+    // not in view: change calendar to current month then select
+    state.year = now.getFullYear(); state.month = now.getMonth(); renderCalendar();
+    setTimeout(()=>{ const e2 = document.querySelector(`.cell[data-date="${key}"]`); if(e2){ e2.click(); e2.scrollIntoView({ block:'nearest' }); } }, 50);
+  }
+
 }
 
 function setMsg(s){ $('msg').textContent = s; }

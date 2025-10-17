@@ -61,6 +61,7 @@
     <div style="flex:1"></div>
     <div id="monthLabel"></div>
     <button id="prevBtn">◀</button>
+    <button id="todayBtn">今日</button>
     <button id="nextBtn">▶</button>
   </div>
 
@@ -77,38 +78,10 @@
   <div id="msg" style="margin-top:8px;color:#6b7280;font-size:13px"></div>
 
   <script>
-    // mark today's cell on load
-    document.addEventListener('DOMContentLoaded', () => {
-      const d = new Date();
-      const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-
-      // try data-date first
-      let cell = document.querySelector(`.cell[data-date="${iso}"]`);
-
-      // fallback: find a cell whose text starts with the day's number
-      if (!cell) {
-        const todayNum = d.getDate();
-        const cells = Array.from(document.querySelectorAll('.cell'));
-        cell = cells.find(c => {
-          const m = c.textContent.trim().match(/^\d+/);
-          if (!m) return false;
-          const n = parseInt(m[0], 10);
-          return n === todayNum;
-        });
-      }
-
-      if (cell) {
-        cell.classList.add('today');
-        const sel = document.getElementById('selectedDate');
-        if (sel) sel.textContent = iso;
-        // ensure it's visible (if calendar is scrollable)
-        if (typeof cell.scrollIntoView === 'function') {
-          cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-        }
-      } else {
-        // nothing found — helpful console message for debugging
-        console.log('Today cell not found for', iso);
-      }
+    // hook up today button to ask diary.js to jump to today
+    window.addEventListener('load', ()=>{
+      const tb = document.getElementById('todayBtn');
+      if(tb){ tb.addEventListener('click', ()=>{ if(window.jumpToToday) window.jumpToToday(); }); }
     });
   </script>
 </body>
