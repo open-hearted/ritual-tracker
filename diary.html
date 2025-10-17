@@ -21,38 +21,13 @@
     .cell.today {
       border: 2px solid #ef4444; /* red-500 */
       box-shadow: none;
-      background: inherit;
+      /* explicitly match the regular cell background so today's cell doesn't get a different fill when not selected */
+      background: #f3f4f6;
       font-weight: 600;
+      box-sizing: border-box;
     }
   </style>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = today.getMonth() + 1;
-      const day = today.getDate();
-      const isoDate = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-      
-      // Find today's cell - prefer data-date attribute, fallback to matching day number
-      let todayCell = document.querySelector(`.cell[data-date="${isoDate}"]`);
-      if (!todayCell) {
-        // Fallback: find by matching displayed day number
-        const cells = document.querySelectorAll('.cell');
-        for (const cell of cells) {
-          if (cell.textContent.trim() === String(day)) {
-            todayCell = cell;
-            break;
-          }
-        }
-      }
-      
-      if (todayCell) {
-        todayCell.classList.add('today');
-        document.getElementById('selectedDate').textContent = isoDate;
-        todayCell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    });
-  </script>
+  <!-- today marker is added by diary.js when calendar renders; do not auto-select/modify selection here -->
 </head>
 <body>
   <div class="top">

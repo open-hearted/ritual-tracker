@@ -101,22 +101,6 @@ function renderCalendar(){
     grid.appendChild(btn);
   }
 
-  // if viewing the current month, auto-select today
-  (function autoSelectToday(){
-    const now = new Date();
-    if(now.getFullYear() === state.year && now.getMonth() === state.month){
-      const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const el = document.querySelector(`.cell[data-date="${todayKey}"]`);
-      if(el){
-        el.classList.add('today');
-        state.selected = todayKey;
-        const sd = $('selectedDate'); if(sd) sd.textContent = todayKey;
-        const txt = $('diaryText'); if(txt) txt.value = (state.diaryData[todayKey] && state.diaryData[todayKey].text) || '';
-        try{ el.scrollIntoView({ block:'nearest' }); }catch{}
-      }
-    }
-  })();
-
 }
 
 // expose a helper for UI buttons to jump to today
