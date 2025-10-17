@@ -1,6 +1,9 @@
 // diary.js - minimal month diary with Google Sign-In and server-proxied storage
-let idToken = null; // kept in memory only
+// idToken and userProfile: persist idToken to localStorage for 24 hours so reloads keep the session
+let idToken = null; // kept in memory as primary runtime copy
 let userProfile = null;
+const STORAGE_KEY = 'diary_google_auth_v1';
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const state = { year: new Date().getFullYear(), month: new Date().getMonth(), selected: null, diaryData: {} };
 
 const $ = (id)=> document.getElementById(id);
@@ -34,7 +37,15 @@ function handleCredentialResponse(response){
     try{
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
       userProfile = { email: payload.email, name: payload.name };
-      $('userInfo').textContent = userProfile.name || userProfile.email;
+  $('userInfo').textContent = userProfile.name || userProfile.email;
+  // hide the GSI button when signed in and show sign-out control
+  const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
+  const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
+      // persist token + profile with expiry so reloads keep session for 24h
+      try{
+        const rec = { idToken, userProfile, ts: Date.now() };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(rec));
+      }catch(e){ console.warn('could not persist token', e); }
       loadMonth();
     }catch(e){
       console.warn('could not parse token payload');
@@ -87,12 +98,34 @@ function renderCalendar(){
   for(let d=1; d<=days; d++){
     const btn = document.createElement('button'); btn.type='button'; btn.className='cell';
     const dk = `${state.year}-${String(state.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    // add a machine-readable date attribute so other scripts can target cells reliably
+    btn.setAttribute('data-date', dk);
     const has = (state.diaryData && state.diaryData[dk] && state.diaryData[dk].text && state.diaryData[dk].text.length>0);
     if(has) btn.setAttribute('data-has','1');
+    // mark today if this cell corresponds to today's date in the current viewed month
+    const today = new Date();
+    if(today.getFullYear() === state.year && today.getMonth() === state.month && today.getDate() === d){
+      btn.classList.add('today');
+    }
     btn.textContent = d;
     btn.addEventListener('click', ()=>{ state.selected = dk; $('selectedDate').textContent = dk; $('diaryText').value = (state.diaryData[dk] && state.diaryData[dk].text) || ''; });
     grid.appendChild(btn);
   }
+
+}
+
+// expose a helper for UI buttons to jump to today
+window.jumpToToday = function(){
+  const now = new Date();
+  const key = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const el = document.querySelector(`.cell[data-date="${key}"]`);
+  if(el){ el.click(); el.scrollIntoView({ block:'nearest' }); }
+  else {
+    // not in view: change calendar to current month then select
+    state.year = now.getFullYear(); state.month = now.getMonth(); renderCalendar();
+    setTimeout(()=>{ const e2 = document.querySelector(`.cell[data-date="${key}"]`); if(e2){ e2.click(); e2.scrollIntoView({ block:'nearest' }); } }, 50);
+  }
+
 }
 
 function setMsg(s){ $('msg').textContent = s; }
@@ -101,8 +134,32 @@ window.addEventListener('load', ()=>{
   // optionally let server-side inject GOOGLE_CLIENT_ID into page by setting window.GOOGLE_CLIENT_ID before script runs
   // fallback to env not available on client
   initGSI();
+  // try to restore persisted token (if within TTL)
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const rec = JSON.parse(raw);
+      if(rec && rec.idToken && rec.ts && (Date.now() - rec.ts) < TOKEN_TTL_MS){
+        idToken = rec.idToken;
+        userProfile = rec.userProfile || null;
+        if(userProfile) $('userInfo').textContent = userProfile.name || userProfile.email;
+        // show sign-out and hide gsi button when restored
+        const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
+        const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
+        // kick off loading the month automatically when token restored
+        loadMonth();
+      } else {
+        // expired or malformed
+        try{ localStorage.removeItem(STORAGE_KEY); }catch{}
+      }
+    }
+  }catch(e){ console.warn('could not restore stored auth', e); }
   $('prevBtn').addEventListener('click', prevMonth);
   $('nextBtn').addEventListener('click', nextMonth);
   $('saveBtn').addEventListener('click', saveDay);
+  const so = $('signOutBtn'); if(so) so.addEventListener('click', ()=>{ window.diarySignOut(); const g = $('gsiButtonContainer'); if(g) g.style.display='block'; so.style.display='none'; });
   renderCalendar();
 });
+
+// optional helper to sign out locally (clears persisted token)
+window.diarySignOut = function(){ idToken = null; userProfile = null; try{ localStorage.removeItem(STORAGE_KEY);}catch{}; if($('userInfo')) $('userInfo').textContent = ''; setMsg('サインアウトしました'); };

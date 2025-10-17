@@ -16,15 +16,28 @@
     .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
     .cell[data-has] { background:#d1fae5 }
     #diaryText{width:100%;min-height:160px}
+
+    /* highlight for today's cell: red border only; keep same background as other cells */
+    .cell.today {
+      border: 2px solid #ef4444; /* red-500 */
+      box-shadow: none;
+      /* explicitly match the regular cell background so today's cell doesn't get a different fill when not selected */
+      background: #f3f4f6;
+      font-weight: 600;
+      box-sizing: border-box;
+    }
   </style>
+  <!-- today marker is added by diary.js when calendar renders; do not auto-select/modify selection here -->
 </head>
 <body>
   <div class="top">
-    <div id="gsiButtonContainer"></div>
-    <div id="userInfo" style="opacity:.9"></div>
+  <div id="gsiButtonContainer"></div>
+  <div id="userInfo" style="opacity:.9"></div>
+  <button id="signOutBtn" style="display:none;margin-left:8px">サインアウト</button>
     <div style="flex:1"></div>
     <div id="monthLabel"></div>
     <button id="prevBtn">◀</button>
+    <button id="todayBtn">今日</button>
     <button id="nextBtn">▶</button>
   </div>
 
@@ -39,5 +52,13 @@
   </div>
 
   <div id="msg" style="margin-top:8px;color:#6b7280;font-size:13px"></div>
+
+  <script>
+    // hook up today button to ask diary.js to jump to today
+    window.addEventListener('load', ()=>{
+      const tb = document.getElementById('todayBtn');
+      if(tb){ tb.addEventListener('click', ()=>{ if(window.jumpToToday) window.jumpToToday(); }); }
+    });
+  </script>
 </body>
 </html>
