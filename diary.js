@@ -1,6 +1,9 @@
 // diary.js - minimal month diary with Google Sign-In and server-proxied storage
-let idToken = null; // kept in memory only
+// idToken and userProfile: persist idToken to localStorage for 24 hours so reloads keep the session
+let idToken = null; // kept in memory as primary runtime copy
 let userProfile = null;
+const STORAGE_KEY = 'diary_google_auth_v1';
+const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const state = { year: new Date().getFullYear(), month: new Date().getMonth(), selected: null, diaryData: {} };
 
 const $ = (id)=> document.getElementById(id);
@@ -35,6 +38,11 @@ function handleCredentialResponse(response){
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
       userProfile = { email: payload.email, name: payload.name };
       $('userInfo').textContent = userProfile.name || userProfile.email;
+      // persist token + profile with expiry so reloads keep session for 24h
+      try{
+        const rec = { idToken, userProfile, ts: Date.now() };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(rec));
+      }catch(e){ console.warn('could not persist token', e); }
       loadMonth();
     }catch(e){
       console.warn('could not parse token payload');
@@ -123,8 +131,28 @@ window.addEventListener('load', ()=>{
   // optionally let server-side inject GOOGLE_CLIENT_ID into page by setting window.GOOGLE_CLIENT_ID before script runs
   // fallback to env not available on client
   initGSI();
+  // try to restore persisted token (if within TTL)
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const rec = JSON.parse(raw);
+      if(rec && rec.idToken && rec.ts && (Date.now() - rec.ts) < TOKEN_TTL_MS){
+        idToken = rec.idToken;
+        userProfile = rec.userProfile || null;
+        if(userProfile) $('userInfo').textContent = userProfile.name || userProfile.email;
+        // kick off loading the month automatically when token restored
+        loadMonth();
+      } else {
+        // expired or malformed
+        try{ localStorage.removeItem(STORAGE_KEY); }catch{}
+      }
+    }
+  }catch(e){ console.warn('could not restore stored auth', e); }
   $('prevBtn').addEventListener('click', prevMonth);
   $('nextBtn').addEventListener('click', nextMonth);
   $('saveBtn').addEventListener('click', saveDay);
   renderCalendar();
 });
+
+// optional helper to sign out locally (clears persisted token)
+window.diarySignOut = function(){ idToken = null; userProfile = null; try{ localStorage.removeItem(STORAGE_KEY);}catch{}; if($('userInfo')) $('userInfo').textContent = ''; setMsg('サインアウトしました'); };
