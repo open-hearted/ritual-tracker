@@ -37,7 +37,10 @@ function handleCredentialResponse(response){
     try{
       const payload = JSON.parse(atob(response.credential.split('.')[1]));
       userProfile = { email: payload.email, name: payload.name };
-      $('userInfo').textContent = userProfile.name || userProfile.email;
+  $('userInfo').textContent = userProfile.name || userProfile.email;
+  // hide the GSI button when signed in and show sign-out control
+  const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
+  const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
       // persist token + profile with expiry so reloads keep session for 24h
       try{
         const rec = { idToken, userProfile, ts: Date.now() };
@@ -140,6 +143,9 @@ window.addEventListener('load', ()=>{
         idToken = rec.idToken;
         userProfile = rec.userProfile || null;
         if(userProfile) $('userInfo').textContent = userProfile.name || userProfile.email;
+        // show sign-out and hide gsi button when restored
+        const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
+        const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
         // kick off loading the month automatically when token restored
         loadMonth();
       } else {
@@ -151,6 +157,7 @@ window.addEventListener('load', ()=>{
   $('prevBtn').addEventListener('click', prevMonth);
   $('nextBtn').addEventListener('click', nextMonth);
   $('saveBtn').addEventListener('click', saveDay);
+  const so = $('signOutBtn'); if(so) so.addEventListener('click', ()=>{ window.diarySignOut(); const g = $('gsiButtonContainer'); if(g) g.style.display='block'; so.style.display='none'; });
   renderCalendar();
 });
 
