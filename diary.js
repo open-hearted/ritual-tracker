@@ -89,6 +89,11 @@ function renderCalendar(){
     const dk = `${state.year}-${String(state.month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const has = (state.diaryData && state.diaryData[dk] && state.diaryData[dk].text && state.diaryData[dk].text.length>0);
     if(has) btn.setAttribute('data-has','1');
+    // mark today if this cell corresponds to today's date in the current viewed month
+    const today = new Date();
+    if(today.getFullYear() === state.year && today.getMonth() === state.month && today.getDate() === d){
+      btn.classList.add('today');
+    }
     btn.textContent = d;
     btn.addEventListener('click', ()=>{ state.selected = dk; $('selectedDate').textContent = dk; $('diaryText').value = (state.diaryData[dk] && state.diaryData[dk].text) || ''; });
     grid.appendChild(btn);
