@@ -133,6 +133,8 @@ function setMsg(s){ $('msg').textContent = s; }
 window.addEventListener('load', ()=>{
   // optionally let server-side inject GOOGLE_CLIENT_ID into page by setting window.GOOGLE_CLIENT_ID before script runs
   // fallback to env not available on client
+  // hide authenticated UI by default until we confirm a restored token or successful sign-in
+  try{ updateUiForAuth(false); }catch{}
   initGSI();
   // try to restore persisted token (if within TTL)
   try{
