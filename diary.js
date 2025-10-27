@@ -41,6 +41,8 @@ function handleCredentialResponse(response){
   // hide the GSI button when signed in and show sign-out control
   const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
   const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
+  // reveal diary UI for authenticated users
+  try{ updateUiForAuth(true); }catch{}
       // persist token + profile with expiry so reloads keep session for 24h
       try{
         const rec = { idToken, userProfile, ts: Date.now() };
@@ -50,6 +52,36 @@ function handleCredentialResponse(response){
     }catch(e){
       console.warn('could not parse token payload');
     }
+  }
+}
+
+// Show/hide diary UI based on authentication state
+function updateUiForAuth(isAuth){
+  const cal = $('calGrid');
+  const diaryArea = $('diaryArea');
+  const prev = $('prevBtn');
+  const next = $('nextBtn');
+  const today = $('todayBtn');
+  const monthLabel = $('monthLabel');
+  const saveBtn = $('saveBtn');
+  if(!isAuth){
+    if(cal) cal.style.display = 'none';
+    if(diaryArea) diaryArea.style.display = 'none';
+    if(prev) prev.style.display = 'none';
+    if(next) next.style.display = 'none';
+    if(today) today.style.display = 'none';
+    if(monthLabel) monthLabel.style.display = 'none';
+    if(saveBtn) saveBtn.disabled = true;
+    setMsg('ログインが必要です。Googleでログインしてください。');
+  } else {
+    if(cal) cal.style.display = '';
+    if(diaryArea) diaryArea.style.display = '';
+    if(prev) prev.style.display = '';
+    if(next) next.style.display = '';
+    if(today) today.style.display = '';
+    if(monthLabel) monthLabel.style.display = '';
+    if(saveBtn) saveBtn.disabled = false;
+    setMsg('');
   }
 }
 
@@ -148,8 +180,9 @@ window.addEventListener('load', ()=>{
         // show sign-out and hide gsi button when restored
         const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
         const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
-        // kick off loading the month automatically when token restored
-        loadMonth();
+  // reveal diary UI and kick off loading the month automatically when token restored
+  try{ updateUiForAuth(true); }catch{}
+  loadMonth();
       } else {
         // expired or malformed
         try{ localStorage.removeItem(STORAGE_KEY); }catch{}
@@ -164,4 +197,4 @@ window.addEventListener('load', ()=>{
 });
 
 // optional helper to sign out locally (clears persisted token)
-window.diarySignOut = function(){ idToken = null; userProfile = null; try{ localStorage.removeItem(STORAGE_KEY);}catch{}; if($('userInfo')) $('userInfo').textContent = ''; setMsg('サインアウトしました'); };
+window.diarySignOut = function(){ idToken = null; userProfile = null; try{ localStorage.removeItem(STORAGE_KEY);}catch{}; if($('userInfo')) $('userInfo').textContent = ''; setMsg('サインアウトしました'); try{ updateUiForAuth(false); }catch{}; const g = $('gsiButtonContainer'); if(g) g.style.display='block'; const soBtn = $('signOutBtn'); if(soBtn) soBtn.style.display='none'; };
