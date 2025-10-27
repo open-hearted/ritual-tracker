@@ -8,6 +8,32 @@ const state = { year: new Date().getFullYear(), month: new Date().getMonth(), se
 
 const $ = (id)=> document.getElementById(id);
 
+// If legacy mojibake appears in the DOM (injected by cached scripts or extensions), remove it.
+const _MOJIBAKE_SAMPLE = 'è¤æ¨è±å­';
+function removeMojibakeNodes(){
+  try{
+    // exact id
+    const byId = document.getElementById('userInfo');
+    if(byId && byId.textContent && byId.textContent.indexOf(_MOJIBAKE_SAMPLE)!==-1){ byId.remove(); console.log('[diary] removed mojibake #userInfo'); }
+    // any element containing the string
+    const all = document.querySelectorAll('body *');
+    for(const el of all){
+      if(el && el.childNodes && el.childNodes.length>0){
+        const t = el.textContent || '';
+        if(t.indexOf(_MOJIBAKE_SAMPLE)!==-1){ el.remove(); console.log('[diary] removed mojibake element', el); }
+      }
+    }
+  }catch(e){ /* ignore */ }
+}
+
+// observe DOM additions and prune mojibake occurrences (in case another script injects later)
+try{
+  const mo = new MutationObserver((mutations)=>{ removeMojibakeNodes(); });
+  mo.observe(document.documentElement || document, { childList:true, subtree:true });
+  // also run once now
+  removeMojibakeNodes();
+}catch(e){ /* ignore */ }
+
 // Robust JWT payload parser that preserves UTF-8 characters (avoids mojibake)
 function parseJwtPayload(token){
   try{
