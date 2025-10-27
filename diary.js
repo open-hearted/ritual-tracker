@@ -56,9 +56,9 @@ function handleCredentialResponse(response){
     idToken = response.credential;
     // decode minimal info from JWT payload without verifying here (server verifies later)
     try{
-      const payload = parseJwtPayload(response.credential) || {};
-      userProfile = { email: payload.email, name: payload.name };
-  $('userInfo').textContent = userProfile.name || userProfile.email;
+    const payload = parseJwtPayload(response.credential) || {};
+    userProfile = { email: payload.email, name: payload.name };
+    // userInfo display suppressed (do not write name to DOM to avoid mojibake)
   // hide the GSI button when signed in and show sign-out control
   const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
   const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
@@ -199,7 +199,7 @@ window.addEventListener('load', ()=>{
   // prefer decoding fresh profile from the token to avoid stored mojibake
   const parsed = parseJwtPayload(idToken);
   userProfile = parsed ? { email: parsed.email, name: parsed.name } : (rec.userProfile || null);
-  if(userProfile) $('userInfo').textContent = userProfile.name || userProfile.email;
+  // userInfo display suppressed (do not write name to DOM to avoid mojibake)
         // show sign-out and hide gsi button when restored
         const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
         const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
@@ -222,4 +222,4 @@ window.addEventListener('load', ()=>{
 });
 
 // optional helper to sign out locally (clears persisted token)
-window.diarySignOut = function(){ idToken = null; userProfile = null; try{ localStorage.removeItem(STORAGE_KEY);}catch{}; if($('userInfo')) $('userInfo').textContent = ''; setMsg('サインアウトしました'); try{ updateUiForAuth(false); }catch{}; const g = $('gsiButtonContainer'); if(g) g.style.display='block'; const soBtn = $('signOutBtn'); if(soBtn) soBtn.style.display='none'; };
+window.diarySignOut = function(){ idToken = null; userProfile = null; try{ localStorage.removeItem(STORAGE_KEY);}catch{}; /* userInfo not displayed */ setMsg('サインアウトしました'); try{ updateUiForAuth(false); }catch{}; const g = $('gsiButtonContainer'); if(g) g.style.display='block'; const soBtn = $('signOutBtn'); if(soBtn) soBtn.style.display='none'; };

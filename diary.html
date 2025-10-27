@@ -32,7 +32,8 @@
 <body>
   <div class="top">
   <div id="gsiButtonContainer"></div>
-  <div id="userInfo" style="opacity:.9"></div>
+  <!-- userInfo intentionally hidden to avoid displaying decoded names (prevents mojibake) -->
+  <div id="userInfo" style="display:none;opacity:.9"></div>
   <button id="signOutBtn" style="display:none;margin-left:8px">サインアウト</button>
     <div style="flex:1"></div>
     <div id="monthLabel" style="display:none"></div>
