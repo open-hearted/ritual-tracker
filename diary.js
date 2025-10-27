@@ -8,6 +8,27 @@ const state = { year: new Date().getFullYear(), month: new Date().getMonth(), se
 
 const $ = (id)=> document.getElementById(id);
 
+// Robust JWT payload parser that preserves UTF-8 characters (avoids mojibake)
+function parseJwtPayload(token){
+  try{
+    const base64Url = token.split('.')[1] || '';
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    // atob gives a binary string; convert to bytes and decode as UTF-8
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(Array.from(binary, c=>c.charCodeAt(0)));
+    if(typeof TextDecoder !== 'undefined'){
+      const json = new TextDecoder('utf-8').decode(bytes);
+      return JSON.parse(json);
+    } else {
+      // fallback: percent-encode and decode
+      const pct = Array.from(binary).map(c=>'%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('');
+      return JSON.parse(decodeURIComponent(pct));
+    }
+  }catch(e){
+    try{ return JSON.parse(atob(token.split('.')[1])); }catch{ return null; }
+  }
+}
+
 async function initGSI(){
   // fetch public config (only google client id) from server
   try{
@@ -35,7 +56,7 @@ function handleCredentialResponse(response){
     idToken = response.credential;
     // decode minimal info from JWT payload without verifying here (server verifies later)
     try{
-      const payload = JSON.parse(atob(response.credential.split('.')[1]));
+      const payload = parseJwtPayload(response.credential) || {};
       userProfile = { email: payload.email, name: payload.name };
   $('userInfo').textContent = userProfile.name || userProfile.email;
   // hide the GSI button when signed in and show sign-out control
@@ -175,14 +196,18 @@ window.addEventListener('load', ()=>{
       const rec = JSON.parse(raw);
       if(rec && rec.idToken && rec.ts && (Date.now() - rec.ts) < TOKEN_TTL_MS){
         idToken = rec.idToken;
-        userProfile = rec.userProfile || null;
-        if(userProfile) $('userInfo').textContent = userProfile.name || userProfile.email;
+  // prefer decoding fresh profile from the token to avoid stored mojibake
+  const parsed = parseJwtPayload(idToken);
+  userProfile = parsed ? { email: parsed.email, name: parsed.name } : (rec.userProfile || null);
+  if(userProfile) $('userInfo').textContent = userProfile.name || userProfile.email;
         // show sign-out and hide gsi button when restored
         const gsi = $('gsiButtonContainer'); if(gsi) gsi.style.display = 'none';
         const so = $('signOutBtn'); if(so) so.style.display = 'inline-block';
   // reveal diary UI and kick off loading the month automatically when token restored
   try{ updateUiForAuth(true); }catch{}
-  loadMonth();
+      // persist corrected userProfile back to storage to avoid mojibake on next load
+      try{ rec.userProfile = userProfile; localStorage.setItem(STORAGE_KEY, JSON.stringify(rec)); }catch{}
+      loadMonth();
       } else {
         // expired or malformed
         try{ localStorage.removeItem(STORAGE_KEY); }catch{}
