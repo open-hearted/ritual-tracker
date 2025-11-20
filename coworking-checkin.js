@@ -1744,7 +1744,7 @@ function renderS3Inputs(){
   $('s3DocId').value=c.docId||'';
   $('s3Passphrase').value=c.passphrase||'';
   $('s3Password').value=c.password||'';
-  // we intentionally do not restore or persist APP_PASSWORD into localStorage to avoid plaintext secrets
+  // APP_PASSWORD もローカルに保持（ユーザー要望）
   $('s3AutoRestore').checked=!!c.auto;
 }
 
@@ -1891,8 +1891,7 @@ function persistS3ConfigAndMaybeStart(){
   const cfg = {
     docId: $('s3DocId').value.trim(),
     passphrase: $('s3Passphrase').value,
-  // do NOT persist APP_PASSWORD into local storage; credential manager should handle passwords
-  password: '',
+    password: $('s3Password').value,
     auto: $('s3AutoRestore').checked
   };
   saveS3Cfg(cfg);
