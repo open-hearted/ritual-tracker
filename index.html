@@ -74,8 +74,8 @@
          inputmode="text" aria-autocomplete="none" data-masked="1" data-no-save="1" />
             <button type="button" id="togglePassCw" title="表示/非表示" style="padding:2px 6px;font-size:11px;">👁</button>
           </span>
-  <input id="s3Password" placeholder="APP_PASSWORD" type="password" autocomplete="off" data-no-save="1" />
-    <!-- APP_PASSWORD はローカルストレージに平文で保存しません。ブラウザの自動保存ダイアログを出さない設定にしています -->
+  <input id="s3Password" placeholder="APP_PASSWORD" type="text" autocomplete="off" data-no-save="1" style="font-family:monospace;" />
+    <!-- APP_PASSWORD は常にプレーン表示（リロードしても保持） -->
         </div>
         <div class="row tight" style="margin-top:4px; gap:6px">
           <button id="s3Push">保存</button>
