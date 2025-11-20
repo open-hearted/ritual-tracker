@@ -1687,10 +1687,11 @@ function renderFinanceStats(attendedOverride){
     // 既存 finance チップ除去
     [...globalStats.querySelectorAll('.fin-chip')].forEach(n=>n.remove());
     const mkChip = (label, valHtml)=>{ const c=document.createElement('div'); c.className='fin-chip'; c.innerHTML=`${label}: <b>${valHtml}</b>`; return c; };
-    globalStats.append(
+    const chips = [
       mkChip('収支分岐まで', remaining),
       mkChip('1回実質', eff?`${eff.toLocaleString()}円`:'-')
-    );
+    ];
+    chips.slice().reverse().forEach(chip=> globalStats.prepend(chip));
   }
 }
 
