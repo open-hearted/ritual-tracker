@@ -86,6 +86,14 @@ function getRitualSchedule(){
   }
 }
 
+function safeHttpUrl(raw){
+  if(!raw) return null;
+  const s = String(raw).trim();
+  if(!s) return null;
+  if(/^https?:\/\//i.test(s)) return s;
+  return null;
+}
+
 function getGarbageScheduleMarks(dateKey){
   const schedule = getRitualSchedule();
   const rules = schedule && Array.isArray(schedule.garbage) ? schedule.garbage : [];
@@ -186,6 +194,21 @@ async function med_saveAll(){ if(!idToken){ setMsg('ログインしてくださ�
     const res = await fetch('/api/meditation-put', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, data: STATE.payload }) }); if(!res.ok){ const txt = await res.text().catch(()=>''); setMsg('保存失敗'); console.warn('save failed', res.status, txt); return; } const j = await res.json().catch(()=>({})); if(j && j.ok){ setMsg('保存完了'); renderCalendar(); } else { setMsg('保存失敗'); } }catch(e){ console.error(e); setMsg('保存エラー'); } }
 
 function attachHandlers(){
+  // Schedule links: open in new tab without opening the editor.
+  // Use capture so we stop propagation before the cell's click handler.
+  const calGrid = $('calGrid');
+  if(calGrid){
+    calGrid.addEventListener('click', (ev)=>{
+      try{
+        const t = ev.target;
+        const a = t && t.closest ? t.closest('a.cal-schedule-link') : null;
+        if(a){
+          ev.stopPropagation();
+        }
+      }catch(e){}
+    }, true);
+  }
+
   $('prevBtn').addEventListener('click', ()=>{ STATE.month--; if(STATE.month<0){ STATE.month=11; STATE.year--; } renderCalendar(); });
   $('nextBtn').addEventListener('click', ()=>{ STATE.month++; if(STATE.month>11){ STATE.month=0; STATE.year++; } renderCalendar(); });
   $('todayBtn').addEventListener('click', ()=>{ const n=new Date(); STATE.year=n.getFullYear(); STATE.month=n.getMonth(); renderCalendar(); setTimeout(()=>{ const key = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; const el = document.querySelector(`.cell[data-date="${key}"]`); if(el){ el.click(); el.scrollIntoView({block:'nearest'}); } },50); });
@@ -311,7 +334,14 @@ renderCalendar = function(){
       const icon = (rule.icon || '🗑').toString();
       const text = (rule.short || rule.label || '').toString();
       const safeText = text.replace(/[&<>\"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[s]));
-      return `<span class="cal-mark" title="${safeText}">${icon}${safeText ? (safeText.length<=8 ? safeText : safeText.slice(0,8)+'…') : ''}</span>`;
+      const schedule = getRitualSchedule();
+      const url = safeHttpUrl(rule.url) || safeHttpUrl(schedule && schedule.garbageInfoUrl);
+      const label = `${icon}${safeText ? (safeText.length<=8 ? safeText : safeText.slice(0,8)+'…') : ''}`;
+      if(url){
+        const safeUrl = url.replace(/[\"<>]/g, '');
+        return `<a class="cal-mark cal-schedule-link" href="${safeUrl}" target="_blank" rel="noreferrer" title="${safeText}">${label}</a>`;
+      }
+      return `<span class="cal-mark" title="${safeText}">${label}</span>`;
     });
 
     const wrap = cell.querySelector('.markers');
