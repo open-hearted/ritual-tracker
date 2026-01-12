@@ -194,19 +194,71 @@ async function med_saveAll(){ if(!idToken){ setMsg('ログインしてくださ�
     const res = await fetch('/api/meditation-put', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, data: STATE.payload }) }); if(!res.ok){ const txt = await res.text().catch(()=>''); setMsg('保存失敗'); console.warn('save failed', res.status, txt); return; } const j = await res.json().catch(()=>({})); if(j && j.ok){ setMsg('保存完了'); renderCalendar(); } else { setMsg('保存失敗'); } }catch(e){ console.error(e); setMsg('保存エラー'); } }
 
 function attachHandlers(){
-  // Schedule links: open in new tab without opening the editor.
-  // Use capture so we stop propagation before the cell's click handler.
+  // Schedule links (garbage):
+  // - Desktop: click marker opens link (and does NOT open editor)
+  // - Touch: tap marker opens editor; long-press marker opens link
+  // Use capture so we can control propagation before the cell's click handler.
   const calGrid = $('calGrid');
   if(calGrid){
+    const isCoarse = (()=>{ try{ return window.matchMedia && window.matchMedia('(pointer: coarse)').matches; }catch(e){ return false; } })();
+    let longPressTimer = null;
+    let longPressFired = false;
+
+    function clearLongPress(){
+      if(longPressTimer){ clearTimeout(longPressTimer); longPressTimer = null; }
+    }
+
     calGrid.addEventListener('click', (ev)=>{
       try{
         const t = ev.target;
         const a = t && t.closest ? t.closest('a.cal-schedule-link') : null;
-        if(a){
+        if(!a) return;
+
+        if(longPressFired){
+          // A long-press already opened the link; suppress the click.
+          ev.preventDefault();
           ev.stopPropagation();
+          longPressFired = false;
+          return;
         }
+
+        if(isCoarse){
+          // On touch: do NOT open external link on tap; allow editor to open.
+          ev.preventDefault();
+          return;
+        }
+
+        // On desktop: allow link navigation, but do NOT open editor.
+        ev.stopPropagation();
       }catch(e){}
     }, true);
+
+    // Long-press support (touch): press and hold on the marker to open the link.
+    calGrid.addEventListener('pointerdown', (ev)=>{
+      try{
+        if(!isCoarse) return;
+        const t = ev.target;
+        const a = t && t.closest ? t.closest('a.cal-schedule-link') : null;
+        if(!a) return;
+        const url = a.getAttribute('href') || '';
+        if(!safeHttpUrl(url)) return;
+
+        clearLongPress();
+        longPressFired = false;
+        longPressTimer = setTimeout(()=>{
+          try{
+            longPressFired = true;
+            // Prevent editor open when long-press fires.
+            try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+            // Best-effort open with noopener/noreferrer.
+            try{ window.open(url, '_blank', 'noopener,noreferrer'); }catch(e){}
+          }catch(e){}
+        }, 550);
+      }catch(e){}
+    }, true);
+    calGrid.addEventListener('pointerup', ()=>{ try{ clearLongPress(); }catch(e){} }, true);
+    calGrid.addEventListener('pointercancel', ()=>{ try{ clearLongPress(); }catch(e){} }, true);
+    calGrid.addEventListener('pointermove', ()=>{ try{ clearLongPress(); }catch(e){} }, true);
   }
 
   $('prevBtn').addEventListener('click', ()=>{ STATE.month--; if(STATE.month<0){ STATE.month=11; STATE.year--; } renderCalendar(); });
