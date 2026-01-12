@@ -61,6 +61,61 @@ function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
 function getDateKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 function getMonthKey(){ return `${STATE.year}-${String(STATE.month+1).padStart(2,'0')}`; }
 
+function parseDateKeyLocal(dateKey){
+  // dateKey: YYYY-MM-DD
+  // Use local time to avoid off-by-one issues.
+  try{ return new Date(`${dateKey}T00:00:00`); }catch(e){ return null; }
+}
+
+function getNthWeekdayOfMonth(date){
+  // Returns 1..5 (or 0 if invalid)
+  if(!(date instanceof Date) || Number.isNaN(date.getTime())) return 0;
+  const day = date.getDate();
+  if(!day) return 0;
+  return Math.floor((day - 1) / 7) + 1;
+}
+
+function getRitualSchedule(){
+  // schedule.js is expected to define window.RITUAL_SCHEDULE
+  try{
+    const s = window.RITUAL_SCHEDULE;
+    if(!s || typeof s !== 'object') return null;
+    return s;
+  }catch(e){
+    return null;
+  }
+}
+
+function getGarbageScheduleMarks(dateKey){
+  const schedule = getRitualSchedule();
+  const rules = schedule && Array.isArray(schedule.garbage) ? schedule.garbage : [];
+  if(!rules.length) return [];
+
+  const date = parseDateKeyLocal(dateKey);
+  if(!date) return [];
+  const weekday = date.getDay();
+  const nth = getNthWeekdayOfMonth(date);
+
+  const out = [];
+  for(const rule of rules){
+    if(!rule || typeof rule !== 'object') continue;
+    if(Number(rule.weekday) !== weekday) continue;
+
+    const type = (rule.type || '').toString();
+    if(type === 'weekly'){
+      out.push(rule);
+      continue;
+    }
+    if(type === 'nthWeekday'){
+      const list = Array.isArray(rule.nth) ? rule.nth.map(n=>Number(n)).filter(n=>Number.isFinite(n) && n>0) : [];
+      if(list.includes(nth)) out.push(rule);
+      continue;
+    }
+  }
+
+  return out;
+}
+
 function renderCalendar(){ const grid=$('calGrid'); grid.innerHTML=''; $('monthLabel').textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; if(sess.length || ex.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=> openEditorFor(dk)); grid.appendChild(btn); } }
 
 function openEditorFor(dateKey){
@@ -239,17 +294,29 @@ renderCalendar = function(){
       });
     }
     if(rec.diary && rec.diary.text) hasDiary = true;
-    const markers = [];
-    if(hasPlank) markers.push('<span class="cal-mark">P</span>');
-    if(hasWall) markers.push('<span class="cal-mark">🪑</span>');
+
+    const activityMarkers = [];
+    if(hasPlank) activityMarkers.push('<span class="cal-mark">P</span>');
+    if(hasWall) activityMarkers.push('<span class="cal-mark">🪑</span>');
     if(medSeconds>0){
       const minutes = Math.floor(medSeconds/60);
-      if(minutes>0) markers.push(`<span class="cal-mark">瞑${minutes}</span>`);
-      else markers.push(`<span class="cal-mark">瞑</span>`);
+      if(minutes>0) activityMarkers.push(`<span class="cal-mark">瞑${minutes}</span>`);
+      else activityMarkers.push(`<span class="cal-mark">瞑</span>`);
     }
-    if(hasDiary) markers.push('<span class="cal-mark">📝</span>');
-    const wrap = cell.querySelector('.markers'); if(wrap) wrap.innerHTML = markers.join(' ');
-    if(markers.length) cell.setAttribute('data-has','1'); else cell.removeAttribute('data-has');
+    if(hasDiary) activityMarkers.push('<span class="cal-mark">📝</span>');
+
+    // Garbage schedule markers (from schedule.js). Do NOT affect data-has highlighting.
+    const garbageRules = getGarbageScheduleMarks(dk);
+    const scheduleMarkers = garbageRules.map(rule=>{
+      const icon = (rule.icon || '🗑').toString();
+      const text = (rule.short || rule.label || '').toString();
+      const safeText = text.replace(/[&<>\"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[s]));
+      return `<span class="cal-mark" title="${safeText}">${icon}${safeText ? (safeText.length<=8 ? safeText : safeText.slice(0,8)+'…') : ''}</span>`;
+    });
+
+    const wrap = cell.querySelector('.markers');
+    if(wrap) wrap.innerHTML = [...activityMarkers, ...scheduleMarkers].join(' ');
+    if(activityMarkers.length) cell.setAttribute('data-has','1'); else cell.removeAttribute('data-has');
   });
 };
 
