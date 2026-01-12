@@ -1,0 +1,123 @@
+.cell {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+}
+.cell .d {
+  align-self: flex-start !important;
+  margin-top: 0 !important;
+}
+.med-summary .med-min-unit {
+  font-size: 50% !important;
+  vertical-align: top !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.dow {
+  height: 1.8em !important;
+  min-height: 0 !important;
+  line-height: 1.2 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+#dowRow {
+  height: auto !important;
+  min-height: 0 !important;
+}
+.cal-card {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+#calGrid {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+.cell {
+  min-height: unset !important;
+  height: 100% !important;
+}
+.grid {
+  align-items: stretch !important;
+}
+.cell {
+  width: 100% !important;
+  display: block !important;
+}
+/* カレンダーのマス目を最大化 */
+.grid {
+  gap: 0 !important;
+}
+.cell {
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: var(--cell-min,44px);
+  height: var(--cell-min,44px);
+}
+.cell .d {
+  padding-left: 2px;
+  padding-top: 1px;
+}
+/* 昔風の四角いスクロールバー（全体・カレンダー） */
+html, body, .container.compact, #calGrid {
+  scrollbar-width: auto;
+  scrollbar-color: #aaa #e0e0e0;
+}
+html::-webkit-scrollbar, body::-webkit-scrollbar, .container.compact::-webkit-scrollbar, #calGrid::-webkit-scrollbar {
+  width: 16px;
+  background: #e0e0e0;
+}
+html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, .container.compact::-webkit-scrollbar-thumb, #calGrid::-webkit-scrollbar-thumb {
+  background: #aaa;
+  border-radius: 0;
+  border: 2px solid #e0e0e0;
+}
+html::-webkit-scrollbar-corner, body::-webkit-scrollbar-corner, .container.compact::-webkit-scrollbar-corner, #calGrid::-webkit-scrollbar-corner {
+  background: #e0e0e0;
+}
+body {
+  overflow: auto !important;
+}
+/* カレンダー本体を縦方向に最大化 */
+.card.cal-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+#calGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+  .container.compact {
+    max-width: 100vw;
+    height: 130dvh;
+    margin: 0 auto;
+    padding: 8px 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-sizing: border-box;
+    overflow: auto;
+  }
+.card.cal-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#calGrid {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
