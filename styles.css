@@ -1,2 +1,0 @@
-/* Alias file to avoid 404 when requesting styles.css (original is style.css) */
-@import url('./style.css');
