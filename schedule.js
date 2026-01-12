@@ -10,7 +10,7 @@
 window.RITUAL_SCHEDULE = {
   // ゴミ出し情報を開くURL（豊島区: さんあ〜る）
   // 必要に応じてここを書き換えるだけでOK。
-  garbageInfoUrl: "https://manage.delight-system.com/threeR/web/benri",
+  garbageInfoUrl: "https://manage.delight-system.com/threeR/web/benri?menu=benri&jichitaiId=toshimaku&areaId=149898&benriCateId=%2f&bunbetsuCateId=%2f&faqCateId=%2f&lang=ja",
   garbage: [
     {
       type: "nthWeekday",
@@ -19,7 +19,7 @@ window.RITUAL_SCHEDULE = {
       label: "金属・陶器・ガラスごみ",
       short: "金属/陶/ガ",
       icon: "♻",
-      url: "https://manage.delight-system.com/threeR/web/benri"
+      url: "https://manage.delight-system.com/threeR/web/benri?menu=benri&jichitaiId=toshimaku&areaId=149898&benriCateId=%2f&bunbetsuCateId=%2f&faqCateId=%2f&lang=ja"
     },
     {
       type: "weekly",
@@ -27,7 +27,7 @@ window.RITUAL_SCHEDULE = {
       label: "びん・かん・ペットボトル",
       short: "びん/かん/PET",
       icon: "♻",
-      url: "https://manage.delight-system.com/threeR/web/benri"
+      url: "https://manage.delight-system.com/threeR/web/benri?menu=benri&jichitaiId=toshimaku&areaId=149898&benriCateId=%2f&bunbetsuCateId=%2f&faqCateId=%2f&lang=ja"
     },
     {
       type: "weekly",
@@ -35,7 +35,7 @@ window.RITUAL_SCHEDULE = {
       label: "段ボール・紙・布類・プラスチック",
       short: "紙/布/プラ",
       icon: "♻",
-      url: "https://manage.delight-system.com/threeR/web/benri"
+      url: "https://manage.delight-system.com/threeR/web/benri?menu=benri&jichitaiId=toshimaku&areaId=149898&benriCateId=%2f&bunbetsuCateId=%2f&faqCateId=%2f&lang=ja"
     }
   ]
 };
