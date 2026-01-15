@@ -560,14 +560,6 @@ function deleteTimeAt(kind, idx){
 
 function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null; const m = hhmm.trim().match(/^([0-2]?\d):([0-5]\d)$/); if(!m) return null; const hh = parseInt(m[1],10); if(hh>23) return null; const mm = parseInt(m[2],10); const now = new Date(); now.setHours(hh, mm, 0, 0); return now.toISOString(); }
 
-function parseTimeInputToISO(timeStr){
-  // Accept "HH:MM" (from <input type=time>) and return ISO in local time (today).
-  if(timeStr === null || typeof timeStr === 'undefined') return null;
-  const s = String(timeStr).trim();
-  if(!s) return null;
-  return parseHHMMToISO(s);
-}
-
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
@@ -668,8 +660,15 @@ function renderAllRecordsTimeline(){
       </div>`;
     }
 
+    // Hide the actual time text to maximize content width.
+    // Keep time in title so it can be checked if needed.
+    const hasTime = !!record.time;
+    const icon = hasTime ? '<span title="時刻あり" style="display:inline-block;width:1.2em;text-align:center;opacity:0.9">🕒</span>' : '<span style="display:inline-block;width:1.2em"></span>';
     row.innerHTML = `
-      <div style="font-weight:700">${timeStr} <span style="font-weight:400;margin-left:8px">${record.label}</span></div>
+      <div title="${timeStr}" style="font-weight:700;display:flex;align-items:center;gap:8px;min-width:0;flex:1">
+        ${icon}
+        <span style="font-weight:400;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${record.label}</span>
+      </div>
       ${buttons}
     `;
     
@@ -882,35 +881,9 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   // prevent mobile credential UI by randomizing name/autocomplete on focus
   const freeKorean = $('freeKorean');
   const freeSec = $('freeSec');
-  const freeTime = $('freeTime');
   const freeUseTime = $('freeUseTime');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeSec);
-  attachNoCredentialBehavior(freeTime);
-
-  function syncFreeTimeEnabled(){
-    try{
-      const enabled = !freeUseTime || !!freeUseTime.checked;
-      if(freeTime) freeTime.disabled = !enabled;
-      if(!enabled && freeTime) freeTime.value = '';
-    }catch(e){}
-  }
-
-  if(freeUseTime){
-    freeUseTime.addEventListener('change', ()=>{ syncFreeTimeEnabled(); });
-  }
-
-  // default: set current time in the time picker (optional)
-  try{
-    if(freeTime){
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2,'0');
-      const mm = String(now.getMinutes()).padStart(2,'0');
-      freeTime.value = `${hh}:${mm}`;
-    }
-  }catch(e){}
-
-  syncFreeTimeEnabled();
 }); }catch(e){}
 
 // ===== Exercise timers (プランク / 空気椅子) =====
@@ -1012,7 +985,6 @@ function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt
 function addFreeRecord(){ try{
   const koreanEl = $('freeKorean');
   const secEl = $('freeSec');
-  const timeEl = $('freeTime');
   const useTimeEl = $('freeUseTime');
   if(!koreanEl) return;
 
@@ -1022,11 +994,7 @@ function addFreeRecord(){ try{
   const sec = Math.max(0, Math.floor(Number(secEl?.value)||0));
 
   const useTime = !useTimeEl || !!useTimeEl.checked;
-  const iso = useTime ? parseTimeInputToISO(timeEl?.value) : null;
-  if(useTime && !iso){
-    alert('時刻を入力するか、時刻チェックを外してください');
-    return;
-  }
+  const iso = useTime ? new Date().toISOString() : null;
 
   // Store as an exercise-like free record, with additional fields.
   // Keep `type` for display, and add optional `korean`.
@@ -1040,14 +1008,6 @@ function addFreeRecord(){ try{
   // clear inputs
   koreanEl.value = '';
   if(secEl) secEl.value = '0';
-  try{
-    if(timeEl && useTime){
-      const now = new Date();
-      const hh = String(now.getHours()).padStart(2,'0');
-      const mm = String(now.getMinutes()).padStart(2,'0');
-      timeEl.value = `${hh}:${mm}`;
-    }
-  }catch(e){}
 }catch(e){ console.warn('addFreeRecord failed', e); alert('記録に失敗しました'); }}
 
 function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
