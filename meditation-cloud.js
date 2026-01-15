@@ -560,6 +560,14 @@ function deleteTimeAt(kind, idx){
 
 function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null; const m = hhmm.trim().match(/^([0-2]?\d):([0-5]\d)$/); if(!m) return null; const hh = parseInt(m[1],10); if(hh>23) return null; const mm = parseInt(m[2],10); const now = new Date(); now.setHours(hh, mm, 0, 0); return now.toISOString(); }
 
+function parseTimeInputToISO(timeStr){
+  // Accept "HH:MM" (from <input type=time>) and return ISO in local time (today).
+  if(timeStr === null || typeof timeStr === 'undefined') return null;
+  const s = String(timeStr).trim();
+  if(!s) return null;
+  return parseHHMMToISO(s);
+}
+
 // 全ての記録を時刻順に統一表示する関数
 function renderAllRecordsTimeline(){
   const wrap = $('allRecordsTimeline');
@@ -597,15 +605,17 @@ function renderAllRecordsTimeline(){
   // エクササイズ記録
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
-    if(session.startedAt){
-      const secPart = (Number(session.seconds) > 0) ? ` ${session.seconds}秒` : '';
-      allRecords.push({
-        type: 'exercise',
-        time: session.startedAt,
-        label: `${session.type}${secPart}`,
-        data: { index: i, session }
-      });
-    }
+    const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
+    const jp = (session?.type || '').toString();
+    const ko = (session?.korean || '').toString();
+    const hasKo = !!ko && ko.trim() && ko.trim() !== jp.trim();
+    const label = `${jp || ko}${hasKo ? `（${ko.trim()}）` : ''}${secPart}`;
+    allRecords.push({
+      type: 'exercise',
+      time: session && session.startedAt ? session.startedAt : null,
+      label,
+      data: { index: i, session }
+    });
   });
   
   // 就寝記録 (複数対応)
@@ -614,9 +624,11 @@ function renderAllRecordsTimeline(){
     allRecords.push({ type: 'sleep', time: iso, label: '就寝', data: { index: i } });
   });
   
-  // 時刻順にソート
+  // 時刻順にソート（時刻なしは最後へ）
   allRecords.sort((a, b) => {
-    return new Date(a.time) - new Date(b.time);
+    const ta = a && a.time ? new Date(a.time).getTime() : Number.POSITIVE_INFINITY;
+    const tb = b && b.time ? new Date(b.time).getTime() : Number.POSITIVE_INFINITY;
+    return ta - tb;
   });
   
   // 表示
@@ -863,8 +875,39 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   // prevent mobile credential UI by randomizing name/autocomplete on focus
-  const freeLabel = $('freeLabel'); const freeSec = $('freeSec');
-  attachNoCredentialBehavior(freeLabel); attachNoCredentialBehavior(freeSec);
+  const freeLabel = $('freeLabel');
+  const freeKorean = $('freeKorean');
+  const freeSec = $('freeSec');
+  const freeTime = $('freeTime');
+  const freeUseTime = $('freeUseTime');
+  attachNoCredentialBehavior(freeLabel);
+  attachNoCredentialBehavior(freeKorean);
+  attachNoCredentialBehavior(freeSec);
+  attachNoCredentialBehavior(freeTime);
+
+  function syncFreeTimeEnabled(){
+    try{
+      const enabled = !freeUseTime || !!freeUseTime.checked;
+      if(freeTime) freeTime.disabled = !enabled;
+      if(!enabled && freeTime) freeTime.value = '';
+    }catch(e){}
+  }
+
+  if(freeUseTime){
+    freeUseTime.addEventListener('change', ()=>{ syncFreeTimeEnabled(); });
+  }
+
+  // default: set current time in the time picker (optional)
+  try{
+    if(freeTime){
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2,'0');
+      const mm = String(now.getMinutes()).padStart(2,'0');
+      freeTime.value = `${hh}:${mm}`;
+    }
+  }catch(e){}
+
+  syncFreeTimeEnabled();
 }); }catch(e){}
 
 // ===== Exercise timers (プランク / 空気椅子) =====
@@ -933,8 +976,12 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
   const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderRadius='0'; row.style.background='transparent'; row.style.color='#ffffff'; row.style.marginBottom='4px';
     const startTxt = it.startedAt ? formatTimeShort(it.startedAt) : '--:--';
     const secPart = (Number(it.seconds) > 0) ? (` ${it.seconds}秒`) : '';
+    const jp = (it.type || '').toString();
+    const ko = (it.korean || '').toString();
+    const hasKo = !!ko && ko.trim() && ko.trim() !== jp.trim();
+    const label = `${jp || ko}${hasKo ? `（${ko.trim()}）` : ''}${secPart}`;
     row.setAttribute('data-ex-idx', String(idx));
-    row.innerHTML = `<div style="font-weight:700">${startTxt} <span style="font-weight:400;margin-left:8px">${it.type}${secPart}</span></div>` +
+    row.innerHTML = `<div style="font-weight:700">${startTxt} <span style="font-weight:400;margin-left:8px">${label}</span></div>` +
                     `<div style="display:flex;gap:8px"><button data-ex-edit='${idx}'>✏</button><button data-ex-del='${idx}'>✕</button></div>`;
     wrap.appendChild(row);
   });
@@ -963,12 +1010,76 @@ function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt
 
 // handle free-add row (label + optional seconds)
 function addFreeRecord(){ try{
-  const labelEl = $('freeLabel'); const secEl = $('freeSec'); if(!labelEl) return; const label = (labelEl.value||'').trim(); if(!label){ alert('記録内容を入力してください'); return; }
+  const labelEl = $('freeLabel');
+  const koreanEl = $('freeKorean');
+  const secEl = $('freeSec');
+  const timeEl = $('freeTime');
+  const useTimeEl = $('freeUseTime');
+  if(!labelEl) return;
+
+  const label = (labelEl.value||'').trim();
+  const korean = (koreanEl?.value||'').trim();
+  if(!label && !korean){ alert('日本語または韓国語のどちらかを入力してください'); return; }
+
   const sec = Math.max(0, Math.floor(Number(secEl?.value)||0));
-  // record with current time
-  addExerciseWithStart(sec, label, new Date().toISOString());
+
+  const useTime = !useTimeEl || !!useTimeEl.checked;
+  const iso = useTime ? parseTimeInputToISO(timeEl?.value) : null;
+  if(useTime && !iso){
+    alert('時刻を入力するか、時刻チェックを外してください');
+    return;
+  }
+
+  // Store as an exercise-like free record, with additional fields.
+  // Keep `type` for display, and add optional `korean`.
+  addFreeRecordWithOptionalTime({
+    seconds: sec,
+    label,
+    korean,
+    startedAt: iso
+  });
+
   // clear inputs
   labelEl.value = '';
+  if(koreanEl) koreanEl.value = '';
   if(secEl) secEl.value = '0';
-  // re-render list handled by addExerciseWithStart
+  try{
+    if(timeEl && useTime){
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2,'0');
+      const mm = String(now.getMinutes()).padStart(2,'0');
+      timeEl.value = `${hh}:${mm}`;
+    }
+  }catch(e){}
 }catch(e){ console.warn('addFreeRecord failed', e); alert('記録に失敗しました'); }}
+
+function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
+  try{
+    const dk = STATE.selected;
+    if(!dk) return;
+    const rec = getDayRecord(dk);
+    rec.exercise = rec.exercise || { sessions: [], updatedAt: nowISO() };
+    const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
+
+    const item = {
+      id: 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7),
+      type: (label || korean || 'record'),
+      korean: korean || '',
+      seconds: Number(seconds)||0,
+      startedAt: startedAt || null,
+      completedAt: null
+    };
+
+    sessions.push(item);
+    rec.exercise.sessions = sessions;
+    rec.exercise.updatedAt = nowISO();
+    const mk = getMonthKey();
+    STATE.payload.data[mk][dk] = rec;
+    renderExerciseList();
+    renderAllRecordsTimeline();
+    med_saveAll();
+    setMsg('記録しました');
+  }catch(e){
+    console.warn('addFreeRecordWithOptionalTime failed', e);
+  }
+}
