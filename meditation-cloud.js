@@ -568,6 +568,14 @@ function parseTimeInputToISO(timeStr){
   return parseHHMMToISO(s);
 }
 
+function formatExerciseRecordLabel(session){
+  const jp = (session?.type || '').toString().trim();
+  const ko = (session?.korean || '').toString().trim();
+  if(jp && ko && jp !== ko) return `${jp}：${ko}`;
+  if(ko && !jp) return `韓国語：${ko}`;
+  return jp || ko || '';
+}
+
 // 全ての記録を時刻順に統一表示する関数
 function renderAllRecordsTimeline(){
   const wrap = $('allRecordsTimeline');
@@ -606,10 +614,7 @@ function renderAllRecordsTimeline(){
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
     const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
-    const jp = (session?.type || '').toString();
-    const ko = (session?.korean || '').toString();
-    const hasKo = !!ko && ko.trim() && ko.trim() !== jp.trim();
-    const label = `${jp || ko}${hasKo ? `（${ko.trim()}）` : ''}${secPart}`;
+    const label = `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
       type: 'exercise',
       time: session && session.startedAt ? session.startedAt : null,
@@ -875,12 +880,10 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   // prevent mobile credential UI by randomizing name/autocomplete on focus
-  const freeLabel = $('freeLabel');
   const freeKorean = $('freeKorean');
   const freeSec = $('freeSec');
   const freeTime = $('freeTime');
   const freeUseTime = $('freeUseTime');
-  attachNoCredentialBehavior(freeLabel);
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeSec);
   attachNoCredentialBehavior(freeTime);
@@ -976,10 +979,7 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
   const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderRadius='0'; row.style.background='transparent'; row.style.color='#ffffff'; row.style.marginBottom='4px';
     const startTxt = it.startedAt ? formatTimeShort(it.startedAt) : '--:--';
     const secPart = (Number(it.seconds) > 0) ? (` ${it.seconds}秒`) : '';
-    const jp = (it.type || '').toString();
-    const ko = (it.korean || '').toString();
-    const hasKo = !!ko && ko.trim() && ko.trim() !== jp.trim();
-    const label = `${jp || ko}${hasKo ? `（${ko.trim()}）` : ''}${secPart}`;
+    const label = `${formatExerciseRecordLabel(it)}${secPart}`;
     row.setAttribute('data-ex-idx', String(idx));
     row.innerHTML = `<div style="font-weight:700">${startTxt} <span style="font-weight:400;margin-left:8px">${label}</span></div>` +
                     `<div style="display:flex;gap:8px"><button data-ex-edit='${idx}'>✏</button><button data-ex-del='${idx}'>✕</button></div>`;
@@ -1010,16 +1010,14 @@ function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt
 
 // handle free-add row (label + optional seconds)
 function addFreeRecord(){ try{
-  const labelEl = $('freeLabel');
   const koreanEl = $('freeKorean');
   const secEl = $('freeSec');
   const timeEl = $('freeTime');
   const useTimeEl = $('freeUseTime');
-  if(!labelEl) return;
+  if(!koreanEl) return;
 
-  const label = (labelEl.value||'').trim();
-  const korean = (koreanEl?.value||'').trim();
-  if(!label && !korean){ alert('日本語または韓国語のどちらかを入力してください'); return; }
+  const korean = (koreanEl.value||'').trim();
+  if(!korean){ alert('韓国語の内容を入力してください'); return; }
 
   const sec = Math.max(0, Math.floor(Number(secEl?.value)||0));
 
@@ -1034,14 +1032,13 @@ function addFreeRecord(){ try{
   // Keep `type` for display, and add optional `korean`.
   addFreeRecordWithOptionalTime({
     seconds: sec,
-    label,
+    label: '韓国語',
     korean,
     startedAt: iso
   });
 
   // clear inputs
-  labelEl.value = '';
-  if(koreanEl) koreanEl.value = '';
+  koreanEl.value = '';
   if(secEl) secEl.value = '0';
   try{
     if(timeEl && useTime){

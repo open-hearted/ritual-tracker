@@ -20,8 +20,7 @@
   #medEditor textarea{ width:100%; min-height:100px }
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #freeRecordRow input#freeLabel,
-  #freeRecordRow input#freeKorean{ flex:1 1 160px; min-width:0; }
+  #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
   #freeRecordRow input#freeTime{ flex:0 0 auto; width:7.5em; }
   #freeRecordRow input#freeSec{ flex:0 0 auto; }
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
@@ -85,8 +84,8 @@
       </div>
       <!-- 自由入力: 他の記録と同じフォーマットで追加できる1行欄 -->
       <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-    <input id="freeLabel" name="free_record_label" type="text" placeholder="日本語（例: 朝ヨガ）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
-    <input id="freeKorean" name="free_record_korean" type="text" placeholder="韓国語（例: 아침 요가）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+    <strong style="width:56px;opacity:0.9">韓国語</strong>
+    <input id="freeKorean" name="free_record_korean" type="text" placeholder="内容（例: 아침 요가）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
     <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9">
       <input id="freeUseTime" type="checkbox" checked />時刻
     </label>
