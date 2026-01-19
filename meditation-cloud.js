@@ -873,10 +873,8 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   // prevent mobile credential UI by randomizing name/autocomplete on focus
   const freeKorean = $('freeKorean');
-  const freeSec = $('freeSec');
   const freeUseTime = $('freeUseTime');
   attachNoCredentialBehavior(freeKorean);
-  attachNoCredentialBehavior(freeSec);
 }); }catch(e){}
 
 // ===== Exercise timers (プランク / 空気椅子) =====
@@ -977,14 +975,11 @@ function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt
 // handle free-add row (label + optional seconds)
 function addFreeRecord(){ try{
   const koreanEl = $('freeKorean');
-  const secEl = $('freeSec');
   const useTimeEl = $('freeUseTime');
   if(!koreanEl) return;
 
   const korean = (koreanEl.value||'').trim();
   if(!korean){ alert('韓国語の内容を入力してください'); return; }
-
-  const sec = Math.max(0, Math.floor(Number(secEl?.value)||0));
 
   const useTime = !useTimeEl || !!useTimeEl.checked;
   const iso = useTime ? new Date().toISOString() : null;
@@ -992,7 +987,7 @@ function addFreeRecord(){ try{
   // Store as an exercise-like free record, with additional fields.
   // Keep `type` for display, and add optional `korean`.
   addFreeRecordWithOptionalTime({
-    seconds: sec,
+    seconds: 0,
     label: '韓国語',
     korean,
     startedAt: iso
@@ -1000,7 +995,6 @@ function addFreeRecord(){ try{
 
   // clear inputs
   koreanEl.value = '';
-  if(secEl) secEl.value = '0';
 }catch(e){ console.warn('addFreeRecord failed', e); alert('記録に失敗しました'); }}
 
 function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){

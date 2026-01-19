@@ -21,7 +21,6 @@
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
-  #freeRecordRow input#freeSec{ flex:0 0 auto; }
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
   /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
   #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
@@ -89,7 +88,6 @@
       <input id="freeUseTime" type="checkbox" checked />
       <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
     </label>
-    <input id="freeSec" name="free_record_seconds" type="number" inputmode="numeric" min="0" placeholder="秒" autocomplete="off" style="width:4ch;padding:6px;text-align:center;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
         <button id="freeAdd">追加</button>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
