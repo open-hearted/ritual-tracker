@@ -14,7 +14,13 @@ window.RITUAL_SCHEDULE = {
   // 単発の予定 (YYYY-MM-DD + HH:MM)
   // 例: { date:"2026-01-26", time:"18:30", label:"鍼", icon:"🪡" }
   appointments: [
-    { date: "2026-01-26", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" }
+    { date: "2026-01-26", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" },
+
+    // AC
+    { date: "2026-01-08", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false },
+    { date: "2026-01-22", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false },
+    { date: "2026-02-12", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false },
+    { date: "2026-02-26", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false }
   ],
   garbage: [
     {

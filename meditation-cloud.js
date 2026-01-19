@@ -210,7 +210,8 @@ function getAppointmentScheduleMarks(dateKey){
       time: (it.time || '').toString(),
       label: (it.label || '').toString(),
       short: (it.short || it.label || '').toString(),
-      url: safeHttpUrl(it.url)
+      url: safeHttpUrl(it.url),
+      calendarTime: (it.calendarTime !== false)
     }));
 }
 
@@ -539,7 +540,10 @@ renderCalendar = function(){
       const time = (it.time || '').toString();
       const text = (it.short || it.label || '').toString();
       const safeText = text.replace(/[&<>\"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[s]));
-      const label = `${icon}${time ? time.replace(/[^0-9:]/g,'') : ''}${safeText ? (safeText.length<=6 ? safeText : safeText.slice(0,6)+'…') : ''}`;
+      const timePart = (it.calendarTime && time) ? time.replace(/[^0-9:]/g,'') : '';
+      const textPart = safeText ? (safeText.length<=6 ? safeText : safeText.slice(0,6)+'…') : '';
+      const showText = textPart && textPart !== icon;
+      const label = `${icon}${timePart}${showText ? textPart : ''}`;
       if(it.url){
         const safeUrl = it.url.replace(/[\"<>]/g, '');
         return `<a class="cal-mark cal-schedule-link" href="${safeUrl}" target="_blank" rel="noreferrer" title="${time ? time + ' ' : ''}${safeText}">${label}</a>`;
