@@ -22,6 +22,12 @@ window.RITUAL_SCHEDULE = {
     { date: "2026-02-12", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false },
     { date: "2026-02-26", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false }
   ],
+
+  // 週次のシフト (weekday: 0=日..6=土)
+  // 例: { weekdays:[0,6], start:"13:00", end:"22:00", label:"シフトイン" }
+  shifts: [
+    { weekdays: [0, 2, 3, 6], start: "13:00", end: "22:00", label: "シフトイン", calendarColor: "rgba(110,168,255,0.20)" }
+  ],
   garbage: [
     {
       type: "nthWeekday",

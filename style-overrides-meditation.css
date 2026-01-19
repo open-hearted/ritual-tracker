@@ -84,6 +84,15 @@ html::-webkit-scrollbar-corner, body::-webkit-scrollbar-corner, .container.compa
 body {
   overflow: auto !important;
 }
+
+/* シフト日: セルの色だけ変える */
+.cell[data-shift="1"]::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background: var(--shift-bg, rgba(110,168,255,0.20));
+}
 /* カレンダー本体を縦方向に最大化 */
 .card.cal-card {
   flex: 1 1 auto;
