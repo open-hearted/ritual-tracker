@@ -22,6 +22,11 @@
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
+
+  /* Generic one-line free record row */
+  #freeTextRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #freeTextRecordRow input#freeText{ flex:1 1 220px; min-width:0; }
+  #freeTextRecordRow button#freeTextAdd{ flex:0 0 auto; min-width:44px; }
   /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
   #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
   /* Remove native number input spinners */
@@ -101,6 +106,16 @@
       <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
     </label>
         <button id="freeAdd">追加</button>
+      </div>
+
+      <div id="freeTextRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <strong style="width:56px;opacity:0.9">自由</strong>
+        <input id="freeText" name="free_record_text" type="text" placeholder="内容（例: 買い物 / 掃除）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+        <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+          <input id="freeTextUseTime" type="checkbox" checked />
+          <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+        </label>
+        <button id="freeTextAdd">追加</button>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
       </div>
