@@ -630,7 +630,8 @@ function renderAllRecordsTimeline(){
   
   // 表示
   allRecords.forEach(record => {
-    const timeStr = record.time ? formatTimeShort(record.time) : '--:--';
+    const timeStr = record.time ? formatTimeShort(record.time) : '';
+    const timePart = timeStr ? `${timeStr} ` : '';
     const row = document.createElement('div');
     row.style.display = 'flex';
     row.style.justifyContent = 'space-between';
@@ -661,7 +662,7 @@ function renderAllRecordsTimeline(){
     }
 
     row.innerHTML = `
-      <div style="font-weight:700">${timeStr} <span style="font-weight:400;margin-left:8px">${record.label}</span></div>
+      <div style="font-weight:700">${timePart}<span style="font-weight:400;margin-left:8px">${record.label}</span></div>
       ${buttons}
     `;
     
