@@ -563,8 +563,8 @@ function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
-  if(jp && ko && jp !== ko) return `${jp}：${ko}`;
-  if(ko && !jp) return `韓国語：${ko}`;
+  if(jp && ko && jp !== ko) return `${jp} ${ko}`;
+  if(ko && !jp) return `韓国語 ${ko}`;
   return jp || ko || '';
 }
 
