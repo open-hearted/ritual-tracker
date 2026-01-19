@@ -872,10 +872,14 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   renderExerciseList();
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
+  const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
   // prevent mobile credential UI by randomizing name/autocomplete on focus
   const freeKorean = $('freeKorean');
+  const freeText = $('freeText');
   const freeUseTime = $('freeUseTime');
+  const freeTextUseTime = $('freeTextUseTime');
   attachNoCredentialBehavior(freeKorean);
+  attachNoCredentialBehavior(freeText);
 }); }catch(e){}
 
 // ===== Exercise timers (プランク / 空気椅子) =====
@@ -997,6 +1001,29 @@ function addFreeRecord(){ try{
   // clear inputs
   koreanEl.value = '';
 }catch(e){ console.warn('addFreeRecord failed', e); alert('記録に失敗しました'); }}
+
+function addFreeTextRecord(){ try{
+  const textEl = $('freeText');
+  const useTimeEl = $('freeTextUseTime');
+  if(!textEl) return;
+
+  const text = (textEl.value || '').trim();
+  if(!text){ alert('内容を入力してください'); return; }
+
+  const useTime = !useTimeEl || !!useTimeEl.checked;
+  const iso = useTime ? new Date().toISOString() : null;
+
+  // Store as an exercise-like free record.
+  // Use `type` as the display label and leave `korean` empty.
+  addFreeRecordWithOptionalTime({
+    seconds: 0,
+    label: text,
+    korean: '',
+    startedAt: iso
+  });
+
+  textEl.value = '';
+}catch(e){ console.warn('addFreeTextRecord failed', e); alert('記録に失敗しました'); }}
 
 function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
   try{
