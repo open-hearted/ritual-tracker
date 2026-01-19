@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 const STATE = { year: new Date().getFullYear(), month: new Date().getMonth(), payload: {}, selected: null };
 const STORAGE_KEY = 'med_cloud_google_auth_v1';
 const TOKEN_TTL_MS = 24*60*60*1000;
+const AUTH_EXP_SKEW_MS = 30*1000;
 
 function nowISO(){ return new Date().toISOString(); }
 
@@ -19,7 +20,39 @@ function parseJwtPayload(token){
   }catch(e){ try{ return JSON.parse(atob(token.split('.')[1]||'')); }catch{return null;} }
 }
 
+function getTokenExpMs(token){
+  const p = parseJwtPayload(token);
+  const exp = p && typeof p.exp === 'number' ? p.exp : null;
+  if(!exp || !Number.isFinite(exp)) return null;
+  return exp * 1000;
+}
+
+function isIdTokenUsable(token){
+  if(!token) return false;
+  const expMs = getTokenExpMs(token);
+  if(expMs && Date.now() >= (expMs - AUTH_EXP_SKEW_MS)) return false;
+  return true;
+}
+
 let idToken = null; let userProfile = null;
+
+function forceSignOut(message){
+  idToken = null;
+  userProfile = null;
+  try{ localStorage.removeItem(STORAGE_KEY); }catch{}
+  updateUiForAuth(false);
+  try{ const ed = $('medEditor'); if(ed) ed.style.display='none'; }catch{}
+  setMsg(message || 'ログインしてください');
+}
+
+function ensureAuthOrSignOut(){
+  if(!idToken){ setMsg('ログインしてください'); return false; }
+  if(!isIdTokenUsable(idToken)){
+    forceSignOut('セッションが切れました。再ログインしてください');
+    return false;
+  }
+  return true;
+}
 
 async function initGSI(){
   try{
@@ -39,9 +72,38 @@ async function initGSI(){
   }catch(e){ console.warn(e); setMsg('GSI init error'); }
 }
 
-function handleCred(resp){ if(resp && resp.credential){ idToken = resp.credential; const p = parseJwtPayload(idToken)||{}; userProfile = { email:p.email, name:p.name }; try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ idToken, userProfile, ts: Date.now() })); }catch{}; updateUiForAuth(true); med_loadAll(); }}
+function handleCred(resp){
+  if(resp && resp.credential){
+    idToken = resp.credential;
+    const p = parseJwtPayload(idToken)||{};
+    userProfile = { email:p.email, name:p.name };
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ idToken, userProfile, ts: Date.now() })); }catch{}
+    updateUiForAuth(true);
+    med_loadAll();
+  }
+}
 
-function tryRestore(){ try{ const raw = localStorage.getItem(STORAGE_KEY); if(!raw) return false; const rec = JSON.parse(raw); if(rec && rec.idToken && (Date.now()-rec.ts) < TOKEN_TTL_MS){ idToken = rec.idToken; const parsed = parseJwtPayload(idToken); userProfile = parsed? { email: parsed.email, name: parsed.name } : rec.userProfile; updateUiForAuth(true); med_loadAll(); return true; } }catch(e){ } try{ localStorage.removeItem(STORAGE_KEY);}catch{} return false; }
+function tryRestore(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return false;
+    const rec = JSON.parse(raw);
+    if(rec && rec.idToken && isIdTokenUsable(rec.idToken)){
+      const expMs = getTokenExpMs(rec.idToken);
+      const withinFallbackTtl = rec.ts && (Date.now()-rec.ts) < TOKEN_TTL_MS;
+      if(expMs || withinFallbackTtl){
+        idToken = rec.idToken;
+        const parsed = parseJwtPayload(idToken);
+        userProfile = parsed? { email: parsed.email, name: parsed.name } : rec.userProfile;
+        updateUiForAuth(true);
+        med_loadAll();
+        return true;
+      }
+    }
+  }catch(e){ }
+  try{ localStorage.removeItem(STORAGE_KEY);}catch{}
+  return false;
+}
 
 function updateUiForAuth(isAuth){
   const calCard = document.querySelector('.card.cal-card');
@@ -131,7 +193,8 @@ function openEditorFor(dateKey){
   const ed = $('medEditor');
   $('editDate').textContent = dateKey;
   // fetch latest payload from server before opening editor
-  med_loadAll().then(()=>{
+  med_loadAll().then((ok)=>{
+    if(ok === false || !idToken) return;
     const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
     const rec = monthObj[dateKey] || {};
     // populate diary and session list
@@ -142,6 +205,7 @@ function openEditorFor(dateKey){
     renderAllRecordsTimeline(); // 統一表示
     ed.style.display='block';
   }).catch(()=>{
+    if(!idToken) return;
     // fallback to local payload if GET fails
     const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
     const rec = monthObj[dateKey] || {};
@@ -177,21 +241,69 @@ function closeEditor(){
   const ed = $('medEditor'); if(ed) ed.style.display='none';
 }
 
-async function med_loadAll(){ if(!idToken){ setMsg('ログインしてください'); return; } setMsg('読み込み中...'); try{ const res = await fetch('/api/meditation-get', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken }) }); if(!res.ok){ const txt = await res.text().catch(()=>''); setMsg('読み込み失敗'); console.warn('med load failed', res.status, txt); return; } const j = await res.json(); // expected j.data or j
+async function med_loadAll(){
+  if(!ensureAuthOrSignOut()) return false;
+  setMsg('読み込み中...');
+  try{
+    const res = await fetch('/api/meditation-get', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken }) });
+    if(res.status === 401 || res.status === 403){
+      forceSignOut('認証が切れました。再ログインしてください');
+      return false;
+    }
+    if(!res.ok){
+      const txt = await res.text().catch(()=>'');
+      setMsg('読み込み失敗');
+      console.warn('med load failed', res.status, txt);
+      return false;
+    }
+    const j = await res.json(); // expected j.data or j
     const payload = j.data && Object.keys(j.data).length ? j.data : (j || {});
     // normalize: if payload has data field already, keep
     if(payload && payload.data){ STATE.payload = payload; } else { STATE.payload = { data: payload }; }
     // ensure structure
     STATE.payload.data = STATE.payload.data || {};
     renderCalendar(); setMsg('');
-  }catch(e){ console.error(e); setMsg('読み込み失敗'); }
+    return true;
+  }catch(e){
+    console.error(e);
+    setMsg('読み込み失敗');
+    return false;
+  }
 }
 
-async function med_saveAll(){ if(!idToken){ setMsg('ログインしてください'); return; } try{ setMsg('保存中...'); const mk = getMonthKey(); // ensure payload shape
+async function med_saveAll(){
+  if(!ensureAuthOrSignOut()) return false;
+  try{
+    setMsg('保存中...');
+    const mk = getMonthKey(); // ensure payload shape
     STATE.payload.__meta = STATE.payload.__meta || { version:0, updatedAt: nowISO() };
     STATE.payload.__meta.version = (STATE.payload.__meta.version||0) + 1;
     STATE.payload.__meta.updatedAt = nowISO();
-    const res = await fetch('/api/meditation-put', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, data: STATE.payload }) }); if(!res.ok){ const txt = await res.text().catch(()=>''); setMsg('保存失敗'); console.warn('save failed', res.status, txt); return; } const j = await res.json().catch(()=>({})); if(j && j.ok){ setMsg('保存完了'); renderCalendar(); } else { setMsg('保存失敗'); } }catch(e){ console.error(e); setMsg('保存エラー'); } }
+    const res = await fetch('/api/meditation-put', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, data: STATE.payload }) });
+    if(res.status === 401 || res.status === 403){
+      forceSignOut('認証が切れました。再ログインしてください');
+      return false;
+    }
+    if(!res.ok){
+      const txt = await res.text().catch(()=>'');
+      setMsg('保存失敗');
+      console.warn('save failed', res.status, txt);
+      return false;
+    }
+    const j = await res.json().catch(()=>({}));
+    if(j && j.ok){
+      setMsg('保存完了');
+      renderCalendar();
+      return true;
+    }
+    setMsg('保存失敗');
+    return false;
+  }catch(e){
+    console.error(e);
+    setMsg('保存エラー');
+    return false;
+  }
+}
 
 function attachHandlers(){
   // Schedule links (garbage):
@@ -288,11 +400,7 @@ function attachHandlers(){
   }
 
   $('signOutBtn').addEventListener('click', ()=>{
-    idToken = null; userProfile = null;
-    try{ localStorage.removeItem(STORAGE_KEY); }catch{}
-    updateUiForAuth(false);
-    try{ const ed = $('medEditor'); if(ed) ed.style.display='none'; }catch{}
-    setMsg('サインアウト');
+    forceSignOut('サインアウト');
   });
 
   // 日記に現在時刻を挿入するボタン
