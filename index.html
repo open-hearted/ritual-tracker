@@ -21,6 +21,7 @@
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
+  #freeRecordRow input#freeTime{ flex:0 0 auto; width:7.5em; }
   #freeRecordRow input#freeSec{ flex:0 0 auto; }
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
   /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
@@ -85,10 +86,10 @@
       <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
     <strong style="width:56px;opacity:0.9">韓国語</strong>
     <input id="freeKorean" name="free_record_korean" type="text" placeholder="内容（例: 아침 요가）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
-    <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="時刻を付ける">
-      <input id="freeUseTime" type="checkbox" checked />
-      <span aria-label="時刻" style="font-size:18px;line-height:1">🕒</span>
+    <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9">
+      <input id="freeUseTime" type="checkbox" checked />時刻
     </label>
+    <input id="freeTime" name="free_record_time" type="time" inputmode="numeric" step="60" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
     <input id="freeSec" name="free_record_seconds" type="number" inputmode="numeric" min="0" placeholder="秒" autocomplete="off" style="width:4ch;padding:6px;text-align:center;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
         <button id="freeAdd">追加</button>
       </div>
