@@ -20,8 +20,7 @@
   #medEditor textarea{ width:100%; min-height:100px }
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #freeRecordRow input#freeLabel{ flex:1; min-width:0; }
-  #freeRecordRow input#freeSec{ flex:0 0 auto; }
+  #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
   /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
   #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
@@ -29,6 +28,18 @@
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   input[type=number] { -moz-appearance: textfield; appearance: textfield; -webkit-appearance: textfield; }
+
+  /* Make modal close button clearly distinct from timeline delete buttons */
+  #closeEditor{
+    background:#2563eb;
+    color:#fff;
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:999px;
+    padding:6px 10px;
+    font-weight:700;
+    line-height:1;
+  }
+  #closeEditor:hover{ filter:brightness(1.05); }
   </style>
   <style>
     /* Ensure calendar is hidden when not authenticated (covers PC cases) */
@@ -63,7 +74,7 @@
         <button data-action="record" data-kind="wake" class="time-btn" style="padding:6px 10px;border-radius:6px">起床</button>
         <button data-action="record" data-kind="sleep" class="time-btn" style="padding:6px 10px;border-radius:6px">就寝</button>
       </div>
-      <button id="closeEditor">✕</button>
+      <button id="closeEditor" type="button" aria-label="閉じる">閉じる</button>
     </div>
     
     <!-- （重複していた下部の起床/就寝ボタンはヘッダに統合済みのため削除） -->
@@ -83,8 +94,12 @@
       </div>
       <!-- 自由入力: 他の記録と同じフォーマットで追加できる1行欄 -->
       <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-    <input id="freeLabel" name="free_record_label" type="text" placeholder="記録内容（例: 朝ヨガ）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
-    <input id="freeSec" name="free_record_seconds" type="number" inputmode="numeric" min="0" placeholder="秒" autocomplete="off" style="width:4ch;padding:6px;text-align:center;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+    <strong style="width:56px;opacity:0.9">韓国語</strong>
+    <input id="freeKorean" name="free_record_korean" type="text" placeholder="内容（例: 아침 요가）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+    <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+      <input id="freeUseTime" type="checkbox" checked />
+      <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+    </label>
         <button id="freeAdd">追加</button>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
