@@ -186,6 +186,34 @@ function getGarbageScheduleMarks(dateKey){
   return out;
 }
 
+function parseDateKeyAndHHMMToISO(dateKey, hhmm){
+  if(!dateKey || !hhmm) return null;
+  const m = String(hhmm).trim().match(/^([0-2]?\d):([0-5]\d)$/);
+  if(!m) return null;
+  const hh = parseInt(m[1], 10);
+  const mm = parseInt(m[2], 10);
+  if(hh > 23) return null;
+  const d = parseDateKeyLocal(dateKey);
+  if(!d || Number.isNaN(d.getTime())) return null;
+  d.setHours(hh, mm, 0, 0);
+  return d.toISOString();
+}
+
+function getAppointmentScheduleMarks(dateKey){
+  const schedule = getRitualSchedule();
+  const list = schedule && Array.isArray(schedule.appointments) ? schedule.appointments : [];
+  if(!list.length) return [];
+  return list
+    .filter(it => it && typeof it === 'object' && String(it.date || '') === String(dateKey))
+    .map(it => ({
+      icon: (it.icon || '📌').toString(),
+      time: (it.time || '').toString(),
+      label: (it.label || '').toString(),
+      short: (it.short || it.label || '').toString(),
+      url: safeHttpUrl(it.url)
+    }));
+}
+
 function renderCalendar(){ const grid=$('calGrid'); grid.innerHTML=''; $('monthLabel').textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; if(sess.length || ex.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=> openEditorFor(dk)); grid.appendChild(btn); } }
 
 function openEditorFor(dateKey){
@@ -504,8 +532,23 @@ renderCalendar = function(){
       return `<span class="cal-mark" title="${safeText}">${label}</span>`;
     });
 
+    // Appointments (single-date events)
+    const appts = getAppointmentScheduleMarks(dk);
+    const apptMarkers = appts.map(it=>{
+      const icon = (it.icon || '📌').toString();
+      const time = (it.time || '').toString();
+      const text = (it.short || it.label || '').toString();
+      const safeText = text.replace(/[&<>\"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[s]));
+      const label = `${icon}${time ? time.replace(/[^0-9:]/g,'') : ''}${safeText ? (safeText.length<=6 ? safeText : safeText.slice(0,6)+'…') : ''}`;
+      if(it.url){
+        const safeUrl = it.url.replace(/[\"<>]/g, '');
+        return `<a class="cal-mark cal-schedule-link" href="${safeUrl}" target="_blank" rel="noreferrer" title="${time ? time + ' ' : ''}${safeText}">${label}</a>`;
+      }
+      return `<span class="cal-mark" title="${time ? time + ' ' : ''}${safeText}">${label}</span>`;
+    });
+
     const wrap = cell.querySelector('.markers');
-    if(wrap) wrap.innerHTML = [...activityMarkers, ...scheduleMarkers].join(' ');
+    if(wrap) wrap.innerHTML = [...activityMarkers, ...scheduleMarkers, ...apptMarkers].join(' ');
     if(activityMarkers.length) cell.setAttribute('data-has','1'); else cell.removeAttribute('data-has');
   });
 };
@@ -687,6 +730,18 @@ function renderAllRecordsTimeline(){
   
   const rec = getDayRecord(dk);
   const allRecords = [];
+
+  // 予定 (schedule.js)
+  const appts = getAppointmentScheduleMarks(dk);
+  appts.forEach((it, i)=>{
+    const iso = parseDateKeyAndHHMMToISO(dk, it.time);
+    allRecords.push({
+      type: 'appointment',
+      time: iso,
+      label: `${(it.label || '').toString()}`,
+      data: { index: i, appt: it }
+    });
+  });
   
   // 起床記録 (複数対応)
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];

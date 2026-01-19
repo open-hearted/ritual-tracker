@@ -11,6 +11,11 @@ window.RITUAL_SCHEDULE = {
   // ゴミ出し情報を開くURL（豊島区: さんあ〜る）
   // 必要に応じてここを書き換えるだけでOK。
   garbageInfoUrl: "https://manage.delight-system.com/threeR/web/benri?menu=benri&jichitaiId=toshimaku&areaId=149898&benriCateId=%2f&bunbetsuCateId=%2f&faqCateId=%2f&lang=ja",
+  // 単発の予定 (YYYY-MM-DD + HH:MM)
+  // 例: { date:"2026-01-26", time:"18:30", label:"鍼", icon:"🪡" }
+  appointments: [
+    { date: "2026-01-26", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" }
+  ],
   garbage: [
     {
       type: "nthWeekday",
