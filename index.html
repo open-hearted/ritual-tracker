@@ -28,6 +28,18 @@
   input[type=number]::-webkit-outer-spin-button,
   input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   input[type=number] { -moz-appearance: textfield; appearance: textfield; -webkit-appearance: textfield; }
+
+  /* Make modal close button clearly distinct from timeline delete buttons */
+  #closeEditor{
+    background:#2563eb;
+    color:#fff;
+    border:1px solid rgba(255,255,255,0.18);
+    border-radius:999px;
+    padding:6px 10px;
+    font-weight:700;
+    line-height:1;
+  }
+  #closeEditor:hover{ filter:brightness(1.05); }
   </style>
   <style>
     /* Ensure calendar is hidden when not authenticated (covers PC cases) */
@@ -62,7 +74,7 @@
         <button data-action="record" data-kind="wake" class="time-btn" style="padding:6px 10px;border-radius:6px">起床</button>
         <button data-action="record" data-kind="sleep" class="time-btn" style="padding:6px 10px;border-radius:6px">就寝</button>
       </div>
-      <button id="closeEditor">✕</button>
+      <button id="closeEditor" type="button" aria-label="閉じる">閉じる</button>
     </div>
     
     <!-- （重複していた下部の起床/就寝ボタンはヘッダに統合済みのため削除） -->
