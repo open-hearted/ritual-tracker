@@ -45,6 +45,12 @@
     body[data-page="daily"] #dailySplit{ display:flex; flex-direction:column; }
     body[data-page="daily"] #dailyInputCol{ order: 0; }
     body[data-page="daily"] #dailyTimelineCol{ order: 1; }
+
+    /* Mobile: use full width and remove section titles to save space */
+    body[data-page="daily"] #dailyInputCol,
+    body[data-page="daily"] #dailyTimelineCol{ width:100%; }
+    body[data-page="daily"] .panel-title{ display:none; }
+    body[data-page="daily"] .panel-box{ padding:10px; }
   }
 
   /* responsive free record row: ensure add button stays visible on small screens */
