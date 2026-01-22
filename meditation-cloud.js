@@ -59,7 +59,15 @@ function maybeOpenInitialDate(){
     if(isMonthlyPage() && q){
       setStateMonthFromDateKey(q);
       try{ renderCalendar(); }catch(e){}
-      openEditorFor(q, { skipLoad: true });
+      // Monthly page should start with the modal closed.
+      try{ closeEditor(); }catch(e){}
+      // If a date is provided, just bring that cell into view (no modal open).
+      try{
+        setTimeout(()=>{
+          const el = document.querySelector(`.cell[data-date="${q}"]`);
+          if(el) el.scrollIntoView({ block:'center' });
+        }, 60);
+      }catch(e){}
       return;
     }
     if(isDailyPage()){
