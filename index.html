@@ -3,20 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Ritual Tracker</title>
+  <title>Ritual Tracker (Today)</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="style-overrides-meditation.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script defer src="schedule.js"></script>
   <script defer src="meditation-cloud.js"></script>
   <style>
-    .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-    .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
-    .cell[data-has]{ background:#d1fae5 }
-    .cell.today{ border:2px solid #ef4444; box-sizing:border-box }
-    .cell .markers{ display:block; margin-top:4px; color: #111; }
-    .cal-mark{ display:inline-block; margin-right:6px; font-size:0.9em; line-height:1; }
-  #medEditor{ position:fixed; z-index:2000; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:min(92vw,420px); display:none; max-height:92vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+  /* 今日ページはモーダルUIをそのまま通常表示にする */
+  #medEditor{ position:static; z-index:auto; left:auto; top:auto; transform:none; background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:min(92vw,680px); display:block; max-height:none; overflow:visible; }
   #medEditor textarea{ width:100%; min-height:100px }
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -46,32 +41,17 @@
   }
   #closeEditor:hover{ filter:brightness(1.05); }
   </style>
-  <style>
-    /* Ensure calendar is hidden when not authenticated (covers PC cases) */
-    body:not([data-auth="true"]) .card.cal-card { display: none !important; }
-  </style>
 </head>
-<body>
+<body data-page="daily">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
+    <a id="openMonthly" href="monthly.html" target="_blank" rel="noreferrer">月間</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
-  <div class="container compact" style="padding:12px">
-  <div class="card cal-card" style="display:none !important">
-      <div class="grid" id="dowRow"></div>
-      <div class="grid" id="calGrid" aria-live="polite"></div>
-      <div class="cal-head" style="margin-top:10px;display:flex;align-items:center;gap:8px">
-        <button id="prevBtn">◀</button>
-        <div id="monthLabel" style="font-weight:700"></div>
-        <button id="nextBtn">▶</button>
-        <button id="todayBtn">今日</button>
-      </div>
-    </div>
-  </div>
-
+  <div class="container compact" style="padding:12px;display:flex;justify-content:center">
   <div id="medEditor">
     <div id="editSection" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <strong id="editDate" style="margin-right:8px;">-</strong>
@@ -79,7 +59,7 @@
         <button data-action="record" data-kind="wake" class="time-btn" style="padding:6px 10px;border-radius:6px">起床</button>
         <button data-action="record" data-kind="sleep" class="time-btn" style="padding:6px 10px;border-radius:6px">就寝</button>
       </div>
-      <button id="closeEditor" type="button" aria-label="閉じる">閉じる</button>
+      <button id="closeEditor" type="button" aria-label="閉じる" style="display:none">閉じる</button>
     </div>
     
     <!-- （重複していた下部の起床/就寝ボタンはヘッダに統合済みのため削除） -->
@@ -145,12 +125,6 @@
   </div>
       
     </div>
-
-    <script>
-      // small helper to open editor when clicking outside JS-created overlay
-      document.addEventListener('click', e=>{
-        const ed = document.getElementById('medEditor'); if(!ed) return; if(ed.style.display==='block' && !ed.contains(e.target) && !e.target.classList.contains('cell')){ try{ if(typeof closeEditor === 'function') closeEditor(); else ed.style.display='none'; }catch{ ed.style.display='none'; } }
-      });
-    </script>
+  </div>
   </body>
   </html>

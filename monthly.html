@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ritual Tracker (Monthly)</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style-overrides-meditation.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script defer src="schedule.js"></script>
+  <script defer src="meditation-cloud.js"></script>
+  <style>
+    .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+    .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
+    .cell[data-has]{ background:#d1fae5 }
+    .cell.today{ border:2px solid #ef4444; box-sizing:border-box }
+    .cell .markers{ display:block; margin-top:4px; color: #111; }
+    .cal-mark{ display:inline-block; margin-right:6px; font-size:0.9em; line-height:1; }
+
+    #medEditor{ position:fixed; z-index:2000; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:min(92vw,420px); display:none; max-height:92vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+    #medEditor textarea{ width:100%; min-height:100px }
+
+    /* responsive free record row: ensure add button stays visible on small screens */
+    #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
+    #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
+
+    /* Generic one-line free record row */
+    #freeTextRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #freeTextRecordRow input#freeText{ flex:1 1 220px; min-width:0; }
+    #freeTextRecordRow button#freeTextAdd{ flex:0 0 auto; min-width:44px; }
+
+    /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
+    #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
+
+    /* Remove native number input spinners */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; appearance: textfield; -webkit-appearance: textfield; }
+
+    /* Make modal close button clearly distinct from timeline delete buttons */
+    #closeEditor{
+      background:#2563eb;
+      color:#fff;
+      border:1px solid rgba(255,255,255,0.18);
+      border-radius:999px;
+      padding:6px 10px;
+      font-weight:700;
+      line-height:1;
+    }
+    #closeEditor:hover{ filter:brightness(1.05); }
+
+    /* Ensure calendar is hidden when not authenticated (covers PC cases) */
+    body:not([data-auth="true"]) .card.cal-card { display: none !important; }
+  </style>
+</head>
+<body data-page="monthly">
+  <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
+    <div id="gsiButtonContainer"></div>
+    <button id="signOutBtn" style="display:none">サインアウト</button>
+    <div style="flex:1"></div>
+    <a href="index.html" style="opacity:0.9">当日</a>
+    <div id="msg" style="color:#6b7280"></div>
+  </div>
+
+  <div class="container compact" style="padding:12px">
+    <div class="card cal-card">
+      <div class="grid" id="dowRow"></div>
+      <div class="grid" id="calGrid" aria-live="polite"></div>
+      <div class="cal-head" style="margin-top:10px;display:flex;align-items:center;gap:8px">
+        <button id="prevBtn">◀</button>
+        <div id="monthLabel" style="font-weight:700"></div>
+        <button id="nextBtn">▶</button>
+        <button id="todayBtn">今日</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="medEditor">
+    <div id="editSection" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <strong id="editDate" style="margin-right:8px;">-</strong>
+      <div style="display:flex;gap:8px;align-items:center;flex:1;justify-content:center">
+        <button data-action="record" data-kind="wake" class="time-btn" style="padding:6px 10px;border-radius:6px">起床</button>
+        <button data-action="record" data-kind="sleep" class="time-btn" style="padding:6px 10px;border-radius:6px">就寝</button>
+      </div>
+      <button id="closeEditor" type="button" aria-label="閉じる">閉じる</button>
+    </div>
+
+    <div id="allRecordsTimeline" style="margin-bottom:8px;"></div>
+
+    <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
+    <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
+    <div style="margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <label>日記</label>
+        <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+      </div>
+      <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+    </div>
+
+    <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <strong style="width:56px;opacity:0.9">韓国語</strong>
+      <input id="freeKorean" name="free_record_korean" type="text" placeholder="内容（例: 아침 요가）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+        <input id="freeUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="freeAdd">追加</button>
+    </div>
+
+    <div id="freeTextRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <strong style="width:56px;opacity:0.9">自由</strong>
+      <input id="freeText" name="free_record_text" type="text" placeholder="内容（例: 買い物 / 掃除）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+        <input id="freeTextUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="freeTextAdd">追加</button>
+    </div>
+
+    <div id="exerciseTimers" style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px">
+      <div class="exercise-timer" style="display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+        <strong style="width:56px">プランク</strong>
+        <input id="plankSec" type="number" min="1" value="30" style="width:4ch;padding:0 4px;text-align:center" /> 秒
+        <span id="plankDisplay" style="min-width:48px;text-align:center">--:--</span>
+        <button id="plankStart">開始</button>
+      </div>
+      <div class="exercise-timer" style="display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+        <strong style="width:56px">空気椅子</strong>
+        <input id="wallSec" type="number" min="1" value="30" style="width:4ch;padding:0 4px;text-align:center" /> 秒
+        <span id="wallDisplay" style="min-width:48px;text-align:center">--:--</span>
+        <button id="wallStart">開始</button>
+      </div>
+    </div>
+
+    <div class="med-timer" id="medTimerBox" style="margin-bottom:4px;display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+      <strong style="width:56px">瞑想</strong>
+      <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:84px" />
+      <span id="medTimerDisplay" style="min-width:56px;text-align:center">--:--</span>
+      <button id="medTimerStart">開始</button>
+      <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
+    </div>
+  </div>
+
+  <script>
+    // close modal when clicking outside (monthly only)
+    document.addEventListener('click', e=>{
+      const ed = document.getElementById('medEditor');
+      if(!ed) return;
+      if(ed.style.display==='block' && !ed.contains(e.target) && !e.target.classList.contains('cell')){
+        try{ if(typeof closeEditor === 'function') closeEditor(); else ed.style.display='none'; }
+        catch{ ed.style.display='none'; }
+      }
+    });
+  </script>
+</body>
+</html>
