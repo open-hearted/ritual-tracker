@@ -52,6 +52,14 @@
 
     /* Ensure calendar is hidden when not authenticated (covers PC cases) */
     body:not([data-auth="true"]) .card.cal-card { display: none !important; }
+
+    /* Hide month controls when not authenticated */
+    body:not([data-auth="true"]) #monthlyControls { display:none !important; }
+
+    /* Make top bar controls compact */
+    #monthlyControls{ display:flex; align-items:center; gap:8px; }
+    #monthlyControls #monthLabel{ font-weight:700; min-width: 8ch; text-align:center; }
+    #monthlyControls button{ padding:4px 8px; }
   </style>
 </head>
 <body data-page="monthly">
@@ -59,6 +67,12 @@
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
+    <div id="monthlyControls" aria-label="月移動">
+      <button id="prevBtn" type="button">◀</button>
+      <div id="monthLabel"></div>
+      <button id="nextBtn" type="button">▶</button>
+      <button id="todayBtn" type="button">今日</button>
+    </div>
     <a href="index.html" style="opacity:0.9">当日</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
@@ -67,12 +81,6 @@
     <div class="card cal-card">
       <div class="grid" id="dowRow"></div>
       <div class="grid" id="calGrid" aria-live="polite"></div>
-      <div class="cal-head" style="margin-top:10px;display:flex;align-items:center;gap:8px">
-        <button id="prevBtn">◀</button>
-        <div id="monthLabel" style="font-weight:700"></div>
-        <button id="nextBtn">▶</button>
-        <button id="todayBtn">今日</button>
-      </div>
     </div>
   </div>
 
