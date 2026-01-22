@@ -17,7 +17,8 @@
   /* 当日: 左=タイムライン / 右=入力 で見やすく */
   body[data-page="daily"] #dailySplit{
     display:grid;
-    grid-template-columns: 1fr 1fr;
+    /* Timeline shouldn't be too wide; keep input area roomy */
+    grid-template-columns: clamp(320px, 36vw, 520px) 1fr;
     gap:14px;
     align-items:start;
   }
