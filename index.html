@@ -10,8 +10,8 @@
   <script defer src="schedule.js"></script>
   <script defer src="meditation-cloud.js"></script>
   <style>
-  /* 今日ページはモーダルUIをそのまま通常表示にする */
-  #medEditor{ position:static; z-index:auto; left:auto; top:auto; transform:none; background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:min(92vw,680px); display:block; max-height:none; overflow:visible; }
+  /* 今日ページはモーダルUIをそのまま通常表示にする（画面幅いっぱい） */
+  #medEditor{ position:static; z-index:auto; left:auto; top:auto; transform:none; background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:100%; max-width:none; display:block; max-height:none; overflow:visible; }
   #medEditor textarea{ width:100%; min-height:100px }
 
   /* 当日: 左=タイムライン / 右=入力 で見やすく */
@@ -39,7 +39,7 @@
     background: rgba(255,255,255,0.02);
   }
   @media (max-width: 860px){
-    body[data-page="daily"] #medEditor{ width:min(96vw,680px); }
+    body[data-page="daily"] #medEditor{ width:100%; }
     body[data-page="daily"] #dailySplit{ grid-template-columns: 1fr; }
   }
 
@@ -81,7 +81,7 @@
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
-  <div class="container compact" style="padding:12px;display:flex;justify-content:center">
+  <div class="container compact" style="padding:12px">
   <div id="medEditor">
     <div id="editSection" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <strong id="editDate" style="margin-right:8px;">-</strong>
