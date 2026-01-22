@@ -13,6 +13,36 @@
   /* 今日ページはモーダルUIをそのまま通常表示にする */
   #medEditor{ position:static; z-index:auto; left:auto; top:auto; transform:none; background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:min(92vw,680px); display:block; max-height:none; overflow:visible; }
   #medEditor textarea{ width:100%; min-height:100px }
+
+  /* 当日: 左=タイムライン / 右=入力 で見やすく */
+  body[data-page="daily"] #dailySplit{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:14px;
+    align-items:start;
+  }
+  body[data-page="daily"] #dailyTimelineCol{
+    min-width:0;
+  }
+  body[data-page="daily"] #dailyInputCol{
+    min-width:0;
+  }
+  body[data-page="daily"] .panel-title{
+    font-weight:700;
+    opacity:0.95;
+    margin: 4px 0 8px;
+  }
+  body[data-page="daily"] .panel-box{
+    border:1px solid rgba(255,255,255,0.10);
+    border-radius:10px;
+    padding:12px;
+    background: rgba(255,255,255,0.02);
+  }
+  @media (max-width: 860px){
+    body[data-page="daily"] #medEditor{ width:min(96vw,680px); }
+    body[data-page="daily"] #dailySplit{ grid-template-columns: 1fr; }
+  }
+
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
@@ -64,19 +94,27 @@
     
     <!-- （重複していた下部の起床/就寝ボタンはヘッダに統合済みのため削除） -->
 
-    <!-- 時刻順統一表示エリア（起床・就寝の表示と編集機能を含む） -->
-    <div id="allRecordsTimeline" style="margin-bottom:8px;"></div>
-    
-    <!-- 従来の個別表示エリア（非表示） -->
-    <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
-    <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
-      <div style="margin-bottom:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <label>日記</label>
-          <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
-        </div>
-        <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+    <div id="dailySplit">
+      <div id="dailyTimelineCol" class="panel-box">
+        <div class="panel-title">タイムライン</div>
+        <!-- 時刻順統一表示エリア（起床・就寝の表示と編集機能を含む） -->
+        <div id="allRecordsTimeline"></div>
       </div>
+
+      <div id="dailyInputCol" class="panel-box">
+        <div class="panel-title">入力</div>
+
+        <!-- 従来の個別表示エリア（非表示） -->
+        <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
+        <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
+
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <label>日記</label>
+            <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+          </div>
+          <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+        </div>
       <!-- 自由入力: 他の記録と同じフォーマットで追加できる1行欄 -->
       <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
     <strong style="width:56px;opacity:0.9">韓国語</strong>
@@ -123,7 +161,7 @@
     <!-- ポーズ時に表示するクリア（破棄）ボタン -->
     <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
   </div>
-      
+      </div>
     </div>
   </div>
   </body>
