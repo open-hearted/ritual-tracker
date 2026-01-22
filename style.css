@@ -118,6 +118,46 @@ input::placeholder{color:#9fb0ff99}
 
 .notice{font-size:12px;color:#93a2ff}
 
+/* Finger exercise link (YouTube Shorts) */
+.finger-exercise{
+	margin: 10px 0 12px;
+	padding: 10px 12px;
+	border: 1px solid rgba(255,255,255,0.10);
+	border-radius: 10px;
+	background: rgba(255,255,255,0.02);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+.finger-exercise .finger-title{
+	font-weight: 700;
+	opacity: 0.95;
+	white-space: nowrap;
+}
+.finger-exercise .finger-link{
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	text-decoration: none;
+	padding: 8px 10px;
+	border-radius: 12px;
+	border: 1px solid rgba(255,255,255,0.12);
+	background: #14224e;
+	color: var(--text);
+	line-height: 1;
+}
+.finger-exercise .finger-link:hover{ filter: brightness(1.1); }
+.finger-exercise .finger-link:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+.finger-exercise .finger-link .finger-icon{ font-size: 16px; line-height: 1; }
+
+@media (max-width: 520px){
+	.finger-exercise{ flex-direction: column; align-items: stretch; }
+	.finger-exercise .finger-title{ white-space: normal; }
+	.finger-exercise .finger-link{ width: 100%; }
+}
+
 /* Meditation editor overlay */
 #medEditor{position:fixed; z-index:1000; width:210px; background:#132247; border:1px solid rgba(255,255,255,0.18); border-radius:14px; padding:10px 10px 12px; box-shadow:0 10px 28px -4px rgba(0,0,0,0.5); display:none;}
 #medEditor .med-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:600; letter-spacing:.5px}
