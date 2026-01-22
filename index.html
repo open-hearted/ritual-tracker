@@ -40,7 +40,10 @@
   }
   @media (max-width: 860px){
     body[data-page="daily"] #medEditor{ width:100%; }
-    body[data-page="daily"] #dailySplit{ grid-template-columns: 1fr; }
+    /* Mobile: stack and show Input first */
+    body[data-page="daily"] #dailySplit{ display:flex; flex-direction:column; }
+    body[data-page="daily"] #dailyInputCol{ order: 0; }
+    body[data-page="daily"] #dailyTimelineCol{ order: 1; }
   }
 
   /* responsive free record row: ensure add button stays visible on small screens */
