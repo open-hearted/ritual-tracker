@@ -794,15 +794,17 @@ function renderWakeSleep(){
   const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
   // wake/sleep are arrays of ISO timestamps for multiple records
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
+  const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
   const sleepArr = Array.isArray(rec.sleep) ? rec.sleep : [];
   const wEl = $('wakeTime'); const sEl = $('sleepTime');
   const latestWake = wakeArr.length ? wakeArr[wakeArr.length-1] : '';
+  const latestAwake = awakeArr.length ? awakeArr[awakeArr.length-1] : '';
   const latestSleep = sleepArr.length ? sleepArr[sleepArr.length-1] : '';
   if(wEl) wEl.textContent = formatTimeShort(latestWake);
   if(sEl) sEl.textContent = formatTimeShort(latestSleep);
 
-  // attach handlers for top buttons (起床 / 就寝)
-  ['wake','sleep'].forEach(kind=>{
+  // attach handlers for top buttons (起床 / 覚醒 / 就寝)
+  ['wake','awake','sleep'].forEach(kind=>{
     const buttons = document.querySelectorAll(`button[data-kind="${kind}"]`);
     buttons.forEach(b=>{ b.removeEventListener('click', timeBtnHandler); b.addEventListener('click', timeBtnHandler); });
   });
@@ -818,9 +820,11 @@ function setTimeNow(kind){
   const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
   // ensure arrays exist
   rec.wake = Array.isArray(rec.wake) ? rec.wake : [];
+  rec.awake = Array.isArray(rec.awake) ? rec.awake : [];
   rec.sleep = Array.isArray(rec.sleep) ? rec.sleep : [];
   const iso = new Date().toISOString();
   if(kind === 'wake') rec.wake.push(iso);
+  else if(kind === 'awake') rec.awake.push(iso);
   else if(kind === 'sleep') rec.sleep.push(iso);
   const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec;
   renderWakeSleep(); renderAllRecordsTimeline(); med_saveAll();
@@ -901,6 +905,12 @@ function renderAllRecordsTimeline(){
   wakeArr.forEach((iso, i) => {
     allRecords.push({ type: 'wake', time: iso, label: '起床', data: { index: i } });
   });
+
+  // 覚醒記録 (複数対応)
+  const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
+  awakeArr.forEach((iso, i) => {
+    allRecords.push({ type: 'awake', time: iso, label: '覚醒', data: { index: i } });
+  });
   
   // 瞑想記録
   const sessions = Array.isArray(rec.sessions) ? rec.sessions : [];
@@ -969,7 +979,7 @@ function renderAllRecordsTimeline(){
         <button data-ex-edit="${record.data.index}">✏</button>
         <button data-ex-del="${record.data.index}">✕</button>
       </div>`;
-    } else if((record.type === 'wake' || record.type === 'sleep') && record.data){
+    } else if((record.type === 'wake' || record.type === 'awake' || record.type === 'sleep') && record.data){
       const kind = record.type;
       buttons = `<div style="display:flex;gap:6px">
         <button data-${kind}-edit="${record.data.index}">✏</button>
@@ -1070,8 +1080,8 @@ function renderAllRecordsTimeline(){
     });
   });
   
-  // 起床・就寝 個別編集・削除リスナー
-  ['wake','sleep'].forEach(kind=>{
+  // 起床・覚醒・就寝 個別編集・削除リスナー
+  ['wake','awake','sleep'].forEach(kind=>{
     wrap.querySelectorAll(`button[data-${kind}-edit]`).forEach(b=>{
       b.addEventListener('click', (ev)=>{
         try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
