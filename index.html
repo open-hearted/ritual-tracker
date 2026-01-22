@@ -80,9 +80,13 @@
     line-height:1;
   }
   #closeEditor:hover{ filter:brightness(1.05); }
+
+  /* Auth gate: ログイン前は内容を一切見せない */
+  body:not([data-auth="true"]) #medEditor{ display:none !important; }
+  body:not([data-auth="true"]) #openMonthly{ display:none !important; }
   </style>
 </head>
-<body data-page="daily">
+<body data-page="daily" data-auth="false">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>

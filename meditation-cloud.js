@@ -183,10 +183,26 @@ function updateUiForAuth(isAuth){
   const calCard = document.querySelector('.card.cal-card');
   const gsi = $('gsiButtonContainer');
   const so = $('signOutBtn');
+  const ed = $('medEditor');
+  const openMonthly = $('openMonthly');
   // Ensure page-level auth state is reflected so CSS can hide/show elements reliably
   try{ document.body.setAttribute('data-auth', isAuth ? 'true' : 'false'); }catch(e){}
-  if(!isAuth){ if(calCard) calCard.style.display='none'; if(gsi) gsi.style.display='block'; if(so) so.style.display='none'; }
-  else { if(calCard) calCard.style.display=''; if(gsi) gsi.style.display='none'; if(so) so.style.display='inline-block'; }
+  if(!isAuth){
+    if(calCard) calCard.style.display='none';
+    if(openMonthly) openMonthly.style.display='none';
+    // Daily page shows the editor inline; ensure it stays hidden when signed out.
+    if(ed && isDailyPage()) ed.style.display='none';
+    if(gsi) gsi.style.display='block';
+    if(so) so.style.display='none';
+  }
+  else {
+    if(calCard) calCard.style.display='';
+    if(openMonthly) openMonthly.style.display='';
+    // Clear inline style so page CSS can take over.
+    if(ed && isDailyPage()) ed.style.display='';
+    if(gsi) gsi.style.display='none';
+    if(so) so.style.display='inline-block';
+  }
 }
 
 

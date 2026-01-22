@@ -56,13 +56,16 @@
     /* Hide month controls when not authenticated */
     body:not([data-auth="true"]) #monthlyControls { display:none !important; }
 
+    /* Auth gate: ログイン前はナビゲーションも隠す */
+    body:not([data-auth="true"]) #openDaily { display:none !important; }
+
     /* Make top bar controls compact */
     #monthlyControls{ display:flex; align-items:center; gap:8px; }
     #monthlyControls #monthLabel{ font-weight:700; min-width: 8ch; text-align:center; }
     #monthlyControls button{ padding:4px 8px; }
   </style>
 </head>
-<body data-page="monthly">
+<body data-page="monthly" data-auth="false">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
@@ -73,7 +76,7 @@
       <button id="nextBtn" type="button">▶</button>
       <button id="todayBtn" type="button">今日</button>
     </div>
-    <a href="index.html" style="opacity:0.9">当日</a>
+    <a id="openDaily" href="index.html" style="opacity:0.9">当日</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
