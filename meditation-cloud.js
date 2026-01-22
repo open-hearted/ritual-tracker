@@ -6,6 +6,80 @@ const STORAGE_KEY = 'med_cloud_google_auth_v1';
 const TOKEN_TTL_MS = 24*60*60*1000;
 const AUTH_EXP_SKEW_MS = 30*1000;
 
+function getPageMode(){
+  try{ return (document.body && document.body.getAttribute('data-page')) || ''; }catch(e){ return ''; }
+}
+function isDailyPage(){ return getPageMode() === 'daily'; }
+function isMonthlyPage(){ return getPageMode() === 'monthly'; }
+
+function isValidDateKey(s){
+  if(!s) return false;
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(s));
+}
+
+function todayDateKey(){
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+function setStateMonthFromDateKey(dateKey){
+  if(!isValidDateKey(dateKey)) return;
+  const m = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m) return;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10) - 1;
+  if(!Number.isFinite(y) || !Number.isFinite(mo) || mo < 0 || mo > 11) return;
+  STATE.year = y;
+  STATE.month = mo;
+}
+
+function getQueryDateKey(){
+  try{
+    const sp = new URLSearchParams(location.search || '');
+    const d = sp.get('date');
+    return isValidDateKey(d) ? d : null;
+  }catch(e){
+    return null;
+  }
+}
+
+function updateMonthlyLink(dateKey){
+  try{
+    const a = $('openMonthly');
+    if(!a) return;
+    const dk = isValidDateKey(dateKey) ? dateKey : todayDateKey();
+    a.setAttribute('href', `monthly.html?date=${encodeURIComponent(dk)}`);
+  }catch(e){}
+}
+
+function maybeOpenInitialDate(){
+  try{
+    if(!idToken) return;
+    const q = getQueryDateKey();
+    if(isMonthlyPage() && q){
+      setStateMonthFromDateKey(q);
+      try{ renderCalendar(); }catch(e){}
+      // Monthly page should start with the modal closed.
+      try{ closeEditor(); }catch(e){}
+      // If a date is provided, just bring that cell into view (no modal open).
+      try{
+        setTimeout(()=>{
+          const el = document.querySelector(`.cell[data-date="${q}"]`);
+          if(el) el.scrollIntoView({ block:'center' });
+        }, 60);
+      }catch(e){}
+      return;
+    }
+    if(isDailyPage()){
+      const t = todayDateKey();
+      setStateMonthFromDateKey(t);
+      updateMonthlyLink(t);
+      openEditorFor(t, { skipLoad: true });
+      return;
+    }
+  }catch(e){}
+}
+
 function nowISO(){ return new Date().toISOString(); }
 
 function parseJwtPayload(token){
@@ -79,7 +153,7 @@ function handleCred(resp){
     userProfile = { email:p.email, name:p.name };
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ idToken, userProfile, ts: Date.now() })); }catch{}
     updateUiForAuth(true);
-    med_loadAll();
+    med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
   }
 }
 
@@ -96,7 +170,7 @@ function tryRestore(){
         const parsed = parseJwtPayload(idToken);
         userProfile = parsed? { email: parsed.email, name: parsed.name } : rec.userProfile;
         updateUiForAuth(true);
-        med_loadAll();
+        med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
         return true;
       }
     }
@@ -118,7 +192,12 @@ function updateUiForAuth(isAuth){
 
 function setMsg(s){ const m=$('msg'); if(m) m.textContent = s||''; }
 
-function renderDOW(){ const row = $('dowRow'); row.innerHTML=''; ['月','火','水','木','金','土','日'].forEach(n=>{ const d=document.createElement('div'); d.className='dow'; d.textContent=n; row.appendChild(d); }); }
+function renderDOW(){
+  const row = $('dowRow');
+  if(!row) return;
+  row.innerHTML='';
+  ['月','火','水','木','金','土','日'].forEach(n=>{ const d=document.createElement('div'); d.className='dow'; d.textContent=n; row.appendChild(d); });
+}
 function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
 function getDateKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
 function getMonthKey(){ return `${STATE.year}-${String(STATE.month+1).padStart(2,'0')}`; }
@@ -238,33 +317,35 @@ function getShiftForDateKey(dateKey){
 
 function renderCalendar(){ const grid=$('calGrid'); grid.innerHTML=''; $('monthLabel').textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; if(sess.length || ex.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=> openEditorFor(dk)); grid.appendChild(btn); } }
 
-function openEditorFor(dateKey){
+function openEditorFor(dateKey, opts){
   STATE.selected = dateKey;
   const ed = $('medEditor');
   $('editDate').textContent = dateKey;
+  updateMonthlyLink(dateKey);
+
+  const paint = ()=>{
+    const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
+    const rec = monthObj[dateKey] || {};
+    try{ const diary = rec.diary?.text || ''; const txt = $('medDiaryText'); if(txt) txt.value = diary; }catch(e){}
+    renderMedSessionList();
+    renderWakeSleep();
+    renderExerciseList();
+    renderAllRecordsTimeline();
+    if(ed) ed.style.display='block';
+  };
+
+  if(opts && opts.skipLoad){
+    paint();
+    return;
+  }
+
   // fetch latest payload from server before opening editor
   med_loadAll().then((ok)=>{
     if(ok === false || !idToken) return;
-    const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
-    const rec = monthObj[dateKey] || {};
-    // populate diary and session list
-    try{ const diary = rec.diary?.text || ''; const txt = $('medDiaryText'); if(txt) txt.value = diary; }catch(e){}
-    renderMedSessionList();
-    renderWakeSleep();
-    renderExerciseList();
-    renderAllRecordsTimeline(); // 統一表示
-    ed.style.display='block';
+    paint();
   }).catch(()=>{
     if(!idToken) return;
-    // fallback to local payload if GET fails
-    const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
-    const rec = monthObj[dateKey] || {};
-    try{ const diary = rec.diary?.text || ''; const txt = $('medDiaryText'); if(txt) txt.value = diary; }catch(e){}
-    renderMedSessionList();
-    renderWakeSleep();
-    renderExerciseList();
-    renderAllRecordsTimeline(); // 統一表示
-    ed.style.display='block';
+    paint();
   });
 }
 
@@ -423,10 +504,14 @@ function attachHandlers(){
     calGrid.addEventListener('pointermove', ()=>{ try{ clearLongPress(); }catch(e){} }, true);
   }
 
-  $('prevBtn').addEventListener('click', ()=>{ STATE.month--; if(STATE.month<0){ STATE.month=11; STATE.year--; } renderCalendar(); });
-  $('nextBtn').addEventListener('click', ()=>{ STATE.month++; if(STATE.month>11){ STATE.month=0; STATE.year++; } renderCalendar(); });
-  $('todayBtn').addEventListener('click', ()=>{ const n=new Date(); STATE.year=n.getFullYear(); STATE.month=n.getMonth(); renderCalendar(); setTimeout(()=>{ const key = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; const el = document.querySelector(`.cell[data-date="${key}"]`); if(el){ el.click(); el.scrollIntoView({block:'nearest'}); } },50); });
-  $('closeEditor').addEventListener('click', closeEditor);
+  const prevBtn = $('prevBtn');
+  if(prevBtn) prevBtn.addEventListener('click', ()=>{ STATE.month--; if(STATE.month<0){ STATE.month=11; STATE.year--; } renderCalendar(); });
+  const nextBtn = $('nextBtn');
+  if(nextBtn) nextBtn.addEventListener('click', ()=>{ STATE.month++; if(STATE.month>11){ STATE.month=0; STATE.year++; } renderCalendar(); });
+  const todayBtn = $('todayBtn');
+  if(todayBtn) todayBtn.addEventListener('click', ()=>{ const n=new Date(); STATE.year=n.getFullYear(); STATE.month=n.getMonth(); renderCalendar(); setTimeout(()=>{ const key = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; const el = document.querySelector(`.cell[data-date="${key}"]`); if(el){ el.click(); el.scrollIntoView({block:'nearest'}); } },50); });
+  const closeBtn = $('closeEditor');
+  if(closeBtn) closeBtn.addEventListener('click', closeEditor);
   const _saveBtn = $('saveEditor');
   if(_saveBtn){
     _saveBtn.addEventListener('click', ()=>{
@@ -449,9 +534,8 @@ function attachHandlers(){
     });
   }
 
-  $('signOutBtn').addEventListener('click', ()=>{
-    forceSignOut('サインアウト');
-  });
+  const signOutBtn = $('signOutBtn');
+  if(signOutBtn) signOutBtn.addEventListener('click', ()=>{ forceSignOut('サインアウト'); });
 
   // 日記に現在時刻を挿入するボタン
   const insertTimeBtn = $('insertTimeBtn');
@@ -478,9 +562,27 @@ function attachHandlers(){
       }catch(e){ console.warn('insertTimeBtn handler error', e); }
     });
   }
+
+  // Daily page: clicking the date opens monthly view in a new tab
+  const editDate = $('editDate');
+  if(editDate && isDailyPage()){
+    try{ editDate.style.cursor = 'pointer'; editDate.title = '月間を新しいタブで開く'; }catch(e){}
+    editDate.addEventListener('click', (ev)=>{
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+      const dk = STATE.selected || todayDateKey();
+      try{ window.open(`monthly.html?date=${encodeURIComponent(dk)}`, '_blank', 'noopener,noreferrer'); }catch(e){}
+    });
+  }
 }
 
-window.addEventListener('load', ()=>{ renderDOW(); renderCalendar(); attachHandlers(); tryRestore(); initGSI(); });
+window.addEventListener('load', ()=>{
+  try{ renderDOW(); }catch(e){}
+  try{ renderCalendar(); }catch(e){}
+  try{ attachHandlers(); }catch(e){}
+  try{ updateMonthlyLink(todayDateKey()); }catch(e){}
+  tryRestore();
+  initGSI();
+});
 
 // Override renderCalendar to show compact markers in calendar cells:
 // P = プランク, 🪑 = 空気椅子, 瞑## = 瞑想合計分, 📝 = 日記
@@ -692,15 +794,17 @@ function renderWakeSleep(){
   const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
   // wake/sleep are arrays of ISO timestamps for multiple records
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
+  const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
   const sleepArr = Array.isArray(rec.sleep) ? rec.sleep : [];
   const wEl = $('wakeTime'); const sEl = $('sleepTime');
   const latestWake = wakeArr.length ? wakeArr[wakeArr.length-1] : '';
+  const latestAwake = awakeArr.length ? awakeArr[awakeArr.length-1] : '';
   const latestSleep = sleepArr.length ? sleepArr[sleepArr.length-1] : '';
   if(wEl) wEl.textContent = formatTimeShort(latestWake);
   if(sEl) sEl.textContent = formatTimeShort(latestSleep);
 
-  // attach handlers for top buttons (起床 / 就寝)
-  ['wake','sleep'].forEach(kind=>{
+  // attach handlers for top buttons (起床 / 覚醒 / 就寝)
+  ['wake','awake','sleep'].forEach(kind=>{
     const buttons = document.querySelectorAll(`button[data-kind="${kind}"]`);
     buttons.forEach(b=>{ b.removeEventListener('click', timeBtnHandler); b.addEventListener('click', timeBtnHandler); });
   });
@@ -716,9 +820,11 @@ function setTimeNow(kind){
   const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
   // ensure arrays exist
   rec.wake = Array.isArray(rec.wake) ? rec.wake : [];
+  rec.awake = Array.isArray(rec.awake) ? rec.awake : [];
   rec.sleep = Array.isArray(rec.sleep) ? rec.sleep : [];
   const iso = new Date().toISOString();
   if(kind === 'wake') rec.wake.push(iso);
+  else if(kind === 'awake') rec.awake.push(iso);
   else if(kind === 'sleep') rec.sleep.push(iso);
   const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec;
   renderWakeSleep(); renderAllRecordsTimeline(); med_saveAll();
@@ -799,6 +905,12 @@ function renderAllRecordsTimeline(){
   wakeArr.forEach((iso, i) => {
     allRecords.push({ type: 'wake', time: iso, label: '起床', data: { index: i } });
   });
+
+  // 覚醒記録 (複数対応)
+  const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
+  awakeArr.forEach((iso, i) => {
+    allRecords.push({ type: 'awake', time: iso, label: '覚醒', data: { index: i } });
+  });
   
   // 瞑想記録
   const sessions = Array.isArray(rec.sessions) ? rec.sessions : [];
@@ -867,7 +979,7 @@ function renderAllRecordsTimeline(){
         <button data-ex-edit="${record.data.index}">✏</button>
         <button data-ex-del="${record.data.index}">✕</button>
       </div>`;
-    } else if((record.type === 'wake' || record.type === 'sleep') && record.data){
+    } else if((record.type === 'wake' || record.type === 'awake' || record.type === 'sleep') && record.data){
       const kind = record.type;
       buttons = `<div style="display:flex;gap:6px">
         <button data-${kind}-edit="${record.data.index}">✏</button>
@@ -968,8 +1080,8 @@ function renderAllRecordsTimeline(){
     });
   });
   
-  // 起床・就寝 個別編集・削除リスナー
-  ['wake','sleep'].forEach(kind=>{
+  // 起床・覚醒・就寝 個別編集・削除リスナー
+  ['wake','awake','sleep'].forEach(kind=>{
     wrap.querySelectorAll(`button[data-${kind}-edit]`).forEach(b=>{
       b.addEventListener('click', (ev)=>{
         try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}

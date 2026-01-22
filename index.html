@@ -3,21 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Ritual Tracker</title>
+  <title>リファクタ（当日）</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="style-overrides-meditation.css">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script defer src="schedule.js"></script>
   <script defer src="meditation-cloud.js"></script>
   <style>
-    .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-    .cell{padding:10px;border-radius:8px;background:#f3f4f6;border:1px solid #e5e7eb}
-    .cell[data-has]{ background:#d1fae5 }
-    .cell.today{ border:2px solid #ef4444; box-sizing:border-box }
-    .cell .markers{ display:block; margin-top:4px; color: #111; }
-    .cal-mark{ display:inline-block; margin-right:6px; font-size:0.9em; line-height:1; }
-  #medEditor{ position:fixed; z-index:2000; left:50%; top:50%; transform:translate(-50%,-50%); background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:min(92vw,420px); display:none; max-height:92vh; overflow:auto; -webkit-overflow-scrolling:touch; }
+  /* 今日ページはモーダルUIをそのまま通常表示にする（画面幅いっぱい） */
+  #medEditor{ position:static; z-index:auto; left:auto; top:auto; transform:none; background:var(--card,#0b1220); color:#e2e8f0; padding:18px; border-radius:12px; width:100%; max-width:none; display:block; max-height:none; overflow:visible; }
   #medEditor textarea{ width:100%; min-height:100px }
+
+  /* 当日: 左=タイムライン / 右=入力 で見やすく */
+  body[data-page="daily"] #dailySplit{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:14px;
+    align-items:start;
+  }
+  body[data-page="daily"] #dailyTimelineCol{
+    min-width:0;
+  }
+  body[data-page="daily"] #dailyInputCol{
+    min-width:0;
+  }
+  body[data-page="daily"] .panel-title{
+    font-weight:700;
+    opacity:0.95;
+    margin: 4px 0 8px;
+  }
+  body[data-page="daily"] .panel-box{
+    border:1px solid rgba(255,255,255,0.10);
+    border-radius:10px;
+    padding:12px;
+    background: rgba(255,255,255,0.02);
+  }
+  @media (max-width: 860px){
+    body[data-page="daily"] #medEditor{ width:100%; }
+    body[data-page="daily"] #dailySplit{ grid-template-columns: 1fr; }
+  }
+
   /* responsive free record row: ensure add button stays visible on small screens */
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
@@ -46,57 +71,51 @@
   }
   #closeEditor:hover{ filter:brightness(1.05); }
   </style>
-  <style>
-    /* Ensure calendar is hidden when not authenticated (covers PC cases) */
-    body:not([data-auth="true"]) .card.cal-card { display: none !important; }
-  </style>
 </head>
-<body>
+<body data-page="daily">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
+    <a id="openMonthly" href="monthly.html" target="_blank" rel="noreferrer">月間</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
   <div class="container compact" style="padding:12px">
-  <div class="card cal-card" style="display:none !important">
-      <div class="grid" id="dowRow"></div>
-      <div class="grid" id="calGrid" aria-live="polite"></div>
-      <div class="cal-head" style="margin-top:10px;display:flex;align-items:center;gap:8px">
-        <button id="prevBtn">◀</button>
-        <div id="monthLabel" style="font-weight:700"></div>
-        <button id="nextBtn">▶</button>
-        <button id="todayBtn">今日</button>
-      </div>
-    </div>
-  </div>
-
   <div id="medEditor">
     <div id="editSection" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <strong id="editDate" style="margin-right:8px;">-</strong>
       <div style="display:flex;gap:8px;align-items:center;flex:1;justify-content:center">
         <button data-action="record" data-kind="wake" class="time-btn" style="padding:6px 10px;border-radius:6px">起床</button>
+        <button data-action="record" data-kind="awake" class="time-btn" style="padding:6px 10px;border-radius:6px">覚醒</button>
         <button data-action="record" data-kind="sleep" class="time-btn" style="padding:6px 10px;border-radius:6px">就寝</button>
       </div>
-      <button id="closeEditor" type="button" aria-label="閉じる">閉じる</button>
+      <button id="closeEditor" type="button" aria-label="閉じる" style="display:none">閉じる</button>
     </div>
     
     <!-- （重複していた下部の起床/就寝ボタンはヘッダに統合済みのため削除） -->
 
-    <!-- 時刻順統一表示エリア（起床・就寝の表示と編集機能を含む） -->
-    <div id="allRecordsTimeline" style="margin-bottom:8px;"></div>
-    
-    <!-- 従来の個別表示エリア（非表示） -->
-    <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
-    <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
-      <div style="margin-bottom:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <label>日記</label>
-          <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
-        </div>
-        <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+    <div id="dailySplit">
+      <div id="dailyTimelineCol" class="panel-box">
+        <div class="panel-title">タイムライン</div>
+        <!-- 時刻順統一表示エリア（起床・就寝の表示と編集機能を含む） -->
+        <div id="allRecordsTimeline"></div>
       </div>
+
+      <div id="dailyInputCol" class="panel-box">
+        <div class="panel-title">入力</div>
+
+        <!-- 従来の個別表示エリア（非表示） -->
+        <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
+        <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
+
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <label>日記</label>
+            <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+          </div>
+          <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+        </div>
       <!-- 自由入力: 他の記録と同じフォーマットで追加できる1行欄 -->
       <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
     <strong style="width:56px;opacity:0.9">韓国語</strong>
@@ -143,14 +162,8 @@
     <!-- ポーズ時に表示するクリア（破棄）ボタン -->
     <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
   </div>
-      
+      </div>
     </div>
-
-    <script>
-      // small helper to open editor when clicking outside JS-created overlay
-      document.addEventListener('click', e=>{
-        const ed = document.getElementById('medEditor'); if(!ed) return; if(ed.style.display==='block' && !ed.contains(e.target) && !e.target.classList.contains('cell')){ try{ if(typeof closeEditor === 'function') closeEditor(); else ed.style.display='none'; }catch{ ed.style.display='none'; } }
-      });
-    </script>
+  </div>
   </body>
   </html>
