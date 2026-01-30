@@ -1207,9 +1207,13 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   
   // wall
   const wStart = $('wallStart'); if(wStart) wStart.addEventListener('click', (ev)=>{ const btn = ev.currentTarget; if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(btn); return; } startExerciseTimer('wall'); });
+
+  // cleanup (5 minutes)
+  const cStart = $('cleanupStart'); if(cStart) cStart.addEventListener('click', (ev)=>{ const btn = ev.currentTarget; if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(btn); return; } startExerciseTimer('cleanup'); });
   // initialize displays/buttons
   setExerciseButtons('plank', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('plank');
   setExerciseButtons('wall', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('wall');
+  setExerciseButtons('cleanup', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('cleanup');
   // render existing exercises when editor opens
   renderExerciseList();
   // wire free add button
@@ -1224,18 +1228,27 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   attachNoCredentialBehavior(freeText);
 }); }catch(e){}
 
-// ===== Exercise timers (プランク / 空気椅子) =====
+// ===== Exercise timers (プランク / 空気椅子 / 片付け) =====
 const exerciseTimers = {
-  plank: { id:null, running:false, endAt:0, remaining:0, startedAt:null },
-  wall: { id:null, running:false, endAt:0, remaining:0, startedAt:null }
+  plank: { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' },
+  wall: { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' },
+  cleanup: { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' }
 };
+
+const EXERCISE_CFG = {
+  plank: { prefix: 'plank', label: 'プランク', sec: ()=> Math.max(1, Math.floor(Number($('plankSec')?.value)||0)) },
+  wall: { prefix: 'wall', label: '空気椅子', sec: ()=> Math.max(1, Math.floor(Number($('wallSec')?.value)||0)) },
+  cleanup: { prefix: 'cleanup', label: '片付け', sec: ()=> 5*60, noteId: 'cleanupText' }
+};
+
+function getExerciseCfg(key){ return EXERCISE_CFG[key] || null; }
 
 function fmtTimeMS(ms){ const s = Math.ceil(ms/1000); const m = Math.floor(s/60); const ss = String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
 
-function updateExerciseDisplay(key){ const t = exerciseTimers[key]; const disp = $(key === 'plank' ? 'plankDisplay' : 'wallDisplay'); if(!disp) return; if(t.running){ disp.textContent = fmtTimeMS(Math.max(0, t.endAt - Date.now())); } else { disp.textContent = t.remaining ? fmtTimeMS(t.remaining) : '--:--'; } }
+function updateExerciseDisplay(key){ const t = exerciseTimers[key]; const cfg = getExerciseCfg(key); if(!t || !cfg) return; const disp = $(cfg.prefix + 'Display'); if(!disp) return; if(t.running){ disp.textContent = fmtTimeMS(Math.max(0, t.endAt - Date.now())); } else { disp.textContent = t.remaining ? fmtTimeMS(t.remaining) : '--:--'; } }
 
 function setExerciseButtons(key, {start,pause,resume,cancel}){
-  const prefix = key === 'plank' ? 'plank' : 'wall';
+  const cfg = getExerciseCfg(key); if(!cfg) return; const prefix = cfg.prefix;
   const bS = $(prefix+'Start'); if(bS) bS.disabled = !start;
   const bP = $(prefix+'Pause'); if(bP) bP.disabled = !pause;
   const bR = $(prefix+'Resume'); if(bR) bR.disabled = !resume;
@@ -1243,25 +1256,33 @@ function setExerciseButtons(key, {start,pause,resume,cancel}){
 }
 
 function startExerciseTimer(key){
-  const prefix = key === 'plank' ? 'plank' : 'wall';
-  const input = $(prefix+'Sec'); if(!input) return; const sec = Math.max(1, Math.floor(Number(input.value)||0));
-  const t = exerciseTimers[key]; t.startedAt = new Date().toISOString(); t.remaining = sec*1000; t.endAt = Date.now() + t.remaining; t.running = true;
+  const cfg = getExerciseCfg(key); if(!cfg) return;
+  const sec = Number(cfg.sec?.()) || 0;
+  if(sec <= 0) return;
+  const t = exerciseTimers[key];
+  const note = cfg.noteId ? (String($(cfg.noteId)?.value || '').trim()) : '';
+  t.label = cfg.label + (note ? `：${note}` : '');
+  t.totalSeconds = sec;
+  t.startedAt = new Date().toISOString();
+  t.remaining = sec*1000;
+  t.endAt = Date.now() + t.remaining;
+  t.running = true;
   setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); updateExerciseDisplay(key);
   if(t.id) clearInterval(t.id);
   t.id = setInterval(()=>{
   const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id = null; t.running=false; t.remaining=0; updateExerciseDisplay(key); // record on completion
-    addExerciseWithStart(sec, key === 'plank' ? 'プランク' : '空気椅子', t.startedAt);
+    addExerciseWithStart(t.totalSeconds || sec, t.label || cfg.label, t.startedAt);
     // play alarm and make the start button act as 消音
-    const startBtn = $(prefix+'Start'); startAlarm(startBtn); if(startBtn) setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false});
+    const startBtn = $(cfg.prefix+'Start'); startAlarm(startBtn); if(startBtn) setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false});
     } else updateExerciseDisplay(key);
   }, 200);
 }
 
 function pauseExerciseTimer(key){ const t = exerciseTimers[key]; if(!t.running) return; t.running=false; t.remaining = Math.max(0, t.endAt - Date.now()); if(t.id) clearInterval(t.id); t.id = null; setExerciseButtons(key, {start:false,pause:false,resume:true,cancel:true}); updateExerciseDisplay(key); }
 
-function resumeExerciseTimer(key){ const t = exerciseTimers[key]; if(t.running || !t.remaining) return; t.running = true; t.endAt = Date.now() + t.remaining; setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); if(t.id) clearInterval(t.id); t.id = setInterval(()=>{ const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id=null; t.running=false; t.remaining=0; updateExerciseDisplay(key); addExerciseWithStart(Math.round((Number($(key==='plank'?'plankSec':'wallSec').value)||1)), key==='plank'?'プランク':'空気椅子', t.startedAt); setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); } else updateExerciseDisplay(key); },200); }
+function resumeExerciseTimer(key){ const t = exerciseTimers[key]; const cfg = getExerciseCfg(key); if(!t || !cfg) return; if(t.running || !t.remaining) return; t.running = true; t.endAt = Date.now() + t.remaining; setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); if(t.id) clearInterval(t.id); t.id = setInterval(()=>{ const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id=null; t.running=false; t.remaining=0; updateExerciseDisplay(key); addExerciseWithStart(t.totalSeconds || Number(cfg.sec?.()) || 0, t.label || cfg.label, t.startedAt); const startBtn = $(cfg.prefix+'Start'); startAlarm(startBtn); setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); } else updateExerciseDisplay(key); },200); }
 
-function cancelExerciseTimer(key){ const t = exerciseTimers[key]; if(t.id) clearInterval(t.id); exerciseTimers[key] = { id:null, running:false, endAt:0, remaining:0, startedAt:null }; setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay(key); }
+function cancelExerciseTimer(key){ const t = exerciseTimers[key]; if(t?.id) clearInterval(t.id); exerciseTimers[key] = { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' }; setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay(key); }
 
 function addExerciseWithStart(seconds, kind, startedAt){ try{ const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); rec.exercise = rec.exercise || { sessions: [], updatedAt: nowISO() };
     const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
