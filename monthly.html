@@ -56,13 +56,16 @@
     /* Hide month controls when not authenticated */
     body:not([data-auth="true"]) #monthlyControls { display:none !important; }
 
+    /* Auth gate: ログイン前はナビゲーションも隠す */
+    body:not([data-auth="true"]) #openDaily { display:none !important; }
+
     /* Make top bar controls compact */
     #monthlyControls{ display:flex; align-items:center; gap:8px; }
     #monthlyControls #monthLabel{ font-weight:700; min-width: 8ch; text-align:center; }
     #monthlyControls button{ padding:4px 8px; }
   </style>
 </head>
-<body data-page="monthly">
+<body data-page="monthly" data-auth="false">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
@@ -73,7 +76,7 @@
       <button id="nextBtn" type="button">▶</button>
       <button id="todayBtn" type="button">今日</button>
     </div>
-    <a href="index.html" style="opacity:0.9">当日</a>
+    <a id="openDaily" href="index.html" style="opacity:0.9">当日</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
@@ -105,6 +108,27 @@
         <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
       </div>
       <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+    </div>
+
+    <div class="finger-exercise" aria-label="指">
+      <div class="finger-title">指</div>
+      <div class="finger-actions">
+        <label class="finger-time" title="タイムスタンプを付ける">
+          <input id="fingerUseTime" type="checkbox" checked />
+          <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+        </label>
+      </div>
+    </div>
+
+    <div id="periodRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <strong style="width:56px;opacity:0.9">生理</strong>
+      <span style="opacity:0.9;white-space:nowrap">n日目</span>
+      <input id="periodDay" type="number" min="1" value="1" style="width:4ch;padding:0 4px;text-align:center" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+        <input id="periodUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="periodAdd">記録</button>
     </div>
 
     <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
@@ -139,6 +163,14 @@
         <input id="wallSec" type="number" min="1" value="30" style="width:4ch;padding:0 4px;text-align:center" /> 秒
         <span id="wallDisplay" style="min-width:48px;text-align:center">--:--</span>
         <button id="wallStart">開始</button>
+      </div>
+
+      <div class="exercise-timer" style="display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+        <strong style="width:56px">片付け</strong>
+        <span style="opacity:0.9;white-space:nowrap">5分</span>
+        <input id="cleanupText" type="text" placeholder="任意（例: キッチン）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+        <span id="cleanupDisplay" style="min-width:48px;text-align:center">--:--</span>
+        <button id="cleanupStart">開始</button>
       </div>
     </div>
 

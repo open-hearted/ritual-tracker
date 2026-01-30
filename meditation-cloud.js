@@ -183,10 +183,26 @@ function updateUiForAuth(isAuth){
   const calCard = document.querySelector('.card.cal-card');
   const gsi = $('gsiButtonContainer');
   const so = $('signOutBtn');
+  const ed = $('medEditor');
+  const openMonthly = $('openMonthly');
   // Ensure page-level auth state is reflected so CSS can hide/show elements reliably
   try{ document.body.setAttribute('data-auth', isAuth ? 'true' : 'false'); }catch(e){}
-  if(!isAuth){ if(calCard) calCard.style.display='none'; if(gsi) gsi.style.display='block'; if(so) so.style.display='none'; }
-  else { if(calCard) calCard.style.display=''; if(gsi) gsi.style.display='none'; if(so) so.style.display='inline-block'; }
+  if(!isAuth){
+    if(calCard) calCard.style.display='none';
+    if(openMonthly) openMonthly.style.display='none';
+    // Daily page shows the editor inline; ensure it stays hidden when signed out.
+    if(ed && isDailyPage()) ed.style.display='none';
+    if(gsi) gsi.style.display='block';
+    if(so) so.style.display='none';
+  }
+  else {
+    if(calCard) calCard.style.display='';
+    if(openMonthly) openMonthly.style.display='';
+    // Clear inline style so page CSS can take over.
+    if(ed && isDailyPage()) ed.style.display='';
+    if(gsi) gsi.style.display='none';
+    if(so) so.style.display='inline-block';
+  }
 }
 
 
@@ -858,6 +874,8 @@ function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
+  const periodDay = Number(session?.periodDay);
+  if(Number.isFinite(periodDay) && periodDay > 0 && (jp === '生理' || jp.includes('生理') || !jp)) return `生理 ${periodDay}日目`;
   if(jp && ko && jp !== ko) return `${jp} ${ko}`;
   if(ko && !jp) return `韓国語 ${ko}`;
   return jp || ko || '';
@@ -1051,13 +1069,26 @@ function renderAllRecordsTimeline(){
       const rec = getDayRecord(dk);
       const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
       const cur = arr[idx]; if(!cur) return;
-  // prompt for new start time (统一プロンプト方式)
+
+  // 生理は「n日目」も編集できるようにする
+  if((cur.type||'') === '生理' || Number.isFinite(Number(cur.periodDay))){
+    const curDay = Number(cur.periodDay) > 0 ? String(Math.floor(Number(cur.periodDay))) : '1';
+    const dayStr = prompt('生理 n日目（1以上）', curDay);
+    if(dayStr === null) return;
+    const day = Math.max(1, Math.floor(Number(dayStr)||0));
+    if(!Number.isFinite(day) || day <= 0){ alert('n日目（1以上）を入力してください'); return; }
+    cur.type = '生理';
+    cur.periodDay = day;
+  }
+
+  // prompt for new start time
   const curVal = cur.startedAt ? new Date(cur.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
   const input = prompt('時刻を HH:MM で入力してください（24時間）', curVal);
   if(input === null) return;
   const iso = parseHHMMToISO(input);
   if(!iso){ alert('HH:MM の形式で入力してください'); return; }
-  arr[idx].startedAt = iso; rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll();
+  arr[idx].startedAt = iso;
+  rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll();
     });
   });
   
@@ -1191,14 +1222,22 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   
   // wall
   const wStart = $('wallStart'); if(wStart) wStart.addEventListener('click', (ev)=>{ const btn = ev.currentTarget; if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(btn); return; } startExerciseTimer('wall'); });
+
+  // cleanup (5 minutes)
+  const cStart = $('cleanupStart'); if(cStart) cStart.addEventListener('click', (ev)=>{ const btn = ev.currentTarget; if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(btn); return; } startExerciseTimer('cleanup'); });
   // initialize displays/buttons
   setExerciseButtons('plank', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('plank');
   setExerciseButtons('wall', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('wall');
+  setExerciseButtons('cleanup', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('cleanup');
   // render existing exercises when editor opens
   renderExerciseList();
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
+
+  // period record (生理 n日目)
+  const periodBtn = $('periodAdd');
+  if(periodBtn) periodBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addPeriodRecord(); });
   // prevent mobile credential UI by randomizing name/autocomplete on focus
   const freeKorean = $('freeKorean');
   const freeText = $('freeText');
@@ -1208,18 +1247,43 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   attachNoCredentialBehavior(freeText);
 }); }catch(e){}
 
-// ===== Exercise timers (プランク / 空気椅子) =====
+function addPeriodRecord(){
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    const dayEl = $('periodDay');
+    const useTimeEl = $('periodUseTime');
+    const day = Math.max(1, Math.floor(Number(dayEl?.value)||0));
+    if(!Number.isFinite(day) || day <= 0){ alert('n日目（1以上）を入力してください'); return; }
+    const useTime = !useTimeEl || !!useTimeEl.checked;
+    const iso = useTime ? new Date().toISOString() : null;
+    addFreeRecordWithOptionalTime({ seconds: 0, label: '生理', korean: '', startedAt: iso, periodDay: day });
+  }catch(e){
+    console.warn('addPeriodRecord failed', e);
+    alert('記録に失敗しました');
+  }
+}
+
+// ===== Exercise timers (プランク / 空気椅子 / 片付け) =====
 const exerciseTimers = {
-  plank: { id:null, running:false, endAt:0, remaining:0, startedAt:null },
-  wall: { id:null, running:false, endAt:0, remaining:0, startedAt:null }
+  plank: { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' },
+  wall: { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' },
+  cleanup: { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' }
 };
+
+const EXERCISE_CFG = {
+  plank: { prefix: 'plank', label: 'プランク', sec: ()=> Math.max(1, Math.floor(Number($('plankSec')?.value)||0)) },
+  wall: { prefix: 'wall', label: '空気椅子', sec: ()=> Math.max(1, Math.floor(Number($('wallSec')?.value)||0)) },
+  cleanup: { prefix: 'cleanup', label: '片付け', sec: ()=> 5*60, noteId: 'cleanupText' }
+};
+
+function getExerciseCfg(key){ return EXERCISE_CFG[key] || null; }
 
 function fmtTimeMS(ms){ const s = Math.ceil(ms/1000); const m = Math.floor(s/60); const ss = String(s%60).padStart(2,'0'); return `${m}:${ss}`; }
 
-function updateExerciseDisplay(key){ const t = exerciseTimers[key]; const disp = $(key === 'plank' ? 'plankDisplay' : 'wallDisplay'); if(!disp) return; if(t.running){ disp.textContent = fmtTimeMS(Math.max(0, t.endAt - Date.now())); } else { disp.textContent = t.remaining ? fmtTimeMS(t.remaining) : '--:--'; } }
+function updateExerciseDisplay(key){ const t = exerciseTimers[key]; const cfg = getExerciseCfg(key); if(!t || !cfg) return; const disp = $(cfg.prefix + 'Display'); if(!disp) return; if(t.running){ disp.textContent = fmtTimeMS(Math.max(0, t.endAt - Date.now())); } else { disp.textContent = t.remaining ? fmtTimeMS(t.remaining) : '--:--'; } }
 
 function setExerciseButtons(key, {start,pause,resume,cancel}){
-  const prefix = key === 'plank' ? 'plank' : 'wall';
+  const cfg = getExerciseCfg(key); if(!cfg) return; const prefix = cfg.prefix;
   const bS = $(prefix+'Start'); if(bS) bS.disabled = !start;
   const bP = $(prefix+'Pause'); if(bP) bP.disabled = !pause;
   const bR = $(prefix+'Resume'); if(bR) bR.disabled = !resume;
@@ -1227,25 +1291,33 @@ function setExerciseButtons(key, {start,pause,resume,cancel}){
 }
 
 function startExerciseTimer(key){
-  const prefix = key === 'plank' ? 'plank' : 'wall';
-  const input = $(prefix+'Sec'); if(!input) return; const sec = Math.max(1, Math.floor(Number(input.value)||0));
-  const t = exerciseTimers[key]; t.startedAt = new Date().toISOString(); t.remaining = sec*1000; t.endAt = Date.now() + t.remaining; t.running = true;
+  const cfg = getExerciseCfg(key); if(!cfg) return;
+  const sec = Number(cfg.sec?.()) || 0;
+  if(sec <= 0) return;
+  const t = exerciseTimers[key];
+  const note = cfg.noteId ? (String($(cfg.noteId)?.value || '').trim()) : '';
+  t.label = cfg.label + (note ? `：${note}` : '');
+  t.totalSeconds = sec;
+  t.startedAt = new Date().toISOString();
+  t.remaining = sec*1000;
+  t.endAt = Date.now() + t.remaining;
+  t.running = true;
   setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); updateExerciseDisplay(key);
   if(t.id) clearInterval(t.id);
   t.id = setInterval(()=>{
   const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id = null; t.running=false; t.remaining=0; updateExerciseDisplay(key); // record on completion
-    addExerciseWithStart(sec, key === 'plank' ? 'プランク' : '空気椅子', t.startedAt);
+    addExerciseWithStart(t.totalSeconds || sec, t.label || cfg.label, t.startedAt);
     // play alarm and make the start button act as 消音
-    const startBtn = $(prefix+'Start'); startAlarm(startBtn); if(startBtn) setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false});
+    const startBtn = $(cfg.prefix+'Start'); startAlarm(startBtn); if(startBtn) setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false});
     } else updateExerciseDisplay(key);
   }, 200);
 }
 
 function pauseExerciseTimer(key){ const t = exerciseTimers[key]; if(!t.running) return; t.running=false; t.remaining = Math.max(0, t.endAt - Date.now()); if(t.id) clearInterval(t.id); t.id = null; setExerciseButtons(key, {start:false,pause:false,resume:true,cancel:true}); updateExerciseDisplay(key); }
 
-function resumeExerciseTimer(key){ const t = exerciseTimers[key]; if(t.running || !t.remaining) return; t.running = true; t.endAt = Date.now() + t.remaining; setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); if(t.id) clearInterval(t.id); t.id = setInterval(()=>{ const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id=null; t.running=false; t.remaining=0; updateExerciseDisplay(key); addExerciseWithStart(Math.round((Number($(key==='plank'?'plankSec':'wallSec').value)||1)), key==='plank'?'プランク':'空気椅子', t.startedAt); setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); } else updateExerciseDisplay(key); },200); }
+function resumeExerciseTimer(key){ const t = exerciseTimers[key]; const cfg = getExerciseCfg(key); if(!t || !cfg) return; if(t.running || !t.remaining) return; t.running = true; t.endAt = Date.now() + t.remaining; setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); if(t.id) clearInterval(t.id); t.id = setInterval(()=>{ const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id=null; t.running=false; t.remaining=0; updateExerciseDisplay(key); addExerciseWithStart(t.totalSeconds || Number(cfg.sec?.()) || 0, t.label || cfg.label, t.startedAt); const startBtn = $(cfg.prefix+'Start'); startAlarm(startBtn); setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); } else updateExerciseDisplay(key); },200); }
 
-function cancelExerciseTimer(key){ const t = exerciseTimers[key]; if(t.id) clearInterval(t.id); exerciseTimers[key] = { id:null, running:false, endAt:0, remaining:0, startedAt:null }; setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay(key); }
+function cancelExerciseTimer(key){ const t = exerciseTimers[key]; if(t?.id) clearInterval(t.id); exerciseTimers[key] = { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' }; setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay(key); }
 
 function addExerciseWithStart(seconds, kind, startedAt){ try{ const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); rec.exercise = rec.exercise || { sessions: [], updatedAt: nowISO() };
     const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
@@ -1351,7 +1423,7 @@ function addFreeTextRecord(){ try{
   textEl.value = '';
 }catch(e){ console.warn('addFreeTextRecord failed', e); alert('記録に失敗しました'); }}
 
-function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
+function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay }){
   try{
     const dk = STATE.selected;
     if(!dk) return;
@@ -1367,6 +1439,12 @@ function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
       startedAt: startedAt || null,
       completedAt: null
     };
+
+    // optional metadata
+    if(Number.isFinite(Number(periodDay))){
+      item.periodDay = Math.max(1, Math.floor(Number(periodDay)));
+      item.type = '生理';
+    }
 
     sessions.push(item);
     rec.exercise.sessions = sessions;

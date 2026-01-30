@@ -118,6 +118,65 @@ input::placeholder{color:#9fb0ff99}
 
 .notice{font-size:12px;color:#93a2ff}
 
+/* Finger exercise link (YouTube Shorts) */
+.finger-exercise{
+	margin: 10px 0 12px;
+	padding: 8px 10px;
+	border: 1px solid rgba(255,255,255,0.10);
+	border-radius: 10px;
+	background: rgba(255,255,255,0.02);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	flex-wrap: nowrap;
+}
+.finger-exercise .finger-title{
+	font-weight: 700;
+	opacity: 0.95;
+	white-space: nowrap;
+}
+.finger-exercise .finger-actions{
+	display:flex;
+	align-items:center;
+	justify-content:flex-end;
+	gap: 8px;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.finger-exercise .finger-link{
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	text-decoration: none;
+	width: 44px;
+	height: 36px;
+	border-radius: 12px;
+	border: 1px solid rgba(255,255,255,0.12);
+	background: #14224e;
+	color: var(--text);
+	line-height: 1;
+	font-size: 18px;
+	flex: 0 0 auto;
+}
+.finger-exercise .finger-link:hover{ filter: brightness(1.1); }
+.finger-exercise .finger-link:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.finger-exercise .finger-time{
+	display:flex;
+	align-items:center;
+	gap: 6px;
+	user-select:none;
+	white-space:nowrap;
+	opacity: 0.92;
+}
+.finger-exercise .finger-time input{ margin: 0; }
+
+@media (max-width: 520px){
+	.finger-exercise{ padding: 8px 8px; gap: 8px; }
+	.finger-exercise .finger-link{ width: 40px; height: 34px; }
+}
+
 /* Meditation editor overlay */
 #medEditor{position:fixed; z-index:1000; width:210px; background:#132247; border:1px solid rgba(255,255,255,0.18); border-radius:14px; padding:10px 10px 12px; box-shadow:0 10px 28px -4px rgba(0,0,0,0.5); display:none;}
 #medEditor .med-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:600; letter-spacing:.5px}

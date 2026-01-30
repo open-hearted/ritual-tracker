@@ -17,7 +17,8 @@
   /* 当日: 左=タイムライン / 右=入力 で見やすく */
   body[data-page="daily"] #dailySplit{
     display:grid;
-    grid-template-columns: 1fr 1fr;
+    /* Timeline shouldn't be too wide; keep input area roomy */
+    grid-template-columns: clamp(320px, 36vw, 520px) 1fr;
     gap:14px;
     align-items:start;
   }
@@ -40,7 +41,16 @@
   }
   @media (max-width: 860px){
     body[data-page="daily"] #medEditor{ width:100%; }
-    body[data-page="daily"] #dailySplit{ grid-template-columns: 1fr; }
+    /* Mobile: stack and show Input first */
+    body[data-page="daily"] #dailySplit{ display:flex; flex-direction:column; }
+    body[data-page="daily"] #dailyInputCol{ order: 0; }
+    body[data-page="daily"] #dailyTimelineCol{ order: 1; }
+
+    /* Mobile: use full width and remove section titles to save space */
+    body[data-page="daily"] #dailyInputCol,
+    body[data-page="daily"] #dailyTimelineCol{ width:100%; }
+    body[data-page="daily"] .panel-title{ display:none; }
+    body[data-page="daily"] .panel-box{ padding:10px; }
   }
 
   /* responsive free record row: ensure add button stays visible on small screens */
@@ -70,9 +80,13 @@
     line-height:1;
   }
   #closeEditor:hover{ filter:brightness(1.05); }
+
+  /* Auth gate: ログイン前は内容を一切見せない */
+  body:not([data-auth="true"]) #medEditor{ display:none !important; }
+  body:not([data-auth="true"]) #openMonthly{ display:none !important; }
   </style>
 </head>
-<body data-page="daily">
+<body data-page="daily" data-auth="false">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
@@ -116,6 +130,27 @@
           </div>
           <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
         </div>
+
+        <div class="finger-exercise" aria-label="指">
+          <div class="finger-title">指</div>
+          <div class="finger-actions">
+            <label class="finger-time" title="タイムスタンプを付ける">
+              <input id="fingerUseTime" type="checkbox" checked />
+              <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+            </label>
+          </div>
+        </div>
+
+      <div id="periodRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <strong style="width:56px;opacity:0.9">生理</strong>
+        <span style="opacity:0.9;white-space:nowrap">n日目</span>
+        <input id="periodDay" type="number" min="1" value="1" style="width:4ch;padding:0 4px;text-align:center" />
+        <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+          <input id="periodUseTime" type="checkbox" checked />
+          <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+        </label>
+        <button id="periodAdd">記録</button>
+      </div>
       <!-- 自由入力: 他の記録と同じフォーマットで追加できる1行欄 -->
       <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
     <strong style="width:56px;opacity:0.9">韓国語</strong>
@@ -151,6 +186,14 @@
   <input id="wallSec" type="number" min="1" value="30" style="width:4ch;padding:0 4px;text-align:center" /> 秒
           <span id="wallDisplay" style="min-width:48px;text-align:center">--:--</span>
           <button id="wallStart">開始</button>
+        </div>
+
+        <div class="exercise-timer" style="display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+          <strong style="width:56px">片付け</strong>
+          <span style="opacity:0.9;white-space:nowrap">5分</span>
+          <input id="cleanupText" type="text" placeholder="任意（例: キッチン）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+          <span id="cleanupDisplay" style="min-width:48px;text-align:center">--:--</span>
+          <button id="cleanupStart">開始</button>
         </div>
       </div>
       <!-- 追加 / 日クリア ボタンは不要のため削除 -->
