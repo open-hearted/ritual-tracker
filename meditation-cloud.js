@@ -1222,21 +1222,6 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeTextUseTime = $('freeTextUseTime');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
-
-  // finger exercise quick links (record with optional timestamp)
-  const fingerUseTime = $('fingerUseTime');
-  const fingerFist = $('fingerLinkFist');
-  const fingerDino = $('fingerLinkDino');
-  const recordFinger = (label)=>{
-    try{
-      if(!ensureAuthOrSignOut()) return;
-      const useTime = !fingerUseTime || !!fingerUseTime.checked;
-      const iso = useTime ? new Date().toISOString() : null;
-      addFreeRecordWithOptionalTime({ seconds: 0, label, korean: '', startedAt: iso });
-    }catch(e){ console.warn('recordFinger failed', e); }
-  };
-  if(fingerFist) fingerFist.addEventListener('click', ()=> recordFinger('指👊'));
-  if(fingerDino) fingerDino.addEventListener('click', ()=> recordFinger('指🦖'));
 }); }catch(e){}
 
 // ===== Exercise timers (プランク / 空気椅子) =====
