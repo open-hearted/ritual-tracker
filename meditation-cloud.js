@@ -874,6 +874,8 @@ function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
+  const periodDay = Number(session?.periodDay);
+  if(Number.isFinite(periodDay) && periodDay > 0 && (jp === '生理' || jp.includes('生理') || !jp)) return `生理 ${periodDay}日目`;
   if(jp && ko && jp !== ko) return `${jp} ${ko}`;
   if(ko && !jp) return `韓国語 ${ko}`;
   return jp || ko || '';
@@ -1067,13 +1069,26 @@ function renderAllRecordsTimeline(){
       const rec = getDayRecord(dk);
       const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
       const cur = arr[idx]; if(!cur) return;
-  // prompt for new start time (统一プロンプト方式)
+
+  // 生理は「n日目」も編集できるようにする
+  if((cur.type||'') === '生理' || Number.isFinite(Number(cur.periodDay))){
+    const curDay = Number(cur.periodDay) > 0 ? String(Math.floor(Number(cur.periodDay))) : '1';
+    const dayStr = prompt('生理 n日目（1以上）', curDay);
+    if(dayStr === null) return;
+    const day = Math.max(1, Math.floor(Number(dayStr)||0));
+    if(!Number.isFinite(day) || day <= 0){ alert('n日目（1以上）を入力してください'); return; }
+    cur.type = '生理';
+    cur.periodDay = day;
+  }
+
+  // prompt for new start time
   const curVal = cur.startedAt ? new Date(cur.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
   const input = prompt('時刻を HH:MM で入力してください（24時間）', curVal);
   if(input === null) return;
   const iso = parseHHMMToISO(input);
   if(!iso){ alert('HH:MM の形式で入力してください'); return; }
-  arr[idx].startedAt = iso; rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll();
+  arr[idx].startedAt = iso;
+  rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll();
     });
   });
   
@@ -1219,6 +1234,10 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
+
+  // period record (生理 n日目)
+  const periodBtn = $('periodAdd');
+  if(periodBtn) periodBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addPeriodRecord(); });
   // prevent mobile credential UI by randomizing name/autocomplete on focus
   const freeKorean = $('freeKorean');
   const freeText = $('freeText');
@@ -1227,6 +1246,22 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
 }); }catch(e){}
+
+function addPeriodRecord(){
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    const dayEl = $('periodDay');
+    const useTimeEl = $('periodUseTime');
+    const day = Math.max(1, Math.floor(Number(dayEl?.value)||0));
+    if(!Number.isFinite(day) || day <= 0){ alert('n日目（1以上）を入力してください'); return; }
+    const useTime = !useTimeEl || !!useTimeEl.checked;
+    const iso = useTime ? new Date().toISOString() : null;
+    addFreeRecordWithOptionalTime({ seconds: 0, label: '生理', korean: '', startedAt: iso, periodDay: day });
+  }catch(e){
+    console.warn('addPeriodRecord failed', e);
+    alert('記録に失敗しました');
+  }
+}
 
 // ===== Exercise timers (プランク / 空気椅子 / 片付け) =====
 const exerciseTimers = {
@@ -1388,7 +1423,7 @@ function addFreeTextRecord(){ try{
   textEl.value = '';
 }catch(e){ console.warn('addFreeTextRecord failed', e); alert('記録に失敗しました'); }}
 
-function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
+function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay }){
   try{
     const dk = STATE.selected;
     if(!dk) return;
@@ -1404,6 +1439,12 @@ function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt }){
       startedAt: startedAt || null,
       completedAt: null
     };
+
+    // optional metadata
+    if(Number.isFinite(Number(periodDay))){
+      item.periodDay = Math.max(1, Math.floor(Number(periodDay)));
+      item.type = '生理';
+    }
 
     sessions.push(item);
     rec.exercise.sessions = sessions;

@@ -120,6 +120,17 @@
       </div>
     </div>
 
+    <div id="periodRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <strong style="width:56px;opacity:0.9">生理</strong>
+      <span style="opacity:0.9;white-space:nowrap">n日目</span>
+      <input id="periodDay" type="number" min="1" value="1" style="width:4ch;padding:0 4px;text-align:center" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+        <input id="periodUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="periodAdd">記録</button>
+    </div>
+
     <div id="freeRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
       <strong style="width:56px;opacity:0.9">韓国語</strong>
       <input id="freeKorean" name="free_record_korean" type="text" placeholder="内容（例: 아침 요가）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
