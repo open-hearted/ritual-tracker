@@ -688,12 +688,12 @@ renderCalendar = function(){
     // Appointments (single-date events)
     const appts = getAppointmentScheduleMarks(dk);
     const apptMarkers = appts.map(it=>{
-      const icon = (it.icon || '📌').toString();
+      const icon = (it && (it.icon === undefined || it.icon === null)) ? '📌' : (it.icon || '').toString();
       const time = (it.time || '').toString();
       const text = (it.short || it.label || '').toString();
       const safeText = text.replace(/[&<>\"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[s]));
       const timePart = (it.calendarTime && time) ? time.replace(/[^0-9:]/g,'') : '';
-      const textPart = safeText ? (safeText.length<=6 ? safeText : safeText.slice(0,6)+'…') : '';
+      const textPart = safeText || '';
       const showText = textPart && textPart !== icon;
       const label = `${icon}${timePart}${showText ? textPart : ''}`;
       if(it.url){

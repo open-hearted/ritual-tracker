@@ -14,6 +14,16 @@ window.RITUAL_SCHEDULE = {
   // 単発の予定 (YYYY-MM-DD + HH:MM)
   // 例: { date:"2026-01-26", time:"18:30", label:"鍼", icon:"🪡" }
   appointments: [
+    { date: "2025-11-27", time: "19:45", label: "ACG2 3-01", short: "ACG2 3-01", icon: "", calendarTime: false },
+    { date: "2025-12-11", time: "19:45", label: "ACG2 3-02", short: "ACG2 3-02", icon: "", calendarTime: false },
+    { date: "2025-12-25", time: "19:45", label: "ACG2 3-03", short: "ACG2 3-03", icon: "", calendarTime: false },
+    { date: "2026-01-08", time: "19:45", label: "ACG2 3-04", short: "ACG2 3-04", icon: "", calendarTime: false },
+    { date: "2026-01-22", time: "19:45", label: "ACG2 3-05", short: "ACG2 3-05", icon: "", calendarTime: false },
+    { date: "2026-02-12", time: "19:45", label: "ACG2 3-06", short: "ACG2 3-06", icon: "", calendarTime: false },
+    { date: "2026-02-26", time: "19:45", label: "ACG2 3-07", short: "ACG2 3-07", icon: "", calendarTime: false },
+    { date: "2026-03-12", time: "19:45", label: "ACG2 3-08", short: "ACG2 3-08", icon: "", calendarTime: false },
+    { date: "2026-03-26", time: "19:45", label: "ACG2 3-09", short: "ACG2 3-09", icon: "", calendarTime: false },
+    { date: "2026-04-09", time: "19:45", label: "ACG2 3-10", short: "ACG2 3-10", icon: "", calendarTime: false },
     { date: "2026-01-26", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" },
 
     // AC
