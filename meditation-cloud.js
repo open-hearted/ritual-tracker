@@ -1247,6 +1247,7 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
+  const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
 
   // period record (生理 n日目)
   const periodBtn = $('periodAdd');
@@ -1256,8 +1257,10 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeText = $('freeText');
   const freeUseTime = $('freeUseTime');
   const freeTextUseTime = $('freeTextUseTime');
+  const codingText = $('codingText');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
+  attachNoCredentialBehavior(codingText);
 }); }catch(e){}
 
 function addPeriodRecord(){
@@ -1435,6 +1438,27 @@ function addFreeTextRecord(){ try{
 
   textEl.value = '';
 }catch(e){ console.warn('addFreeTextRecord failed', e); alert('記録に失敗しました'); }}
+
+function addCodingRecord(){ try{
+  const textEl = $('codingText');
+  const useTimeEl = $('codingUseTime');
+  if(!textEl) return;
+
+  const text = (textEl.value || '').trim();
+  if(!text){ alert('内容を入力してください'); return; }
+
+  const useTime = !useTimeEl || !!useTimeEl.checked;
+  const iso = useTime ? new Date().toISOString() : null;
+
+  addFreeRecordWithOptionalTime({
+    seconds: 0,
+    label: 'コーディング',
+    korean: text,
+    startedAt: iso
+  });
+
+  textEl.value = '';
+}catch(e){ console.warn('addCodingRecord failed', e); alert('記録に失敗しました'); }}
 
 function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay }){
   try{
