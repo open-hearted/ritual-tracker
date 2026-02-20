@@ -334,6 +334,8 @@ function getShiftForDateKey(dateKey){
 function renderCalendar(){ const grid=$('calGrid'); grid.innerHTML=''; $('monthLabel').textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; if(sess.length || ex.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=> openEditorFor(dk)); grid.appendChild(btn); } }
 
 function openEditorFor(dateKey, opts){
+  // save current editor state before switching dates
+  try{ if(STATE.selected && STATE.selected !== dateKey) autoSaveEditor(); }catch(e){}
   STATE.selected = dateKey;
   const ed = $('medEditor');
   $('editDate').textContent = dateKey;
@@ -364,6 +366,8 @@ function openEditorFor(dateKey, opts){
     paint();
   });
 }
+
+let diaryAutosaveTimer = null;
 
 function autoSaveEditor(){
   try{
@@ -528,6 +532,15 @@ function attachHandlers(){
   if(todayBtn) todayBtn.addEventListener('click', ()=>{ const n=new Date(); STATE.year=n.getFullYear(); STATE.month=n.getMonth(); renderCalendar(); setTimeout(()=>{ const key = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; const el = document.querySelector(`.cell[data-date="${key}"]`); if(el){ el.click(); el.scrollIntoView({block:'nearest'}); } },50); });
   const closeBtn = $('closeEditor');
   if(closeBtn) closeBtn.addEventListener('click', closeEditor);
+
+  // auto-save diary text while typing
+  const diaryEl = $('medDiaryText');
+  if(diaryEl){
+    diaryEl.addEventListener('input', ()=>{
+      try{ if(diaryAutosaveTimer) clearTimeout(diaryAutosaveTimer); }catch(e){}
+      diaryAutosaveTimer = setTimeout(()=>{ try{ autoSaveEditor(); }catch(e){} }, 600);
+    });
+  }
   const _saveBtn = $('saveEditor');
   if(_saveBtn){
     _saveBtn.addEventListener('click', ()=>{
