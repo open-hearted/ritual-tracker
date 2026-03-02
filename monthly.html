@@ -151,6 +151,16 @@
       <button id="freeTextAdd">追加</button>
     </div>
 
+    <div id="accomplishedRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <strong style="width:56px;opacity:0.9">Accomplished</strong>
+      <input id="accomplished" name="accomplished_record_text" type="text" placeholder="内容" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+        <input id="accomplishedUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="accomplishedAdd">追加</button>
+    </div>
+
     <div id="codingRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
       <strong style="width:56px;opacity:0.9">コーディング</strong>
       <input id="codingText" name="coding_record_text" type="text" placeholder="内容（例: ACG2修正）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
