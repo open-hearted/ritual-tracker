@@ -1278,6 +1278,7 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
 
   // cleanup (5 minutes)
   const cStart = $('cleanupStart'); if(cStart) cStart.addEventListener('click', (ev)=>{ const btn = ev.currentTarget; if(btn.dataset.mode === 'alarm-stop'){ stopAlarm(btn); return; } startExerciseTimer('cleanup'); });
+  const cRecord = $('cleanupRecord'); if(cRecord) cRecord.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCleanupRecord(); });
   // initialize displays/buttons
   setExerciseButtons('plank', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('plank');
   setExerciseButtons('wall', {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay('wall');
@@ -1315,6 +1316,33 @@ function addPeriodRecord(){
     addFreeRecordWithOptionalTime({ seconds: 0, label: '生理', korean: '', startedAt: iso, periodDay: day });
   }catch(e){
     console.warn('addPeriodRecord failed', e);
+    alert('記録に失敗しました');
+  }
+}
+
+function addCleanupRecord(){
+  try{
+    const minEl = $('cleanupMin');
+    const noteEl = $('cleanupText');
+    const min = Math.max(1, Math.floor(Number(minEl?.value)||0));
+    if(!Number.isFinite(min) || min <= 0){ alert('分を入力してください'); return; }
+    
+    const note = (noteEl?.value || '').trim();
+    const label = note ? `片付け ${note}` : '片付け';
+    
+    const curTime = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const timeInput = prompt('時刻を HH:MM で入力してください（24時間）', curTime);
+    if(timeInput === null) return;
+    const iso = parseHHMMToISO(timeInput);
+    if(!iso){ alert('HH:MM の形式で入力してください'); return; }
+    
+    const seconds = min * 60;
+    addExerciseWithStart(seconds, label, iso);
+    
+    // clear note field after successful record
+    if(noteEl) noteEl.value = '';
+  }catch(e){
+    console.warn('addCleanupRecord failed', e);
     alert('記録に失敗しました');
   }
 }
