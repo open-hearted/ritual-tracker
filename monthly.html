@@ -26,9 +26,9 @@
     #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
 
     /* Generic one-line free record row */
-    #freeTextRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    #freeTextRecordRow input#freeText{ flex:1 1 220px; min-width:0; }
-    #freeTextRecordRow button#freeTextAdd{ flex:0 0 auto; min-width:44px; }
+    #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #codingRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
+    #freeTextRecordRow button, #accomplishedRecordRow button, #codingRecordRow button { flex:0 0 auto; min-width:44px; }
 
     /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
     #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
@@ -149,6 +149,16 @@
         <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
       </label>
       <button id="freeTextAdd">追加</button>
+    </div>
+
+    <div id="accomplishedRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <strong style="width:110px;opacity:0.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Accomplished</strong>
+      <input id="accomplished" name="accomplished_record_text" type="text" placeholder="内容" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9;flex-shrink:0" title="タイムスタンプを付ける">
+        <input id="accomplishedUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="accomplishedAdd" style="flex-shrink:0">追加</button>
     </div>
 
     <div id="codingRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
