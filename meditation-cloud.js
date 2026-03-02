@@ -1328,7 +1328,7 @@ function addCleanupRecord(){
     if(!Number.isFinite(min) || min <= 0){ alert('分を入力してください'); return; }
     
     const note = (noteEl?.value || '').trim();
-    const label = note ? `片付け ${note}` : '片付け';
+    const label = note ? `片付け ${note} ${min}分` : `片付け ${min}分`;
     
     const curTime = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const timeInput = prompt('時刻を HH:MM で入力してください（24時間）', curTime);
@@ -1336,7 +1336,7 @@ function addCleanupRecord(){
     const iso = parseHHMMToISO(timeInput);
     if(!iso){ alert('HH:MM の形式で入力してください'); return; }
     
-    const seconds = min * 60;
+    const seconds = 0;  // 秒数は記録しない（分数はラベルに含む）
     addExerciseWithStart(seconds, label, iso);
     
     // clear note field after successful record
