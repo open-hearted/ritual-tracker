@@ -1324,11 +1324,15 @@ function addCleanupRecord(){
   try{
     const minEl = $('cleanupMin');
     const noteEl = $('cleanupText');
-    const min = Math.max(1, Math.floor(Number(minEl?.value)||0));
-    if(!Number.isFinite(min) || min <= 0){ alert('分を入力してください'); return; }
+    const minValue = Number(minEl?.value) || 0;
+    const min = minValue > 0 ? Math.floor(minValue) : 0;
     
     const note = (noteEl?.value || '').trim();
-    const label = note ? `片付け ${note} ${min}分` : `片付け ${min}分`;
+    
+    // 分数が入力されている場合のみラベルに含める
+    let label = '片付け';
+    if(note) label += ` ${note}`;
+    if(min > 0) label += ` ${min}分`;
     
     const curTime = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
     const timeInput = prompt('時刻を HH:MM で入力してください（24時間）', curTime);
