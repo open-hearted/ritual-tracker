@@ -749,6 +749,10 @@ function attachNoCredentialBehavior(el){ if(!el) return; try{ el.setAttribute('a
   if(isTouch){ try{ el.readOnly = true; el.addEventListener('touchstart', function onTS(e){ el.readOnly = false; doRandomize(); el.focus(); setTimeout(()=>{ el.removeEventListener('touchstart', onTS); },300); }); }catch(e){} }
 }
 
+function confirmDelete(message){
+  try{ return !!confirm(message || '削除しますか？'); }catch(e){ return true; }
+}
+
 function renderMedSessionList(){
   const wrap = $('medSessions'); if(!wrap) return; wrap.innerHTML=''; const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); const sessions = Array.isArray(rec.sessions)? rec.sessions : []; const starts = Array.isArray(rec.starts)? rec.starts : []; const ids = Array.isArray(rec.ids)? rec.ids : [];
   if(!sessions.length){ wrap.innerHTML = ''; renderWakeSleep(); return; }
@@ -809,6 +813,17 @@ function renderMedSessionList(){
     const sessions = Array.isArray(rec.sessions)? rec.sessions.slice(): [];
     const starts = Array.isArray(rec.starts)? rec.starts.slice(): [];
     const ids = Array.isArray(rec.ids)? rec.ids.slice(): [];
+
+    try{
+      const minutes = sessions[idx];
+      const startIso = starts[idx] || '';
+      const startTxt = startIso ? formatTimeShort(startIso) : '';
+      const label = `${startTxt ? (startTxt + ' ') : ''}瞑想 ${minutes}分`;
+      if(!confirmDelete(`${label} を削除しますか？`)) return;
+    }catch(e){
+      if(!confirmDelete('この瞑想記録を削除しますか？')) return;
+    }
+
     sessions.splice(idx,1);
     if(starts.length>idx) starts.splice(idx,1);
     if(ids.length>idx) ids.splice(idx,1);
@@ -878,6 +893,10 @@ function deleteTimeAt(kind, idx){
   const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
   const arr = Array.isArray(rec[kind]) ? rec[kind].slice() : [];
   if(typeof idx !== 'number' || idx < 0 || idx >= arr.length) return;
+
+  const kindLabel = (kind === 'wake') ? '起床' : (kind === 'awake') ? '覚醒' : (kind === 'sleep') ? '就寝' : '記録';
+  if(!confirmDelete(`${kindLabel}の記録を削除しますか？`)) return;
+
   arr.splice(idx, 1);
   rec[kind] = arr; const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderWakeSleep(); renderAllRecordsTimeline(); med_saveAll();
 }
@@ -1058,6 +1077,17 @@ function renderAllRecordsTimeline(){
       const sessions = Array.isArray(rec.sessions) ? rec.sessions.slice() : [];
       const starts = Array.isArray(rec.starts) ? rec.starts.slice() : [];
       const ids = Array.isArray(rec.ids) ? rec.ids.slice() : [];
+
+      try{
+        const minutes = sessions[idx];
+        const startIso = starts[idx] || '';
+        const startTxt = startIso ? formatTimeShort(startIso) : '';
+        const label = `${startTxt ? (startTxt + ' ') : ''}瞑想 ${minutes}分`;
+        if(!confirmDelete(`${label} を削除しますか？`)) return;
+      }catch(e){
+        if(!confirmDelete('この瞑想記録を削除しますか？')) return;
+      }
+
       sessions.splice(idx, 1);
       if(starts.length > idx) starts.splice(idx, 1);
       if(ids.length > idx) ids.splice(idx, 1);
@@ -1113,6 +1143,16 @@ function renderAllRecordsTimeline(){
       if(!dk) return;
       const rec = getDayRecord(dk);
       const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions.slice() : [];
+
+      try{
+        const it = arr[idx];
+        const secPart = (Number(it?.seconds) > 0) ? ` ${it.seconds}秒` : '';
+        const label = `${formatExerciseRecordLabel(it)}${secPart}`.trim() || '記録';
+        if(!confirmDelete(`${label} を削除しますか？`)) return;
+      }catch(e){
+        if(!confirmDelete('この記録を削除しますか？')) return;
+      }
+
       arr.splice(idx, 1);
       rec.exercise.sessions = arr;
       rec.exercise.updatedAt = nowISO();
@@ -1383,7 +1423,27 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
     arr[idx].startedAt = iso; rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll(); }));
   wrap.querySelectorAll('button[data-ex-del]').forEach(b=> b.addEventListener('click', (ev)=>{
     try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
-    const idx = parseInt(b.getAttribute('data-ex-del'),10); const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); const arr = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions.slice() : []; arr.splice(idx,1); rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); med_saveAll();
+    const idx = parseInt(b.getAttribute('data-ex-del'),10);
+    const dk = STATE.selected; if(!dk) return;
+    const rec = getDayRecord(dk);
+    const arr = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions.slice() : [];
+
+    try{
+      const it = arr[idx];
+      const secPart = (Number(it?.seconds) > 0) ? ` ${it.seconds}秒` : '';
+      const label = `${formatExerciseRecordLabel(it)}${secPart}`.trim() || '記録';
+      if(!confirmDelete(`${label} を削除しますか？`)) return;
+    }catch(e){
+      if(!confirmDelete('この記録を削除しますか？')) return;
+    }
+
+    arr.splice(idx,1);
+    rec.exercise.sessions = arr;
+    rec.exercise.updatedAt = nowISO();
+    const mk = getMonthKey();
+    STATE.payload.data[mk][dk] = rec;
+    renderExerciseList();
+    med_saveAll();
   }));
 }
 
