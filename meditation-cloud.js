@@ -1122,6 +1122,14 @@ function renderAllRecordsTimeline(){
     if(!Number.isFinite(day) || day <= 0){ alert('n日目（1以上）を入力してください'); return; }
     cur.type = '生理';
     cur.periodDay = day;
+  } else {
+    // 生理以外はラベルを編集
+    const curLabel = (cur.type || '').toString().trim();
+    const newLabel = prompt('ラベルを入力してください', curLabel);
+    if(newLabel === null) return;
+    const trimmed = newLabel.trim();
+    if(!trimmed){ alert('ラベルを入力してください'); return; }
+    cur.type = trimmed;
   }
 
   // prompt for new start time
@@ -1447,6 +1455,27 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
     const rec = getDayRecord(dk);
     const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
     const cur = arr[idx]; if(!cur) return;
+
+    // 生理は「n日目」を編集
+    if((cur.type||'') === '生理' || Number.isFinite(Number(cur.periodDay))){
+      const curDay = Number(cur.periodDay) > 0 ? String(Math.floor(Number(cur.periodDay))) : '1';
+      const dayStr = prompt('生理 n日目（1以上）', curDay);
+      if(dayStr === null) return;
+      const day = Math.max(1, Math.floor(Number(dayStr)||0));
+      if(!Number.isFinite(day) || day <= 0){ alert('n日目（1以上）を入力してください'); return; }
+      cur.type = '生理';
+      cur.periodDay = day;
+    } else {
+      // 生理以外はラベルを編集
+      const curLabel = (cur.type || '').toString().trim();
+      const newLabel = prompt('ラベルを入力してください', curLabel);
+      if(newLabel === null) return;
+      const trimmed = newLabel.trim();
+      if(!trimmed){ alert('ラベルを入力してください'); return; }
+      cur.type = trimmed;
+    }
+
+    // 時刻を編集
     const curVal = cur.startedAt ? new Date(cur.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
     const input = prompt('時刻を HH:MM で入力してください（24時間）', curVal);
     if(input === null) return;
