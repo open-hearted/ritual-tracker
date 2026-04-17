@@ -57,6 +57,9 @@
   #freeRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeRecordRow input#freeKorean{ flex:1 1 220px; min-width:0; }
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
+  #selfKindnessRecordRow{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #selfKindnessRecordRow input#selfKindnessText{ flex:1 1 220px; min-width:0; }
+  #selfKindnessRecordRow button#selfKindnessAdd{ flex:0 0 auto; min-width:44px; }
 
   /* Generic one-line free record row */
   #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -160,6 +163,16 @@
       <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
     </label>
         <button id="freeAdd">追加</button>
+      </div>
+
+      <div id="selfKindnessRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+        <strong style="flex-shrink:0;opacity:0.9">self-kindness journal</strong>
+        <input id="selfKindnessText" name="self_kindness_text" type="text" placeholder="What did you do well today?" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+        <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+          <input id="selfKindnessUseTime" type="checkbox" checked />
+          <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+        </label>
+        <button id="selfKindnessAdd">追加</button>
       </div>
 
       <div id="freeTextRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
