@@ -94,6 +94,7 @@
     <div id="gsiButtonContainer"></div>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
+    <button id="openPrevDay" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">前日</button>
     <a id="openMonthly" href="monthly.html" target="_blank" rel="noreferrer">月間</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
@@ -134,14 +135,24 @@
           <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
         </div>
 
-        <div class="finger-exercise" aria-label="口">
-          <div class="finger-title">口</div>
-          <div class="finger-actions">
-            <label class="finger-time" title="タイムスタンプを付ける">
-              <input id="fingerUseTime" type="checkbox" checked />
-              <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
-            </label>
-          </div>
+        <div id="tongueRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <strong style="width:56px;opacity:0.9">舌</strong>
+          <div style="flex:1"></div>
+          <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+            <input id="tongueUseTime" type="checkbox" checked />
+            <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+          </label>
+          <button id="tongueAdd">記録</button>
+        </div>
+
+        <div id="rohtoRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <strong style="width:70px;opacity:0.9">ロートV5</strong>
+          <div style="flex:1"></div>
+          <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+            <input id="rohtoUseTime" type="checkbox" checked />
+            <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+          </label>
+          <button id="rohtoAdd">記録</button>
         </div>
 
       <div id="periodRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
