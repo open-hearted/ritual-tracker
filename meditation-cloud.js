@@ -1299,6 +1299,21 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
+  const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
+  const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
+
+  const prevDayBtn = $('openPrevDay');
+  if(prevDayBtn) prevDayBtn.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    if(STATE.selected) {
+      const d = new Date(STATE.selected + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      location.href = '?date=' + yy + '-' + mm + '-' + dd;
+    }
+  });
 
   // period record (生理 n日目)
   const periodBtn = $('periodAdd');
@@ -1630,6 +1645,32 @@ function addSelfKindnessJournal(){ try{
 
   textEl.value = '';
 }catch(e){ console.warn('addSelfKindnessJournal failed', e); alert('記録に失敗しました'); }}
+
+function addTongueRecord(){ try{
+  const useTimeEl = $('tongueUseTime');
+  const useTime = !useTimeEl || !!useTimeEl.checked;
+  const iso = useTime ? new Date().toISOString() : null;
+
+  addFreeRecordWithOptionalTime({
+    seconds: 0,
+    label: '舌',
+    korean: '',
+    startedAt: iso
+  });
+}catch(e){ console.warn('addTongueRecord failed', e); alert('記録に失敗しました'); }}
+
+function addRohtoRecord(){ try{
+  const useTimeEl = $('rohtoUseTime');
+  const useTime = !useTimeEl || !!useTimeEl.checked;
+  const iso = useTime ? new Date().toISOString() : null;
+
+  addFreeRecordWithOptionalTime({
+    seconds: 0,
+    label: 'ロートV5',
+    korean: '',
+    startedAt: iso
+  });
+}catch(e){ console.warn('addRohtoRecord failed', e); alert('記録に失敗しました'); }}
 
 function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay }){
   try{
