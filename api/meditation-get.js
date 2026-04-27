@@ -33,17 +33,18 @@ async function streamToString(stream){
 export default async function handler(req, res){
   try{
     if(req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-    const { idToken } = req.body || {};
-    if(!idToken) return res.status(400).send('idToken required');
+    const { idToken, migrationUid, altUid } = req.body || {};
 
-    const token = await verifyIdToken(idToken);
-    if(!token) return res.status(401).send('Unauthorized');
-
-    const uid = token.sub || token.email;
+    let uid = null;
+    if (migrationUid) {
+      uid = migrationUid; // お引越し用バイパス
+    } else {
+      if(!idToken) return res.status(400).send('idToken required');
+      const token = await verifyIdToken(idToken);
+      if(!token) return res.status(401).send('Unauthorized');
+      uid = token.sub || token.email;
+    }
     if(!uid) return res.status(401).send('Unauthorized');
-
-    const safeUid = encodeURIComponent(uid);
-    const key = `meditations/${safeUid}.json`;
 
     const bucket = process.env.S3_BUCKET;
     if(!bucket) return res.status(500).send('server misconfigured');
@@ -53,14 +54,28 @@ export default async function handler(req, res){
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }});
 
-    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-    try{
+    async function fetchS3(keyStr) {
+      const command = new GetObjectCommand({ Bucket: bucket, Key: keyStr });
       const out = await client.send(command);
-      const bodyStr = await streamToString(out.Body);
+      return await streamToString(out.Body);
+    }
+
+    try{
+      const bodyStr = await fetchS3(`meditations/${encodeURIComponent(uid)}.json`);
       let parsed = {};
       try{ parsed = JSON.parse(bodyStr || '{}'); }catch(e){ parsed = {}; }
       return res.status(200).json({ ok: true, data: parsed });
     }catch(e){
+      if (altUid && altUid !== uid) {
+        try {
+          const bodyStr2 = await fetchS3(`meditations/${encodeURIComponent(altUid)}.json`);
+          let parsed2 = {};
+          try{ parsed2 = JSON.parse(bodyStr2 || '{}'); }catch(ex){ parsed2 = {}; }
+          return res.status(200).json({ ok: true, data: parsed2 });
+        } catch(e2) {
+          // ignore
+        }
+      }
       if(e?.$metadata && e.$metadata.httpStatusCode === 404){
         return res.status(200).json({ ok: true, data: {} });
       }

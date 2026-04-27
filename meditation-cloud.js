@@ -343,31 +343,49 @@ function closeEditor(){
   const ed = $('medEditor'); if(ed) ed.style.display='none';
 }
 
-async function med_loadAll(){
+async function med_loadAll() {
   if(!ensureAuthOrSignOut()) return false;
-  if(!idToken){
-    setMsg('Google認証のみ切替済みです。AWS保存はまだ未接続です');
-    return false;
-  }
   setMsg('読み込み中...');
-  try{
-    const res = await fetch('/api/meditation-get', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken }) });
-    if(res.status === 401 || res.status === 403){
-      forceSignOut('認証が切れました。再ログインしてください');
-      return false;
+  try {
+    // 1. まず Supabase にデータがあるか確認（新しいメインの保存先）
+    const { data: dbData, error } = await supabaseClient
+      .from('user_data')
+      .select('payload')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (dbData && dbData.payload) {
+      const payload = dbData.payload;
+      STATE.payload = payload.data ? payload : { data: payload };
+      STATE.payload.data = STATE.payload.data || {};
+      renderCalendar(); setMsg('');
+      return true;
     }
+
+    // 2. Supabase にデータがなければ、AWS(旧システム)からお引越しを試みる
+    setMsg('旧データのお引越し中...');
+    // Google認証時のID(sub)を探す
+    const googleSub = currentUser.user_metadata?.provider_id || currentUser.user_metadata?.sub || currentUser.email;
+    const res = await fetch('/api/meditation-get', { 
+      method:'POST', 
+      headers:{'Content-Type':'application/json'}, 
+      body: JSON.stringify({ idToken: 'migration', migrationUid: googleSub, altUid: currentUser.email }) 
+    });
+
     if(!res.ok){
-      const txt = await res.text().catch(()=>'');
-      setMsg('読み込み失敗');
-      console.warn('med load failed', res.status, txt);
-      return false;
+      STATE.payload = { data: {} };
+      renderCalendar(); setMsg('');
+      return true; // 過去データもないので新規スタート
     }
-    const j = await res.json(); // expected j.data or j
+
+    const j = await res.json();
     const payload = j.data && Object.keys(j.data).length ? j.data : (j || {});
-    // normalize: if payload has data field already, keep
-    if(payload && payload.data){ STATE.payload = payload; } else { STATE.payload = { data: payload }; }
-    // ensure structure
+    STATE.payload = payload.data ? payload : { data: payload };
     STATE.payload.data = STATE.payload.data || {};
+
+    // 取得した旧データを自動的に1回だけSupabaseに保存して、今後はお引越し不要にする
+    await med_saveAll();
+
     renderCalendar(); setMsg('');
     return true;
   }catch(e){
@@ -377,37 +395,45 @@ async function med_loadAll(){
   }
 }
 
-async function med_saveAll(){
+async function med_saveAll() {
   if(!ensureAuthOrSignOut()) return false;
-  if(!idToken){
-    setMsg('Google認証のみ切替済みです。AWS保存はまだ未接続です');
-    return false;
-  }
   try{
     setMsg('保存中...');
     const mk = getMonthKey(); // ensure payload shape
     STATE.payload.__meta = STATE.payload.__meta || { version:0, updatedAt: nowISO() };
     STATE.payload.__meta.version = (STATE.payload.__meta.version||0) + 1;
     STATE.payload.__meta.updatedAt = nowISO();
-    const res = await fetch('/api/meditation-put', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, data: STATE.payload }) });
-    if(res.status === 401 || res.status === 403){
-      forceSignOut('認証が切れました。再ログインしてください');
-      return false;
+
+    // Supabase上の自分の行を特定する
+    const { data: existing } = await supabaseClient
+      .from('user_data')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    let err;
+    if (existing) {
+      const { error } = await supabaseClient
+        .from('user_data')
+        .update({ payload: STATE.payload })
+        .eq('id', existing.id);
+      err = error;
+    } else {
+      const { error } = await supabaseClient
+        .from('user_data')
+        .insert({ user_id: currentUser.id, payload: STATE.payload });
+      err = error;
     }
-    if(!res.ok){
-      const txt = await res.text().catch(()=>'');
+
+    if (err) {
+      console.warn('save failed', err);
       setMsg('保存失敗');
-      console.warn('save failed', res.status, txt);
       return false;
     }
-    const j = await res.json().catch(()=>({}));
-    if(j && j.ok){
-      setMsg('保存完了');
-      renderCalendar();
-      return true;
-    }
-    setMsg('保存失敗');
-    return false;
+
+    setMsg('保存完了');
+    renderCalendar();
+    return true;
   }catch(e){
     console.error(e);
     setMsg('保存エラー');
