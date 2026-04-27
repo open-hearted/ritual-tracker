@@ -404,11 +404,15 @@ async function med_saveAll() {
     STATE.payload.__meta.updatedAt = nowISO();
 
     // Supabase上の自分の行を特定する
-    const { data: existing } = await supabaseClient
+    const { data: existing, error: selErr } = await supabaseClient
       .from('user_data')
       .select('id')
       .eq('user_id', currentUser.id)
       .maybeSingle();
+
+    if (selErr) {
+      alert('【確認用】データ取得エラー: ' + JSON.stringify(selErr));
+    }
 
     let err;
     if (existing) {
@@ -425,8 +429,9 @@ async function med_saveAll() {
     }
 
     if (err) {
+      alert('【確認用】データ保存エラー: ' + JSON.stringify(err));
       console.warn('save failed', err);
-      setMsg('保存失敗');
+      setMsg('保存失敗 (詳細をエラー表示しました)');
       return false;
     }
 
@@ -434,6 +439,7 @@ async function med_saveAll() {
     renderCalendar();
     return true;
   }catch(e){
+    alert('【確認用】予期せぬエラー: ' + String(e.message || e));
     console.error(e);
     setMsg('保存エラー');
     return false;
