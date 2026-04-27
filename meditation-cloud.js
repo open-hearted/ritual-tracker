@@ -60,7 +60,7 @@ function updateMonthlyLink(dateKey){
 
 function maybeOpenInitialDate(){
   try{
-    if(!idToken) return;
+    if(!currentUser) return;
     const q = getQueryDateKey();
     if(isMonthlyPage() && q){
       setStateMonthFromDateKey(q);
@@ -105,12 +105,18 @@ function ensureAuthOrSignOut(){
 }
 
 async function initSupabaseAuth() {
+  if(!supabaseClient){
+    setMsg('Supabase SDK の初期化に失敗しました');
+    updateUiForAuth(false);
+    return;
+  }
   const { data: { session }, error } = await supabaseClient.auth.getSession();
   if (session) {
     currentUser = session.user;
-    idToken = session.access_token; // 既存API対応
+    idToken = null;
     updateUiForAuth(true);
-    med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
+    setMsg('Google認証済みです');
+    try{ maybeOpenInitialDate(); }catch(e){}
   } else {
     updateUiForAuth(false);
   }
@@ -118,9 +124,10 @@ async function initSupabaseAuth() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN' && session) {
       currentUser = session.user;
-      idToken = session.access_token;
+      idToken = null;
       updateUiForAuth(true);
-      med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
+      setMsg('Google認証済みです');
+      try{ maybeOpenInitialDate(); }catch(e){}
     } else if (event === 'SIGNED_OUT') {
       forceSignOut('サインアウトしました');
     }
@@ -338,6 +345,10 @@ function closeEditor(){
 
 async function med_loadAll(){
   if(!ensureAuthOrSignOut()) return false;
+  if(!idToken){
+    setMsg('Google認証のみ切替済みです。AWS保存はまだ未接続です');
+    return false;
+  }
   setMsg('読み込み中...');
   try{
     const res = await fetch('/api/meditation-get', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken }) });
@@ -368,6 +379,10 @@ async function med_loadAll(){
 
 async function med_saveAll(){
   if(!ensureAuthOrSignOut()) return false;
+  if(!idToken){
+    setMsg('Google認証のみ切替済みです。AWS保存はまだ未接続です');
+    return false;
+  }
   try{
     setMsg('保存中...');
     const mk = getMonthKey(); // ensure payload shape
@@ -558,7 +573,8 @@ window.addEventListener('load', ()=>{
   try{ renderCalendar(); }catch(e){}
   try{ attachHandlers(); }catch(e){}
   try{ updateMonthlyLink(todayDateKey()); }catch(e){}
-    initSupabaseAuth();
+  initSupabaseAuth();
+});
 
 // Override renderCalendar to show compact markers in calendar cells:
 // P = プランク, 🪑 = 空気椅子, 瞑## = 瞑想合計分, 📝 = 日記
@@ -1169,7 +1185,6 @@ function startAlarm(targetButton){ try{ if(medAlarm.on) return; const C = window
 
 function stopAlarm(targetButton){ try{ if(medAlarm._beepInt){ clearInterval(medAlarm._beepInt); medAlarm._beepInt = null; } if(medAlarm.osc){ medAlarm.osc.stop(); medAlarm.osc.disconnect(); } if(medAlarm.ctx){ medAlarm.ctx.close(); } }catch(e){} medAlarm = { ctx:null, osc:null, gain:null, on:false, _beepInt:null }; if(targetButton) resetButtonMode(targetButton); else resetStartButtonMode(); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); }
 
-function addMedSessionWithStart(min, startedAt){ const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); rec.sessions = Array.isArray(rec.sessions)? rec.sessions.slice() : []; rec.starts = Array.isArray(rec.starts)? rec.starts.slice() : []; rec.ids = Array.isArray(rec.ids)? rec.ids.slice() : []; rec.sessions.push(min); rec.starts.push(startedAt || new Date().toISOString()); rec.ids.push('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderMedSessionList(); renderAllRecordsTimeline(); med_saveAll(); }
 function addMedSessionWithStart(min, startedAt){
   // migrate meditation timer recording to the same shape as exercise (プランク)
   try{
@@ -1177,8 +1192,6 @@ function addMedSessionWithStart(min, startedAt){
     addExerciseWithStart(seconds, '瞑想', startedAt || new Date().toISOString());
   }catch(e){ console.warn('addMedSessionWithStart wrapper failed', e); }
 }
-
-function startMedTimer(){ _hideMedClearButton(); resetStartButtonMode(); const min = parseFloat($('medTimerMin')?.value)||0; if(min<=0){ alert('分を入力してください'); return; } medTimer.startedAt = new Date().toISOString(); medTimer.remaining = Math.round(min*60*1000); medTimer.endAt = Date.now() + medTimer.remaining; medTimer.running = true; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); updateTimerDisplay(); if(medTimer.id) clearInterval(medTimer.id); medTimer.id = setInterval(()=>{ const left = medTimer.endAt - Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id = null; medTimer.running = false; medTimer.remaining = 0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(min, medTimer.startedAt); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
 
 function startMedTimer(){
   _hideMedClearButton();
@@ -1397,8 +1410,6 @@ function startExerciseTimer(key){
 }
 
 function pauseExerciseTimer(key){ const t = exerciseTimers[key]; if(!t.running) return; t.running=false; t.remaining = Math.max(0, t.endAt - Date.now()); if(t.id) clearInterval(t.id); t.id = null; setExerciseButtons(key, {start:false,pause:false,resume:true,cancel:true}); updateExerciseDisplay(key); }
-
-function resumeExerciseTimer(key){ const t = exerciseTimers[key]; const cfg = getExerciseCfg(key); if(!t || !cfg) return; if(t.running || !t.remaining) return; t.running = true; t.endAt = Date.now() + t.remaining; setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); if(t.id) clearInterval(t.id); t.id = setInterval(()=>{ const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id=null; t.running=false; t.remaining=0; updateExerciseDisplay(key); addExerciseWithStart(t.totalSeconds || Number(cfg.sec?.()) || 0, t.label || cfg.label, t.startedAt); const startBtn = $(cfg.prefix+'Start'); startAlarm(startBtn); setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); } else updateExerciseDisplay(key); },200); }
 
 function cancelExerciseTimer(key){ const t = exerciseTimers[key]; if(t?.id) clearInterval(t.id); exerciseTimers[key] = { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' }; setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay(key); }
 
