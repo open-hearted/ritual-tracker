@@ -372,38 +372,9 @@ async function med_loadAll() {
       return true;
     }
 
-    // 2. Supabase にデータがなければ、AWS(旧システム)からお引越しを試みる
-    setMsg('旧データのお引越し中...');
-    
-    // Google認証時のIDとして可能性のあるものを全部リストアップする
-    const candidateUids = [
-      currentUser.app_metadata?.provider_id,
-      currentUser.user_metadata?.sub,
-      currentUser.user_metadata?.provider_id,
-      currentUser.email,
-      currentUser.id
-    ].filter(Boolean);
-
-    const res = await fetch('/api/meditation-get', { 
-      method:'POST', 
-      headers:{'Content-Type':'application/json'}, 
-      body: JSON.stringify({ idToken: 'migration', candidateUids: candidateUids }) 
-    });
-
-    if(!res.ok){
-      STATE.payload = { data: {} };
-      renderCalendar(); setMsg('');
-      return true; // 過去データもないので新規スタート
-    }
-
-    const j = await res.json();
-    const payload = j.data && Object.keys(j.data).length ? j.data : (j || {});
-    STATE.payload = payload.data ? payload : { data: payload };
-    STATE.payload.data = STATE.payload.data || {};
-
-    // 取得した旧データを自動的に1回だけSupabaseに保存して、今後はお引越し不要にする
-    await med_saveAll();
-
+    // 万が一データがない場合は、新規スタート（AWS引越しは後日対応）
+    console.log("Supabaseにデータがないため、新規（空）で開始します。");
+    STATE.payload = { data: {} };
     renderCalendar(); setMsg('');
     return true;
   }catch(e){
