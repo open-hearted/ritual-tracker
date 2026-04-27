@@ -310,10 +310,9 @@ function openEditorFor(dateKey, opts){
 
   // fetch latest payload from server before opening editor
   med_loadAll().then((ok)=>{
-    if(ok === false || !idToken) return;
+    if(ok === false) return; // auth ensures message if fail
     paint();
   }).catch(()=>{
-    if(!idToken) return;
     paint();
   });
 }
