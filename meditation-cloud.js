@@ -357,18 +357,37 @@ async function med_loadAll() {
       const payload = dbData.payload;
       STATE.payload = payload.data ? payload : { data: payload };
       STATE.payload.data = STATE.payload.data || {};
+      
+      // ======== ここから追加 ========
+      const mk = getMonthKey();
+      const dk = STATE.selected || todayDateKey();
+      if(STATE.payload.data[mk] && STATE.payload.data[mk][dk]) {
+        console.log("Supabaseからロード成功:", STATE.payload.data[mk][dk]);
+      } else {
+        console.log("Supabaseのロードは成功したが、今日のデータは空です");
+      }
+      // ======== ここまで ========
+
       renderCalendar(); setMsg('');
       return true;
     }
 
     // 2. Supabase にデータがなければ、AWS(旧システム)からお引越しを試みる
     setMsg('旧データのお引越し中...');
-    // Google認証時のID(sub)を探す
-    const googleSub = currentUser.user_metadata?.provider_id || currentUser.user_metadata?.sub || currentUser.email;
+    
+    // Google認証時のIDとして可能性のあるものを全部リストアップする
+    const candidateUids = [
+      currentUser.app_metadata?.provider_id,
+      currentUser.user_metadata?.sub,
+      currentUser.user_metadata?.provider_id,
+      currentUser.email,
+      currentUser.id
+    ].filter(Boolean);
+
     const res = await fetch('/api/meditation-get', { 
       method:'POST', 
       headers:{'Content-Type':'application/json'}, 
-      body: JSON.stringify({ idToken: 'migration', migrationUid: googleSub, altUid: currentUser.email }) 
+      body: JSON.stringify({ idToken: 'migration', candidateUids: candidateUids }) 
     });
 
     if(!res.ok){
