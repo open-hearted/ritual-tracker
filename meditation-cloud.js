@@ -80,7 +80,7 @@ function maybeOpenInitialDate(){
       const t = q ? q : todayDateKey();
       setStateMonthFromDateKey(t);
       updateMonthlyLink(t);
-      openEditorFor(t, { skipLoad: true });
+      openEditorFor(t);
       return;
     }
   }catch(e){}
@@ -388,6 +388,12 @@ async function med_saveAll() {
   if(!ensureAuthOrSignOut()) return false;
   try{
     setMsg('保存中...');
+    pruneEmptyPayloadRecords(STATE.payload);
+    if(!hasPayloadRecords(STATE.payload)){
+      setMsg('');
+      console.log('Skipped Supabase save because payload has no user records.');
+      return false;
+    }
     const mk = getMonthKey(); // ensure payload shape
     STATE.payload.__meta = STATE.payload.__meta || { version:0, updatedAt: nowISO() };
     STATE.payload.__meta.version = (STATE.payload.__meta.version||0) + 1;
@@ -707,6 +713,22 @@ renderCalendar = function(){
 };
 
 // --- Lightweight med editor helpers for meditation-cloud ---
+function getExistingDayRecord(dateKey){
+  const mk = getMonthKey();
+  const data = STATE.payload && STATE.payload.data;
+  const month = data && data[mk];
+  return month && month[dateKey] ? month[dateKey] : null;
+}
+
+function normalizeDayRecord(rec){
+  if(!rec || typeof rec !== 'object') return null;
+  if(!rec.times) rec.times = {};
+  if(!Array.isArray(rec.sessions)) rec.sessions = [];
+  if(!Array.isArray(rec.starts)) rec.starts = [];
+  if(!Array.isArray(rec.ids)) rec.ids = [];
+  return rec;
+}
+
 function getDayRecord(dateKey){
   const mk = getMonthKey();
   STATE.payload.data = STATE.payload.data || {};
@@ -715,13 +737,50 @@ function getDayRecord(dateKey){
   if(!rec){
     rec = { sessions: [], starts: [], ids: [], times: {} };
     STATE.payload.data[mk][dateKey] = rec;
-  } else {
-    if(!rec.times) rec.times = {};
-    if(!Array.isArray(rec.sessions)) rec.sessions = [];
-    if(!Array.isArray(rec.starts)) rec.starts = [];
-    if(!Array.isArray(rec.ids)) rec.ids = [];
   }
-  return rec;
+  return normalizeDayRecord(rec);
+}
+
+function hasMeaningfulValue(value, key){
+  if(key === '__meta' || key === 'updatedAt' || key === 'dayTs') return false;
+  if(value == null) return false;
+  if(typeof value === 'string') return value.trim().length > 0;
+  if(typeof value === 'number' || typeof value === 'boolean') return true;
+  if(Array.isArray(value)) return value.some(v => hasMeaningfulValue(v, key));
+  if(typeof value === 'object'){
+    return Object.keys(value).some(k => hasMeaningfulValue(value[k], k));
+  }
+  return false;
+}
+
+function isEmptyDayRecord(rec){
+  if(!rec || typeof rec !== 'object') return true;
+  return !Object.keys(rec).some(k => hasMeaningfulValue(rec[k], k));
+}
+
+function pruneEmptyPayloadRecords(payload){
+  const data = payload && payload.data;
+  if(!data || typeof data !== 'object') return;
+  Object.keys(data).forEach(mk => {
+    const month = data[mk];
+    if(!month || typeof month !== 'object'){
+      delete data[mk];
+      return;
+    }
+    Object.keys(month).forEach(dk => {
+      if(isEmptyDayRecord(month[dk])) delete month[dk];
+    });
+    if(!Object.keys(month).length) delete data[mk];
+  });
+}
+
+function hasPayloadRecords(payload){
+  const data = payload && payload.data;
+  if(!data || typeof data !== 'object') return false;
+  return Object.keys(data).some(mk => {
+    const month = data[mk];
+    return month && typeof month === 'object' && Object.keys(month).some(dk => !isEmptyDayRecord(month[dk]));
+  });
 }
 
 // helper: attach behavior to inputs to avoid credential autofill/password UI on mobile
@@ -738,7 +797,7 @@ function confirmDelete(message){
 }
 
 function renderMedSessionList(){
-  const wrap = $('medSessions'); if(!wrap) return; wrap.innerHTML=''; const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); const sessions = Array.isArray(rec.sessions)? rec.sessions : []; const starts = Array.isArray(rec.starts)? rec.starts : []; const ids = Array.isArray(rec.ids)? rec.ids : [];
+  const wrap = $('medSessions'); if(!wrap) return; wrap.innerHTML=''; const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {}; const sessions = Array.isArray(rec.sessions)? rec.sessions : []; const starts = Array.isArray(rec.starts)? rec.starts : []; const ids = Array.isArray(rec.ids)? rec.ids : [];
   if(!sessions.length){ wrap.innerHTML = ''; renderWakeSleep(); return; }
   
   // Create array of session objects with original indices for sorting
@@ -819,7 +878,7 @@ function renderMedSessionList(){
 function formatTimeShort(iso){ if(!iso) return '--:--'; try{ const d = new Date(iso); if(isNaN(d)) return '--:--'; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }catch{return '--:--';} }
 
 function renderWakeSleep(){
-  const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
+  const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {};
   // wake/sleep are arrays of ISO timestamps for multiple records
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
   const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
@@ -906,7 +965,7 @@ function renderAllRecordsTimeline(){
   const dk = STATE.selected;
   if(!dk) return;
   
-  const rec = getDayRecord(dk);
+  const rec = getExistingDayRecord(dk) || {};
   const allRecords = [];
 
   // 予定 (schedule.js)
@@ -1439,7 +1498,7 @@ function addExerciseWithStart(seconds, kind, startedAt){ try{ const dk = STATE.s
     const item = { id: 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7), type: kind||'exercise', seconds: Number(seconds)||0, startedAt: startedAt || new Date().toISOString(), completedAt: new Date((new Date(startedAt||new Date())).getTime() + (Number(seconds)||0)*1000).toISOString() };
     sessions.push(item); rec.exercise.sessions = sessions; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll(); setMsg(`${kind} を記録しました`); }catch(e){ console.warn('addExerciseWithStart failed', e); } }
 
-function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return; wrap.innerHTML = ''; const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : []; if(!sessions.length){ wrap.innerHTML = ''; return; }
+function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return; wrap.innerHTML = ''; const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {}; const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : []; if(!sessions.length){ wrap.innerHTML = ''; return; }
   
   // Create array with original indices for sorting
   const sessionData = sessions.map((it, idx) => ({
