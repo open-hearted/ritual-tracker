@@ -88,129 +88,67 @@ function maybeOpenInitialDate(){
 
 function nowISO(){ return new Date().toISOString(); }
 
-function parseJwtPayload(token){
-  try{
-    const base64Url = token.split('.')[1] || '';
-    const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
-    const bin = atob(base64);
-    const bytes = Uint8Array.from(Array.from(bin, c=>c.charCodeAt(0)));
-    if(typeof TextDecoder !== 'undefined') return JSON.parse(new TextDecoder('utf-8').decode(bytes));
-    const pct = Array.from(bin).map(c=>'%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)).join('');
-    return JSON.parse(decodeURIComponent(pct));
-  }catch(e){ try{ return JSON.parse(atob(token.split('.')[1]||'')); }catch{return null;} }
-}
-
-function getTokenExpMs(token){
-  const p = parseJwtPayload(token);
-  const exp = p && typeof p.exp === 'number' ? p.exp : null;
-  if(!exp || !Number.isFinite(exp)) return null;
-  return exp * 1000;
-}
-
-function isIdTokenUsable(token){
-  if(!token) return false;
-  const expMs = getTokenExpMs(token);
-  if(expMs && Date.now() >= (expMs - AUTH_EXP_SKEW_MS)) return false;
-  return true;
-}
-
-let idToken = null; let userProfile = null;
+let idToken = null; let userProfile = null; let currentUser = null;
 
 function forceSignOut(message){
   idToken = null;
   userProfile = null;
-  try{ localStorage.removeItem(STORAGE_KEY); }catch{}
+  currentUser = null;
   updateUiForAuth(false);
   try{ const ed = $('medEditor'); if(ed) ed.style.display='none'; }catch{}
   setMsg(message || 'ログインしてください');
 }
 
 function ensureAuthOrSignOut(){
-  if(!idToken){ setMsg('ログインしてください'); return false; }
-  if(!isIdTokenUsable(idToken)){
-    forceSignOut('セッションが切れました。再ログインしてください');
-    return false;
-  }
+  if(!currentUser){ setMsg('ログインしてください'); return false; }
   return true;
 }
 
-async function initGSI(){
-  try{
-    const cfg = await fetch('/api/config').then(r=>r.json()).catch(()=>({}));
-    const clientId = cfg.googleClientId || '';
-    if(!clientId){ setMsg('GSI not configured'); return; }
-    if(window.google && google.accounts && google.accounts.id){
-        google.accounts.id.initialize({ client_id: clientId, callback: handleCred });
-        google.accounts.id.renderButton($('gsiButtonContainer'), { theme:'outline', size:'large' });
-        // Only show the account chooser/prompt if we don't already have a restored idToken.
-        // tryRestore() is called before initGSI() on load and will set `idToken` when a
-        // valid token exists in localStorage and is within TOKEN_TTL_MS.
-        if(!idToken){
-          google.accounts.id.prompt();
-        }
-    } else setMsg('Google sign-in not loaded');
-  }catch(e){ console.warn(e); setMsg('GSI init error'); }
-}
-
-function handleCred(resp){
-  if(resp && resp.credential){
-    idToken = resp.credential;
-    const p = parseJwtPayload(idToken)||{};
-    userProfile = { email:p.email, name:p.name };
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ idToken, userProfile, ts: Date.now() })); }catch{}
+async function initSupabaseAuth() {
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    idToken = session.access_token; // 既存API対応
     updateUiForAuth(true);
     med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
+  } else {
+    updateUiForAuth(false);
   }
-}
 
-function tryRestore(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return false;
-    const rec = JSON.parse(raw);
-    if(rec && rec.idToken && isIdTokenUsable(rec.idToken)){
-      const expMs = getTokenExpMs(rec.idToken);
-      const withinFallbackTtl = rec.ts && (Date.now()-rec.ts) < TOKEN_TTL_MS;
-      if(expMs || withinFallbackTtl){
-        idToken = rec.idToken;
-        const parsed = parseJwtPayload(idToken);
-        userProfile = parsed? { email: parsed.email, name: parsed.name } : rec.userProfile;
-        updateUiForAuth(true);
-        med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
-        return true;
-      }
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      idToken = session.access_token;
+      updateUiForAuth(true);
+      med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
+    } else if (event === 'SIGNED_OUT') {
+      forceSignOut('サインアウトしました');
     }
-  }catch(e){ }
-  try{ localStorage.removeItem(STORAGE_KEY);}catch{}
-  return false;
+  });
 }
 
 function updateUiForAuth(isAuth){
   const calCard = document.querySelector('.card.cal-card');
-  const gsi = $('gsiButtonContainer');
+  const loginBtn = $('supabaseLoginBtn');
   const so = $('signOutBtn');
   const ed = $('medEditor');
   const openMonthly = $('openMonthly');
-  // Ensure page-level auth state is reflected so CSS can hide/show elements reliably
   try{ document.body.setAttribute('data-auth', isAuth ? 'true' : 'false'); }catch(e){}
   if(!isAuth){
     if(calCard) calCard.style.display='none';
     if(openMonthly) openMonthly.style.display='none';
-    // Daily page shows the editor inline; ensure it stays hidden when signed out.
     if(ed && isDailyPage()) ed.style.display='none';
-    if(gsi) gsi.style.display='block';
+    if(loginBtn) loginBtn.style.display='inline-block';
     if(so) so.style.display='none';
   }
   else {
     if(calCard) calCard.style.display='';
     if(openMonthly) openMonthly.style.display='';
-    // Clear inline style so page CSS can take over.
     if(ed && isDailyPage()) ed.style.display='';
-    if(gsi) gsi.style.display='none';
+    if(loginBtn) loginBtn.style.display='none';
     if(so) so.style.display='inline-block';
   }
 }
-
 
 function setMsg(s){ const m=$('msg'); if(m) m.textContent = s||''; }
 
@@ -569,8 +507,13 @@ function attachHandlers(){
     });
   }
 
+  const loginBtn = $('supabaseLoginBtn');
+  if(loginBtn) loginBtn.addEventListener('click', () => { 
+    supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); 
+  });
+
   const signOutBtn = $('signOutBtn');
-  if(signOutBtn) signOutBtn.addEventListener('click', ()=>{ forceSignOut('サインアウト'); });
+  if(signOutBtn) signOutBtn.addEventListener('click', ()=>{ supabaseClient.auth.signOut(); });
 
   // 日記に現在時刻を挿入するボタン
   const insertTimeBtn = $('insertTimeBtn');
@@ -615,9 +558,7 @@ window.addEventListener('load', ()=>{
   try{ renderCalendar(); }catch(e){}
   try{ attachHandlers(); }catch(e){}
   try{ updateMonthlyLink(todayDateKey()); }catch(e){}
-  tryRestore();
-  initGSI();
-});
+    initSupabaseAuth();
 
 // Override renderCalendar to show compact markers in calendar cells:
 // P = プランク, 🪑 = 空気椅子, 瞑## = 瞑想合計分, 📝 = 日記

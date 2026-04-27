@@ -6,7 +6,6 @@
   <title>リファクタ（当日）</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="style-overrides-meditation.css">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <!-- Supabase SDK の読み込み -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="schedule.js"></script>
@@ -93,7 +92,7 @@
 </head>
 <body data-page="daily" data-auth="false">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
-    <div id="gsiButtonContainer"></div>
+    <button id="supabaseLoginBtn">Googleでログイン</button>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
     <button id="openPrevDay" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">前日</button>
