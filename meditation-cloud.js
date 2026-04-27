@@ -1315,6 +1315,25 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
     }
   });
 
+  const nextDayBtn = $('openNextDay');
+  if(nextDayBtn) nextDayBtn.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    if(STATE.selected) {
+      const d = new Date(STATE.selected + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      location.href = '?date=' + yy + '-' + mm + '-' + dd;
+    }
+  });
+
+  const todayBtn = $('openToday');
+  if(todayBtn) todayBtn.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    location.href = '?';
+  });
+
   // period record (生理 n日目)
   const periodBtn = $('periodAdd');
   if(periodBtn) periodBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addPeriodRecord(); });
