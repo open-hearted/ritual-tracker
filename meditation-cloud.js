@@ -71,7 +71,7 @@ function maybeOpenInitialDate(){
       return;
     }
     if(isDailyPage()){
-      const t = todayDateKey();
+      const t = q ? q : todayDateKey();
       setStateMonthFromDateKey(t);
       updateMonthlyLink(t);
       openEditorFor(t, { skipLoad: true });
