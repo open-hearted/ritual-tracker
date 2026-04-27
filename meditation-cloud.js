@@ -6,6 +6,12 @@ const STORAGE_KEY = 'med_cloud_google_auth_v1';
 const TOKEN_TTL_MS = 24*60*60*1000;
 const AUTH_EXP_SKEW_MS = 30*1000;
 
+// ▼---- ここにSupabaseのURLとAPIキーをペーストしましょう ----▼
+const SUPABASE_URL = 'https://jlkfvijgfrvoesazegnc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// ▲-------------------------------------------------------▲
+
 function getPageMode(){
   try{ return (document.body && document.body.getAttribute('data-page')) || ''; }catch(e){ return ''; }
 }
