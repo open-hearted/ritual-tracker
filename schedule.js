@@ -24,7 +24,16 @@ window.RITUAL_SCHEDULE = {
     { date: "2026-03-12", time: "19:45", label: "ACG2 3-08", short: "ACG2 3-08", icon: "", calendarTime: false },
     { date: "2026-03-26", time: "19:45", label: "ACG2 3-09", short: "ACG2 3-09", icon: "", calendarTime: false },
     { date: "2026-04-09", time: "19:45", label: "ACG2 3-10", short: "ACG2 3-10", icon: "", calendarTime: false },
+    { date: "2026-04-23", time: "19:45", label: "ACG2 4-1", short: "ACG2 4-1", icon: "", calendarTime: false },
+    { date: "2026-05-14", time: "19:45", label: "ACG2 4-2", short: "ACG2 4-2", icon: "", calendarTime: false },
+    { date: "2026-05-28", time: "19:45", label: "ACG2 4-3", short: "ACG2 4-3", icon: "", calendarTime: false },
+    { date: "2026-06-04", time: "19:45", label: "ACG2 4-4", short: "ACG2 4-4", icon: "", calendarTime: false },
+    { date: "2026-06-25", time: "19:45", label: "ACG2 4-5", short: "ACG2 4-5", icon: "", calendarTime: false },
+    { date: "2026-07-09", time: "19:45", label: "ACG2 4-6", short: "ACG2 4-6", icon: "", calendarTime: false },
+    { date: "2026-07-23", time: "19:45", label: "ACG2 4-7", short: "ACG2 4-7", icon: "", calendarTime: false },
     { date: "2026-01-26", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" },
+    { date: "2026-05-18", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" },
+    { date: "2026-05-29", time: "19:00", label: "鍼", short: "鍼", icon: "🪡" },
 
     // AC
     { date: "2026-01-08", time: "19:45", label: "AC", short: "", icon: "AC", calendarTime: false },
