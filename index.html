@@ -6,7 +6,8 @@
   <title>リファクタ（当日）</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="style-overrides-meditation.css">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- Supabase SDK の読み込み -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="schedule.js"></script>
   <script defer src="meditation-cloud.js"></script>
   <style>
@@ -41,16 +42,108 @@
   }
   @media (max-width: 860px){
     body[data-page="daily"] #medEditor{ width:100%; }
-    /* Mobile: stack and show Input first */
+    /* Mobile: stack and show Timeline first */
     body[data-page="daily"] #dailySplit{ display:flex; flex-direction:column; }
-    body[data-page="daily"] #dailyInputCol{ order: 0; }
-    body[data-page="daily"] #dailyTimelineCol{ order: 1; }
+    body[data-page="daily"] #dailyTimelineCol{ order: 0; }
+    body[data-page="daily"] #dailyInputCol{ order: 1; }
 
     /* Mobile: use full width and remove section titles to save space */
     body[data-page="daily"] #dailyInputCol,
     body[data-page="daily"] #dailyTimelineCol{ width:100%; }
     body[data-page="daily"] .panel-title{ display:none; }
     body[data-page="daily"] .panel-box{ padding:10px; }
+    body[data-page="daily"]{
+      --daily-tap-bg: rgba(10,76,68,0.84);
+      --daily-tap-border: rgba(125,211,252,0.52);
+      background:
+        radial-gradient(circle at 50% -12%, rgba(251,191,36,0.28), transparent 34%),
+        radial-gradient(circle at 0 18%, rgba(45,212,191,0.18), transparent 36%),
+        linear-gradient(180deg,#062420 0%,#10262e 58%,#211923 100%);
+    }
+    body[data-page="daily"] .container.compact{
+      background: linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015));
+    }
+    body[data-page="daily"] #medEditor{
+      background: rgba(5,14,22,0.62);
+      border: 1px solid rgba(251,191,36,0.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    body[data-page="daily"] #editSection{
+      padding:8px;
+      border:1px solid rgba(251,191,36,0.26);
+      border-radius:10px;
+      background: rgba(251,191,36,0.08);
+    }
+    body[data-page="daily"] #editDate{
+      padding:4px 8px;
+      border-radius:999px;
+      color:#fde68a;
+      background: rgba(251,191,36,0.16);
+      border:1px solid rgba(251,191,36,0.28);
+    }
+    body[data-page="daily"] #dailyTimelineCol{
+      background: rgba(7,23,27,0.78);
+      border-color: rgba(251,191,36,0.34);
+      box-shadow: inset 0 0 0 1px rgba(251,191,36,0.08);
+    }
+    body[data-page="daily"] #dailyInputCol{
+      background: rgba(8,19,31,0.84);
+      border-color: rgba(45,212,191,0.34);
+      box-shadow: inset 0 0 0 1px rgba(45,212,191,0.08);
+    }
+    body[data-page="daily"] button,
+    body[data-page="daily"] .top a,
+    body[data-page="daily"] input,
+    body[data-page="daily"] textarea{
+      min-height:36px;
+      border-color: var(--daily-tap-border) !important;
+      background: var(--daily-tap-bg) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 0 0 1px rgba(45,212,191,0.10);
+      touch-action: manipulation;
+    }
+    body[data-page="daily"] textarea{
+      background: rgba(3,15,24,0.84) !important;
+      border-color: rgba(251,191,36,0.38) !important;
+      color:#f8fafc !important;
+      caret-color:#fde68a;
+    }
+    body[data-page="daily"] textarea::placeholder{ color:rgba(226,232,240,0.62); }
+    body[data-page="daily"] input[type="checkbox"]{
+      width:20px;
+      height:20px;
+      min-height:20px;
+      padding:0;
+      accent-color:#7dd3fc;
+      background: transparent !important;
+      box-shadow:none;
+    }
+    body[data-page="daily"] label[title]{
+      min-height:36px;
+      padding:4px 8px;
+      border:1px solid rgba(125,211,252,0.34);
+      border-radius:999px;
+      background: rgba(8,47,54,0.62);
+    }
+    body[data-page="daily"] .top #openPrevDay,
+    body[data-page="daily"] .top #openNextDay,
+    body[data-page="daily"] .top #openToday{
+      padding:6px 10px !important;
+      border:1px solid var(--daily-tap-border) !important;
+      border-radius:999px !important;
+      background: var(--daily-tap-bg) !important;
+      text-decoration:none !important;
+    }
+    body[data-page="daily"] button:active,
+    body[data-page="daily"] .top a:active{
+      transform: translateY(1px);
+      filter: brightness(1.14);
+    }
+    body[data-page="daily"] #allRecordsTimeline:empty{
+      min-height:44px;
+      border:1px dashed rgba(255,255,255,0.14);
+      border-radius:8px;
+      background: rgba(255,255,255,0.035);
+    }
   }
 
   /* responsive free record row: ensure add button stays visible on small screens */
@@ -91,11 +184,13 @@
 </head>
 <body data-page="daily" data-auth="false">
   <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
-    <div id="gsiButtonContainer"></div>
+    <button id="supabaseLoginBtn">Googleでログイン</button>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
     <button id="openPrevDay" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">前日</button>
-    <a id="openMonthly" href="monthly.html" target="_blank" rel="noreferrer">月間</a>
+    <button id="openNextDay" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">翌日</button>
+    <button id="openToday" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">今日</button>
+    <a id="openMonthly" href="monthly.html">月間</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
@@ -123,17 +218,17 @@
       <div id="dailyInputCol" class="panel-box">
         <div class="panel-title">入力</div>
 
+        <div class="med-timer" id="medTimerBox" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+          <strong style="width:56px">瞑想</strong>
+          <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:84px" />
+          <span id="medTimerDisplay" style="min-width:56px;text-align:center">--:--</span>
+          <button id="medTimerStart">開始</button>
+          <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
+        </div>
+
         <!-- 従来の個別表示エリア（非表示） -->
         <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
         <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
-
-        <div style="margin-bottom:8px;">
-          <div style="display:flex;align-items:center;justify-content:space-between">
-            <label>日記</label>
-            <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
-          </div>
-          <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
-        </div>
 
         <div id="tongueRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
           <strong style="width:56px;opacity:0.9">舌</strong>
@@ -247,14 +342,21 @@
         </div>
       </div>
       <!-- 追加 / 日クリア ボタンは不要のため削除 -->
-    <div class="med-timer" id="medTimerBox" style="margin-bottom:4px;display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
-    <strong style="width:56px">瞑想</strong>
-  <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:84px" />
-    <span id="medTimerDisplay" style="min-width:56px;text-align:center">--:--</span>
-    <button id="medTimerStart">開始</button>
-    <!-- ポーズ時に表示するクリア（破棄）ボタン -->
-    <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
-  </div>
+        <div id="recordSection" style="margin:10px 0 8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <label>記録</label>
+            <button id="insertRecordTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+          </div>
+          <textarea id="medRecordText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+        </div>
+
+        <div id="diarySection" style="margin-bottom:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <label>日記</label>
+            <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+          </div>
+          <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+        </div>
       </div>
     </div>
   </div>

@@ -6,6 +6,12 @@ const STORAGE_KEY = 'med_cloud_google_auth_v1';
 const TOKEN_TTL_MS = 24*60*60*1000;
 const AUTH_EXP_SKEW_MS = 30*1000;
 
+// ▼---- ここにSupabaseのURLとAPIキーをペーストしましょう ----▼
+const SUPABASE_URL = 'https://jlkfvijgfrvoesazegnc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
+const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// ▲-------------------------------------------------------▲
+
 function getPageMode(){
   try{ return (document.body && document.body.getAttribute('data-page')) || ''; }catch(e){ return ''; }
 }
@@ -54,7 +60,7 @@ function updateMonthlyLink(dateKey){
 
 function maybeOpenInitialDate(){
   try{
-    if(!idToken) return;
+    if(!currentUser) return;
     const q = getQueryDateKey();
     if(isMonthlyPage() && q){
       setStateMonthFromDateKey(q);
@@ -71,10 +77,10 @@ function maybeOpenInitialDate(){
       return;
     }
     if(isDailyPage()){
-      const t = todayDateKey();
+      const t = q ? q : todayDateKey();
       setStateMonthFromDateKey(t);
       updateMonthlyLink(t);
-      openEditorFor(t, { skipLoad: true });
+      openEditorFor(t);
       return;
     }
   }catch(e){}
@@ -82,129 +88,74 @@ function maybeOpenInitialDate(){
 
 function nowISO(){ return new Date().toISOString(); }
 
-function parseJwtPayload(token){
-  try{
-    const base64Url = token.split('.')[1] || '';
-    const base64 = base64Url.replace(/-/g,'+').replace(/_/g,'/');
-    const bin = atob(base64);
-    const bytes = Uint8Array.from(Array.from(bin, c=>c.charCodeAt(0)));
-    if(typeof TextDecoder !== 'undefined') return JSON.parse(new TextDecoder('utf-8').decode(bytes));
-    const pct = Array.from(bin).map(c=>'%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)).join('');
-    return JSON.parse(decodeURIComponent(pct));
-  }catch(e){ try{ return JSON.parse(atob(token.split('.')[1]||'')); }catch{return null;} }
-}
-
-function getTokenExpMs(token){
-  const p = parseJwtPayload(token);
-  const exp = p && typeof p.exp === 'number' ? p.exp : null;
-  if(!exp || !Number.isFinite(exp)) return null;
-  return exp * 1000;
-}
-
-function isIdTokenUsable(token){
-  if(!token) return false;
-  const expMs = getTokenExpMs(token);
-  if(expMs && Date.now() >= (expMs - AUTH_EXP_SKEW_MS)) return false;
-  return true;
-}
-
-let idToken = null; let userProfile = null;
+let idToken = null; let userProfile = null; let currentUser = null;
 
 function forceSignOut(message){
   idToken = null;
   userProfile = null;
-  try{ localStorage.removeItem(STORAGE_KEY); }catch{}
+  currentUser = null;
   updateUiForAuth(false);
   try{ const ed = $('medEditor'); if(ed) ed.style.display='none'; }catch{}
   setMsg(message || 'ログインしてください');
 }
 
 function ensureAuthOrSignOut(){
-  if(!idToken){ setMsg('ログインしてください'); return false; }
-  if(!isIdTokenUsable(idToken)){
-    forceSignOut('セッションが切れました。再ログインしてください');
-    return false;
-  }
+  if(!currentUser){ setMsg('ログインしてください'); return false; }
   return true;
 }
 
-async function initGSI(){
-  try{
-    const cfg = await fetch('/api/config').then(r=>r.json()).catch(()=>({}));
-    const clientId = cfg.googleClientId || '';
-    if(!clientId){ setMsg('GSI not configured'); return; }
-    if(window.google && google.accounts && google.accounts.id){
-        google.accounts.id.initialize({ client_id: clientId, callback: handleCred });
-        google.accounts.id.renderButton($('gsiButtonContainer'), { theme:'outline', size:'large' });
-        // Only show the account chooser/prompt if we don't already have a restored idToken.
-        // tryRestore() is called before initGSI() on load and will set `idToken` when a
-        // valid token exists in localStorage and is within TOKEN_TTL_MS.
-        if(!idToken){
-          google.accounts.id.prompt();
-        }
-    } else setMsg('Google sign-in not loaded');
-  }catch(e){ console.warn(e); setMsg('GSI init error'); }
-}
-
-function handleCred(resp){
-  if(resp && resp.credential){
-    idToken = resp.credential;
-    const p = parseJwtPayload(idToken)||{};
-    userProfile = { email:p.email, name:p.name };
-    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify({ idToken, userProfile, ts: Date.now() })); }catch{}
-    updateUiForAuth(true);
-    med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
+async function initSupabaseAuth() {
+  if(!supabaseClient){
+    setMsg('Supabase SDK の初期化に失敗しました');
+    updateUiForAuth(false);
+    return;
   }
-}
+  const { data: { session }, error } = await supabaseClient.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    idToken = null;
+    updateUiForAuth(true);
+    setMsg('Google認証済みです');
+    try{ maybeOpenInitialDate(); }catch(e){}
+  } else {
+    updateUiForAuth(false);
+  }
 
-function tryRestore(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return false;
-    const rec = JSON.parse(raw);
-    if(rec && rec.idToken && isIdTokenUsable(rec.idToken)){
-      const expMs = getTokenExpMs(rec.idToken);
-      const withinFallbackTtl = rec.ts && (Date.now()-rec.ts) < TOKEN_TTL_MS;
-      if(expMs || withinFallbackTtl){
-        idToken = rec.idToken;
-        const parsed = parseJwtPayload(idToken);
-        userProfile = parsed? { email: parsed.email, name: parsed.name } : rec.userProfile;
-        updateUiForAuth(true);
-        med_loadAll().then(()=>{ try{ maybeOpenInitialDate(); }catch(e){} });
-        return true;
-      }
+  supabaseClient.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      idToken = null;
+      updateUiForAuth(true);
+      setMsg('Google認証済みです');
+      try{ maybeOpenInitialDate(); }catch(e){}
+    } else if (event === 'SIGNED_OUT') {
+      forceSignOut('サインアウトしました');
     }
-  }catch(e){ }
-  try{ localStorage.removeItem(STORAGE_KEY);}catch{}
-  return false;
+  });
 }
 
 function updateUiForAuth(isAuth){
   const calCard = document.querySelector('.card.cal-card');
-  const gsi = $('gsiButtonContainer');
+  const loginBtn = $('supabaseLoginBtn');
   const so = $('signOutBtn');
   const ed = $('medEditor');
   const openMonthly = $('openMonthly');
-  // Ensure page-level auth state is reflected so CSS can hide/show elements reliably
   try{ document.body.setAttribute('data-auth', isAuth ? 'true' : 'false'); }catch(e){}
   if(!isAuth){
     if(calCard) calCard.style.display='none';
     if(openMonthly) openMonthly.style.display='none';
-    // Daily page shows the editor inline; ensure it stays hidden when signed out.
     if(ed && isDailyPage()) ed.style.display='none';
-    if(gsi) gsi.style.display='block';
+    if(loginBtn) loginBtn.style.display='inline-block';
     if(so) so.style.display='none';
   }
   else {
     if(calCard) calCard.style.display='';
     if(openMonthly) openMonthly.style.display='';
-    // Clear inline style so page CSS can take over.
     if(ed && isDailyPage()) ed.style.display='';
-    if(gsi) gsi.style.display='none';
+    if(loginBtn) loginBtn.style.display='none';
     if(so) so.style.display='inline-block';
   }
 }
-
 
 function setMsg(s){ const m=$('msg'); if(m) m.textContent = s||''; }
 
@@ -344,6 +295,7 @@ function openEditorFor(dateKey, opts){
   const paint = ()=>{
     const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
     const rec = monthObj[dateKey] || {};
+    try{ const record = rec.record?.text || ''; const txt = $('medRecordText'); if(txt) txt.value = record; }catch(e){}
     try{ const diary = rec.diary?.text || ''; const txt = $('medDiaryText'); if(txt) txt.value = diary; }catch(e){}
     renderMedSessionList();
     renderWakeSleep();
@@ -359,15 +311,33 @@ function openEditorFor(dateKey, opts){
 
   // fetch latest payload from server before opening editor
   med_loadAll().then((ok)=>{
-    if(ok === false || !idToken) return;
+    if(ok === false) return; // auth ensures message if fail
     paint();
   }).catch(()=>{
-    if(!idToken) return;
     paint();
   });
 }
 
 let diaryAutosaveTimer = null;
+
+function scheduleEditorAutosave(){
+  try{ if(diaryAutosaveTimer) clearTimeout(diaryAutosaveTimer); }catch(e){}
+  diaryAutosaveTimer = setTimeout(()=>{ try{ autoSaveEditor(); }catch(e){} }, 600);
+}
+
+function insertCurrentTimeIntoTextarea(ta){
+  if(!ta) return;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const start = (typeof ta.selectionStart === 'number') ? ta.selectionStart : ta.value.length;
+  const end = (typeof ta.selectionEnd === 'number') ? ta.selectionEnd : start;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + timeStr + after;
+  const newPos = start + timeStr.length;
+  ta.selectionStart = ta.selectionEnd = newPos;
+  ta.focus();
+}
 
 function autoSaveEditor(){
   try{
@@ -375,6 +345,10 @@ function autoSaveEditor(){
     const mk = getMonthKey(); STATE.payload.data = STATE.payload.data || {};
     STATE.payload.data[mk] = STATE.payload.data[mk] || {};
     const rec = STATE.payload.data[mk][dk] || {};
+    const recordEl = $('medRecordText');
+    const recordTxt = recordEl ? (recordEl.value || '') : '';
+    if(recordTxt){ rec.record = { text: recordTxt, updatedAt: nowISO() }; }
+    else { if(rec && rec.record) delete rec.record; }
     const diaryEl = $('medDiaryText');
     const diaryTxt = diaryEl ? (diaryEl.value || '') : '';
     if(diaryTxt){ rec.diary = { text: diaryTxt, updatedAt: nowISO() }; }
@@ -392,27 +366,39 @@ function closeEditor(){
   const ed = $('medEditor'); if(ed) ed.style.display='none';
 }
 
-async function med_loadAll(){
+async function med_loadAll() {
   if(!ensureAuthOrSignOut()) return false;
   setMsg('読み込み中...');
-  try{
-    const res = await fetch('/api/meditation-get', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken }) });
-    if(res.status === 401 || res.status === 403){
-      forceSignOut('認証が切れました。再ログインしてください');
-      return false;
+  try {
+    // 1. まず Supabase にデータがあるか確認（新しいメインの保存先）
+    const { data: dbData, error } = await supabaseClient
+      .from('user_data')
+      .select('payload')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (dbData && dbData.payload) {
+      const payload = dbData.payload;
+      STATE.payload = payload.data ? payload : { data: payload };
+      STATE.payload.data = STATE.payload.data || {};
+      
+      // ======== ここから追加 ========
+      const mk = getMonthKey();
+      const dk = STATE.selected || todayDateKey();
+      if(STATE.payload.data[mk] && STATE.payload.data[mk][dk]) {
+        console.log("Supabaseからロード成功:", STATE.payload.data[mk][dk]);
+      } else {
+        console.log("Supabaseのロードは成功したが、今日のデータは空です");
+      }
+      // ======== ここまで ========
+
+      renderCalendar(); setMsg('');
+      return true;
     }
-    if(!res.ok){
-      const txt = await res.text().catch(()=>'');
-      setMsg('読み込み失敗');
-      console.warn('med load failed', res.status, txt);
-      return false;
-    }
-    const j = await res.json(); // expected j.data or j
-    const payload = j.data && Object.keys(j.data).length ? j.data : (j || {});
-    // normalize: if payload has data field already, keep
-    if(payload && payload.data){ STATE.payload = payload; } else { STATE.payload = { data: payload }; }
-    // ensure structure
-    STATE.payload.data = STATE.payload.data || {};
+
+    // 万が一データがない場合は、新規スタート（AWS引越しは後日対応）
+    console.log("Supabaseにデータがないため、新規（空）で開始します。");
+    STATE.payload = { data: {} };
     renderCalendar(); setMsg('');
     return true;
   }catch(e){
@@ -422,34 +408,58 @@ async function med_loadAll(){
   }
 }
 
-async function med_saveAll(){
+async function med_saveAll() {
   if(!ensureAuthOrSignOut()) return false;
   try{
     setMsg('保存中...');
+    pruneEmptyPayloadRecords(STATE.payload);
+    if(!hasPayloadRecords(STATE.payload)){
+      setMsg('');
+      console.log('Skipped Supabase save because payload has no user records.');
+      return false;
+    }
     const mk = getMonthKey(); // ensure payload shape
     STATE.payload.__meta = STATE.payload.__meta || { version:0, updatedAt: nowISO() };
     STATE.payload.__meta.version = (STATE.payload.__meta.version||0) + 1;
     STATE.payload.__meta.updatedAt = nowISO();
-    const res = await fetch('/api/meditation-put', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idToken, data: STATE.payload }) });
-    if(res.status === 401 || res.status === 403){
-      forceSignOut('認証が切れました。再ログインしてください');
+
+    // Supabase上の自分の行を特定する
+    const { data: existing, error: selErr } = await supabaseClient
+      .from('user_data')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (selErr) {
+      alert('【確認用】データ取得エラー: ' + JSON.stringify(selErr));
+    }
+
+    let err;
+    if (existing) {
+      const { error } = await supabaseClient
+        .from('user_data')
+        .update({ payload: STATE.payload })
+        .eq('id', existing.id);
+      err = error;
+    } else {
+      const { error } = await supabaseClient
+        .from('user_data')
+        .insert({ user_id: currentUser.id, payload: STATE.payload });
+      err = error;
+    }
+
+    if (err) {
+      alert('【確認用】データ保存エラー: ' + JSON.stringify(err));
+      console.warn('save failed', err);
+      setMsg('保存失敗 (詳細をエラー表示しました)');
       return false;
     }
-    if(!res.ok){
-      const txt = await res.text().catch(()=>'');
-      setMsg('保存失敗');
-      console.warn('save failed', res.status, txt);
-      return false;
-    }
-    const j = await res.json().catch(()=>({}));
-    if(j && j.ok){
-      setMsg('保存完了');
-      renderCalendar();
-      return true;
-    }
-    setMsg('保存失敗');
-    return false;
+
+    setMsg('保存完了');
+    renderCalendar();
+    return true;
   }catch(e){
+    alert('【確認用】予期せぬエラー: ' + String(e.message || e));
     console.error(e);
     setMsg('保存エラー');
     return false;
@@ -533,13 +543,14 @@ function attachHandlers(){
   const closeBtn = $('closeEditor');
   if(closeBtn) closeBtn.addEventListener('click', closeEditor);
 
-  // auto-save diary text while typing
+  // auto-save long text fields while typing
+  const recordEl = $('medRecordText');
+  if(recordEl){
+    recordEl.addEventListener('input', scheduleEditorAutosave);
+  }
   const diaryEl = $('medDiaryText');
   if(diaryEl){
-    diaryEl.addEventListener('input', ()=>{
-      try{ if(diaryAutosaveTimer) clearTimeout(diaryAutosaveTimer); }catch(e){}
-      diaryAutosaveTimer = setTimeout(()=>{ try{ autoSaveEditor(); }catch(e){} }, 600);
-    });
+    diaryEl.addEventListener('input', scheduleEditorAutosave);
   }
   const _saveBtn = $('saveEditor');
   if(_saveBtn){
@@ -555,7 +566,10 @@ function attachHandlers(){
       rec.starts = Array.isArray(rec.starts)? rec.starts : [];
       rec.ids = Array.isArray(rec.ids)? rec.ids : [];
       rec.dayTs = nowISO();
-      const diaryTxt = $('medDiaryText').value || '';
+      const recordTxt = $('medRecordText') ? ($('medRecordText').value || '') : '';
+      if(recordTxt) rec.record = { text: recordTxt, updatedAt: nowISO() };
+      else delete rec.record;
+      const diaryTxt = $('medDiaryText') ? ($('medDiaryText').value || '') : '';
       if(diaryTxt) rec.diary = { text: diaryTxt, updatedAt: nowISO() };
       else delete rec.diary;
       STATE.payload.data[mk][dk] = rec;
@@ -563,8 +577,25 @@ function attachHandlers(){
     });
   }
 
+  const loginBtn = $('supabaseLoginBtn');
+  if(loginBtn) loginBtn.addEventListener('click', () => { 
+    supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } }); 
+  });
+
   const signOutBtn = $('signOutBtn');
-  if(signOutBtn) signOutBtn.addEventListener('click', ()=>{ forceSignOut('サインアウト'); });
+  if(signOutBtn) signOutBtn.addEventListener('click', ()=>{ supabaseClient.auth.signOut(); });
+
+  // 記録に現在時刻を挿入するボタン
+  const insertRecordTimeBtn = $('insertRecordTimeBtn');
+  if(insertRecordTimeBtn){
+    insertRecordTimeBtn.addEventListener('click', (ev)=>{
+      try{
+        ev.preventDefault(); ev.stopPropagation();
+        insertCurrentTimeIntoTextarea($('medRecordText'));
+        try{ autoSaveEditor(); }catch(e){ console.warn('autosave after record insert failed', e); }
+      }catch(e){ console.warn('insertRecordTimeBtn handler error', e); }
+    });
+  }
 
   // 日記に現在時刻を挿入するボタン
   const insertTimeBtn = $('insertTimeBtn');
@@ -572,20 +603,7 @@ function attachHandlers(){
     insertTimeBtn.addEventListener('click', (ev)=>{
       try{
         ev.preventDefault(); ev.stopPropagation();
-        const ta = $('medDiaryText'); if(!ta) return;
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-        // insert at cursor / replace selection
-        const start = (typeof ta.selectionStart === 'number') ? ta.selectionStart : ta.value.length;
-        const end = (typeof ta.selectionEnd === 'number') ? ta.selectionEnd : start;
-        const before = ta.value.slice(0, start);
-        const after = ta.value.slice(end);
-        // if there's already a trailing space around insertion, avoid doubling
-        const insertText = timeStr;
-        ta.value = before + insertText + after;
-        const newPos = start + insertText.length;
-        ta.selectionStart = ta.selectionEnd = newPos;
-        ta.focus();
+        insertCurrentTimeIntoTextarea($('medDiaryText'));
         // autosave diary state
         try{ autoSaveEditor(); }catch(e){ console.warn('autosave after insert failed', e); }
       }catch(e){ console.warn('insertTimeBtn handler error', e); }
@@ -609,8 +627,7 @@ window.addEventListener('load', ()=>{
   try{ renderCalendar(); }catch(e){}
   try{ attachHandlers(); }catch(e){}
   try{ updateMonthlyLink(todayDateKey()); }catch(e){}
-  tryRestore();
-  initGSI();
+  initSupabaseAuth();
 });
 
 // Override renderCalendar to show compact markers in calendar cells:
@@ -656,7 +673,7 @@ renderCalendar = function(){
     const rec = monthData[dk] || {};
     const legacySess = Array.isArray(rec.sessions)? rec.sessions : [];
     const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : [];
-    let hasPlank=false, hasWall=false, hasDiary=false;
+    let hasPlank=false, hasWall=false, hasRecord=false, hasDiary=false;
     // accumulate meditation seconds (legacy sessions stored as minutes)
     let medSeconds = 0;
     if(legacySess.length) medSeconds += legacySess.reduce((a,b)=>a + (Number(b||0)*60), 0);
@@ -670,6 +687,7 @@ renderCalendar = function(){
         }
       });
     }
+    if(rec.record && rec.record.text) hasRecord = true;
     if(rec.diary && rec.diary.text) hasDiary = true;
 
     const activityMarkers = [];
@@ -680,6 +698,7 @@ renderCalendar = function(){
       if(minutes>0) activityMarkers.push(`<span class="cal-mark">瞑${minutes}</span>`);
       else activityMarkers.push(`<span class="cal-mark">瞑</span>`);
     }
+    if(hasRecord) activityMarkers.push('<span class="cal-mark">記</span>');
     if(hasDiary) activityMarkers.push('<span class="cal-mark">📝</span>');
 
     // Garbage schedule markers (from schedule.js). Do NOT affect data-has highlighting.
@@ -723,6 +742,22 @@ renderCalendar = function(){
 };
 
 // --- Lightweight med editor helpers for meditation-cloud ---
+function getExistingDayRecord(dateKey){
+  const mk = getMonthKey();
+  const data = STATE.payload && STATE.payload.data;
+  const month = data && data[mk];
+  return month && month[dateKey] ? month[dateKey] : null;
+}
+
+function normalizeDayRecord(rec){
+  if(!rec || typeof rec !== 'object') return null;
+  if(!rec.times) rec.times = {};
+  if(!Array.isArray(rec.sessions)) rec.sessions = [];
+  if(!Array.isArray(rec.starts)) rec.starts = [];
+  if(!Array.isArray(rec.ids)) rec.ids = [];
+  return rec;
+}
+
 function getDayRecord(dateKey){
   const mk = getMonthKey();
   STATE.payload.data = STATE.payload.data || {};
@@ -731,13 +766,50 @@ function getDayRecord(dateKey){
   if(!rec){
     rec = { sessions: [], starts: [], ids: [], times: {} };
     STATE.payload.data[mk][dateKey] = rec;
-  } else {
-    if(!rec.times) rec.times = {};
-    if(!Array.isArray(rec.sessions)) rec.sessions = [];
-    if(!Array.isArray(rec.starts)) rec.starts = [];
-    if(!Array.isArray(rec.ids)) rec.ids = [];
   }
-  return rec;
+  return normalizeDayRecord(rec);
+}
+
+function hasMeaningfulValue(value, key){
+  if(key === '__meta' || key === 'updatedAt' || key === 'dayTs') return false;
+  if(value == null) return false;
+  if(typeof value === 'string') return value.trim().length > 0;
+  if(typeof value === 'number' || typeof value === 'boolean') return true;
+  if(Array.isArray(value)) return value.some(v => hasMeaningfulValue(v, key));
+  if(typeof value === 'object'){
+    return Object.keys(value).some(k => hasMeaningfulValue(value[k], k));
+  }
+  return false;
+}
+
+function isEmptyDayRecord(rec){
+  if(!rec || typeof rec !== 'object') return true;
+  return !Object.keys(rec).some(k => hasMeaningfulValue(rec[k], k));
+}
+
+function pruneEmptyPayloadRecords(payload){
+  const data = payload && payload.data;
+  if(!data || typeof data !== 'object') return;
+  Object.keys(data).forEach(mk => {
+    const month = data[mk];
+    if(!month || typeof month !== 'object'){
+      delete data[mk];
+      return;
+    }
+    Object.keys(month).forEach(dk => {
+      if(isEmptyDayRecord(month[dk])) delete month[dk];
+    });
+    if(!Object.keys(month).length) delete data[mk];
+  });
+}
+
+function hasPayloadRecords(payload){
+  const data = payload && payload.data;
+  if(!data || typeof data !== 'object') return false;
+  return Object.keys(data).some(mk => {
+    const month = data[mk];
+    return month && typeof month === 'object' && Object.keys(month).some(dk => !isEmptyDayRecord(month[dk]));
+  });
 }
 
 // helper: attach behavior to inputs to avoid credential autofill/password UI on mobile
@@ -754,7 +826,7 @@ function confirmDelete(message){
 }
 
 function renderMedSessionList(){
-  const wrap = $('medSessions'); if(!wrap) return; wrap.innerHTML=''; const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); const sessions = Array.isArray(rec.sessions)? rec.sessions : []; const starts = Array.isArray(rec.starts)? rec.starts : []; const ids = Array.isArray(rec.ids)? rec.ids : [];
+  const wrap = $('medSessions'); if(!wrap) return; wrap.innerHTML=''; const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {}; const sessions = Array.isArray(rec.sessions)? rec.sessions : []; const starts = Array.isArray(rec.starts)? rec.starts : []; const ids = Array.isArray(rec.ids)? rec.ids : [];
   if(!sessions.length){ wrap.innerHTML = ''; renderWakeSleep(); return; }
   
   // Create array of session objects with original indices for sorting
@@ -835,7 +907,7 @@ function renderMedSessionList(){
 function formatTimeShort(iso){ if(!iso) return '--:--'; try{ const d = new Date(iso); if(isNaN(d)) return '--:--'; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }catch{return '--:--';} }
 
 function renderWakeSleep(){
-  const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk);
+  const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {};
   // wake/sleep are arrays of ISO timestamps for multiple records
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
   const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
@@ -922,7 +994,7 @@ function renderAllRecordsTimeline(){
   const dk = STATE.selected;
   if(!dk) return;
   
-  const rec = getDayRecord(dk);
+  const rec = getExistingDayRecord(dk) || {};
   const allRecords = [];
 
   // 予定 (schedule.js)
@@ -1222,7 +1294,6 @@ function startAlarm(targetButton){ try{ if(medAlarm.on) return; const C = window
 
 function stopAlarm(targetButton){ try{ if(medAlarm._beepInt){ clearInterval(medAlarm._beepInt); medAlarm._beepInt = null; } if(medAlarm.osc){ medAlarm.osc.stop(); medAlarm.osc.disconnect(); } if(medAlarm.ctx){ medAlarm.ctx.close(); } }catch(e){} medAlarm = { ctx:null, osc:null, gain:null, on:false, _beepInt:null }; if(targetButton) resetButtonMode(targetButton); else resetStartButtonMode(); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); }
 
-function addMedSessionWithStart(min, startedAt){ const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); rec.sessions = Array.isArray(rec.sessions)? rec.sessions.slice() : []; rec.starts = Array.isArray(rec.starts)? rec.starts.slice() : []; rec.ids = Array.isArray(rec.ids)? rec.ids.slice() : []; rec.sessions.push(min); rec.starts.push(startedAt || new Date().toISOString()); rec.ids.push('m'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderMedSessionList(); renderAllRecordsTimeline(); med_saveAll(); }
 function addMedSessionWithStart(min, startedAt){
   // migrate meditation timer recording to the same shape as exercise (プランク)
   try{
@@ -1230,8 +1301,6 @@ function addMedSessionWithStart(min, startedAt){
     addExerciseWithStart(seconds, '瞑想', startedAt || new Date().toISOString());
   }catch(e){ console.warn('addMedSessionWithStart wrapper failed', e); }
 }
-
-function startMedTimer(){ _hideMedClearButton(); resetStartButtonMode(); const min = parseFloat($('medTimerMin')?.value)||0; if(min<=0){ alert('分を入力してください'); return; } medTimer.startedAt = new Date().toISOString(); medTimer.remaining = Math.round(min*60*1000); medTimer.endAt = Date.now() + medTimer.remaining; medTimer.running = true; setTimerButtons({start:false,pause:true,resume:false,cancel:true}); updateTimerDisplay(); if(medTimer.id) clearInterval(medTimer.id); medTimer.id = setInterval(()=>{ const left = medTimer.endAt - Date.now(); if(left<=0){ clearInterval(medTimer.id); medTimer.id = null; medTimer.running = false; medTimer.remaining = 0; updateTimerDisplay(); startAlarm(); addMedSessionWithStart(min, medTimer.startedAt); setTimerButtons({start:true,pause:false,resume:false,cancel:false}); } else updateTimerDisplay(); },250); }
 
 function startMedTimer(){
   _hideMedClearButton();
@@ -1313,6 +1382,25 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
       const dd = String(d.getDate()).padStart(2, '0');
       location.href = '?date=' + yy + '-' + mm + '-' + dd;
     }
+  });
+
+  const nextDayBtn = $('openNextDay');
+  if(nextDayBtn) nextDayBtn.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    if(STATE.selected) {
+      const d = new Date(STATE.selected + 'T00:00:00');
+      d.setDate(d.getDate() + 1);
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      location.href = '?date=' + yy + '-' + mm + '-' + dd;
+    }
+  });
+
+  const todayBtn = $('openToday');
+  if(todayBtn) todayBtn.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    location.href = '?';
   });
 
   // period record (生理 n日目)
@@ -1432,8 +1520,6 @@ function startExerciseTimer(key){
 
 function pauseExerciseTimer(key){ const t = exerciseTimers[key]; if(!t.running) return; t.running=false; t.remaining = Math.max(0, t.endAt - Date.now()); if(t.id) clearInterval(t.id); t.id = null; setExerciseButtons(key, {start:false,pause:false,resume:true,cancel:true}); updateExerciseDisplay(key); }
 
-function resumeExerciseTimer(key){ const t = exerciseTimers[key]; const cfg = getExerciseCfg(key); if(!t || !cfg) return; if(t.running || !t.remaining) return; t.running = true; t.endAt = Date.now() + t.remaining; setExerciseButtons(key, {start:false,pause:true,resume:false,cancel:true}); if(t.id) clearInterval(t.id); t.id = setInterval(()=>{ const left = t.endAt - Date.now(); if(left<=0){ clearInterval(t.id); t.id=null; t.running=false; t.remaining=0; updateExerciseDisplay(key); addExerciseWithStart(t.totalSeconds || Number(cfg.sec?.()) || 0, t.label || cfg.label, t.startedAt); const startBtn = $(cfg.prefix+'Start'); startAlarm(startBtn); setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); } else updateExerciseDisplay(key); },200); }
-
 function cancelExerciseTimer(key){ const t = exerciseTimers[key]; if(t?.id) clearInterval(t.id); exerciseTimers[key] = { id:null, running:false, endAt:0, remaining:0, startedAt:null, totalSeconds:0, label:'' }; setExerciseButtons(key, {start:true,pause:false,resume:false,cancel:false}); updateExerciseDisplay(key); }
 
 function addExerciseWithStart(seconds, kind, startedAt){ try{ const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); rec.exercise = rec.exercise || { sessions: [], updatedAt: nowISO() };
@@ -1441,7 +1527,7 @@ function addExerciseWithStart(seconds, kind, startedAt){ try{ const dk = STATE.s
     const item = { id: 'e'+Date.now().toString(36)+Math.random().toString(36).slice(2,7), type: kind||'exercise', seconds: Number(seconds)||0, startedAt: startedAt || new Date().toISOString(), completedAt: new Date((new Date(startedAt||new Date())).getTime() + (Number(seconds)||0)*1000).toISOString() };
     sessions.push(item); rec.exercise.sessions = sessions; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll(); setMsg(`${kind} を記録しました`); }catch(e){ console.warn('addExerciseWithStart failed', e); } }
 
-function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return; wrap.innerHTML = ''; const dk = STATE.selected; if(!dk) return; const rec = getDayRecord(dk); const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : []; if(!sessions.length){ wrap.innerHTML = ''; return; }
+function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return; wrap.innerHTML = ''; const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {}; const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : []; if(!sessions.length){ wrap.innerHTML = ''; return; }
   
   // Create array with original indices for sorting
   const sessionData = sessions.map((it, idx) => ({

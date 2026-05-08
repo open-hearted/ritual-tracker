@@ -33,17 +33,19 @@ async function streamToString(stream){
 export default async function handler(req, res){
   try{
     if(req.method !== 'POST') return res.status(405).send('Method Not Allowed');
-    const { idToken } = req.body || {};
-    if(!idToken) return res.status(400).send('idToken required');
+    const { idToken, migrationUid, altUid, candidateUids } = req.body || {};
 
-    const token = await verifyIdToken(idToken);
-    if(!token) return res.status(401).send('Unauthorized');
-
-    const uid = token.sub || token.email;
-    if(!uid) return res.status(401).send('Unauthorized');
-
-    const safeUid = encodeURIComponent(uid);
-    const key = `meditations/${safeUid}.json`;
+    let uidsToTry = [];
+    if (candidateUids && Array.isArray(candidateUids)) {
+      uidsToTry = candidateUids;
+    } else if (migrationUid) {
+      uidsToTry = [migrationUid, altUid];
+    } else {
+      if(!idToken) return res.status(400).send('idToken required');
+      const token = await verifyIdToken(idToken);
+      if(!token) return res.status(401).send('Unauthorized');
+      uidsToTry = [token.sub || token.email];
+    }
 
     const bucket = process.env.S3_BUCKET;
     if(!bucket) return res.status(500).send('server misconfigured');
@@ -53,27 +55,29 @@ export default async function handler(req, res){
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
     }});
 
-    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
-    try{
+    async function fetchS3(keyStr) {
+      const command = new GetObjectCommand({ Bucket: bucket, Key: keyStr });
       const out = await client.send(command);
-      const bodyStr = await streamToString(out.Body);
-      let parsed = {};
-      try{ parsed = JSON.parse(bodyStr || '{}'); }catch(e){ parsed = {}; }
-      return res.status(200).json({ ok: true, data: parsed });
-    }catch(e){
-      if(e?.$metadata && e.$metadata.httpStatusCode === 404){
-        return res.status(200).json({ ok: true, data: {} });
-      }
-      console.error('[meditation-get] s3 error', e);
-      // provide a slightly more informative error for debugging (non-sensitive)
-      const info = {
-        message: e?.message || String(e),
-        s3BucketConfigured: !!process.env.S3_BUCKET,
-        awsRegionConfigured: !!process.env.AWS_REGION,
-        hasAwsCreds: !!process.env.AWS_ACCESS_KEY_ID && !!process.env.AWS_SECRET_ACCESS_KEY
-      };
-      try{ return res.status(500).json({ ok: false, error: 'internal error', info }); }catch{ return res.status(500).send('internal error'); }
+      return await streamToString(out.Body);
     }
+
+    // 候補のuidをすべて試す。見つかったら即返す
+    for (const uid of uidsToTry) {
+      if (!uid) continue;
+      try {
+        const bodyStr = await fetchS3(`meditations/${encodeURIComponent(uid)}.json`);
+        let parsed = {};
+        try{ parsed = JSON.parse(bodyStr || '{}'); }catch(e){ parsed = {}; }
+        // 空っぽじゃない有意義なデータが見つかったらそれを採用
+        if (parsed && parsed.data && Object.keys(parsed.data).length > 0) {
+          return res.status(200).json({ ok: true, data: parsed, migrated_from: uid });
+        }
+      } catch (e) {
+        // 見つからなければ次の候補へ(404)
+      }
+    }
+
+    return res.status(200).json({ ok: true, data: {} });
   }catch(e){
     console.error('[meditation-get] unexpected', e);
     const info = { message: e?.message || String(e), s3BucketConfigured: !!process.env.S3_BUCKET };
