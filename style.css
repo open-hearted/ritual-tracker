@@ -17,6 +17,12 @@ body{
 	min-height:100dvh; overflow:hidden;
 }
 .container.compact{max-width:860px;margin:0 auto;padding:8px 14px 12px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;max-height:100dvh;-webkit-overflow-scrolling:touch}
+.top{display:flex;align-items:center;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.top::-webkit-scrollbar{display:none}
+.top > *{flex-shrink:0}
+.top > div[style*="flex:1"]{flex:1 1 auto;min-width:0}
+.top button,.top a{white-space:nowrap}
+.top #msg{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .top-bar{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .app-title{font-size:18px;font-weight:600;letter-spacing:.5px}
 .quick-actions button{padding:6px 10px;min-width:auto}
@@ -173,6 +179,12 @@ input::placeholder{color:#9fb0ff99}
 .finger-exercise .finger-time input{ margin: 0; }
 
 @media (max-width: 520px){
+	.top{gap:6px !important;padding:8px !important}
+	.top button{padding:6px 8px;border-radius:10px;font-size:13px;line-height:1.2}
+	.top #openPrevDay,.top #openNextDay,.top #openToday{margin-right:4px !important}
+	.top #monthlyControls{gap:4px !important}
+	.top #monthlyControls button{padding:4px 6px}
+	.top #monthlyControls #monthLabel{min-width:6.5ch;font-size:14px}
 	.finger-exercise{ padding: 8px 8px; gap: 8px; }
 	.finger-exercise .finger-link{ width: 40px; height: 34px; }
 }
