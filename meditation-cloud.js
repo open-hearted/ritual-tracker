@@ -295,6 +295,7 @@ function openEditorFor(dateKey, opts){
   const paint = ()=>{
     const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
     const rec = monthObj[dateKey] || {};
+    try{ const record = rec.record?.text || ''; const txt = $('medRecordText'); if(txt) txt.value = record; }catch(e){}
     try{ const diary = rec.diary?.text || ''; const txt = $('medDiaryText'); if(txt) txt.value = diary; }catch(e){}
     renderMedSessionList();
     renderWakeSleep();
@@ -319,12 +320,35 @@ function openEditorFor(dateKey, opts){
 
 let diaryAutosaveTimer = null;
 
+function scheduleEditorAutosave(){
+  try{ if(diaryAutosaveTimer) clearTimeout(diaryAutosaveTimer); }catch(e){}
+  diaryAutosaveTimer = setTimeout(()=>{ try{ autoSaveEditor(); }catch(e){} }, 600);
+}
+
+function insertCurrentTimeIntoTextarea(ta){
+  if(!ta) return;
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+  const start = (typeof ta.selectionStart === 'number') ? ta.selectionStart : ta.value.length;
+  const end = (typeof ta.selectionEnd === 'number') ? ta.selectionEnd : start;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + timeStr + after;
+  const newPos = start + timeStr.length;
+  ta.selectionStart = ta.selectionEnd = newPos;
+  ta.focus();
+}
+
 function autoSaveEditor(){
   try{
     const dk = STATE.selected; if(!dk) return;
     const mk = getMonthKey(); STATE.payload.data = STATE.payload.data || {};
     STATE.payload.data[mk] = STATE.payload.data[mk] || {};
     const rec = STATE.payload.data[mk][dk] || {};
+    const recordEl = $('medRecordText');
+    const recordTxt = recordEl ? (recordEl.value || '') : '';
+    if(recordTxt){ rec.record = { text: recordTxt, updatedAt: nowISO() }; }
+    else { if(rec && rec.record) delete rec.record; }
     const diaryEl = $('medDiaryText');
     const diaryTxt = diaryEl ? (diaryEl.value || '') : '';
     if(diaryTxt){ rec.diary = { text: diaryTxt, updatedAt: nowISO() }; }
@@ -519,13 +543,14 @@ function attachHandlers(){
   const closeBtn = $('closeEditor');
   if(closeBtn) closeBtn.addEventListener('click', closeEditor);
 
-  // auto-save diary text while typing
+  // auto-save long text fields while typing
+  const recordEl = $('medRecordText');
+  if(recordEl){
+    recordEl.addEventListener('input', scheduleEditorAutosave);
+  }
   const diaryEl = $('medDiaryText');
   if(diaryEl){
-    diaryEl.addEventListener('input', ()=>{
-      try{ if(diaryAutosaveTimer) clearTimeout(diaryAutosaveTimer); }catch(e){}
-      diaryAutosaveTimer = setTimeout(()=>{ try{ autoSaveEditor(); }catch(e){} }, 600);
-    });
+    diaryEl.addEventListener('input', scheduleEditorAutosave);
   }
   const _saveBtn = $('saveEditor');
   if(_saveBtn){
@@ -541,7 +566,10 @@ function attachHandlers(){
       rec.starts = Array.isArray(rec.starts)? rec.starts : [];
       rec.ids = Array.isArray(rec.ids)? rec.ids : [];
       rec.dayTs = nowISO();
-      const diaryTxt = $('medDiaryText').value || '';
+      const recordTxt = $('medRecordText') ? ($('medRecordText').value || '') : '';
+      if(recordTxt) rec.record = { text: recordTxt, updatedAt: nowISO() };
+      else delete rec.record;
+      const diaryTxt = $('medDiaryText') ? ($('medDiaryText').value || '') : '';
       if(diaryTxt) rec.diary = { text: diaryTxt, updatedAt: nowISO() };
       else delete rec.diary;
       STATE.payload.data[mk][dk] = rec;
@@ -557,26 +585,25 @@ function attachHandlers(){
   const signOutBtn = $('signOutBtn');
   if(signOutBtn) signOutBtn.addEventListener('click', ()=>{ supabaseClient.auth.signOut(); });
 
+  // 記録に現在時刻を挿入するボタン
+  const insertRecordTimeBtn = $('insertRecordTimeBtn');
+  if(insertRecordTimeBtn){
+    insertRecordTimeBtn.addEventListener('click', (ev)=>{
+      try{
+        ev.preventDefault(); ev.stopPropagation();
+        insertCurrentTimeIntoTextarea($('medRecordText'));
+        try{ autoSaveEditor(); }catch(e){ console.warn('autosave after record insert failed', e); }
+      }catch(e){ console.warn('insertRecordTimeBtn handler error', e); }
+    });
+  }
+
   // 日記に現在時刻を挿入するボタン
   const insertTimeBtn = $('insertTimeBtn');
   if(insertTimeBtn){
     insertTimeBtn.addEventListener('click', (ev)=>{
       try{
         ev.preventDefault(); ev.stopPropagation();
-        const ta = $('medDiaryText'); if(!ta) return;
-        const now = new Date();
-        const timeStr = now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
-        // insert at cursor / replace selection
-        const start = (typeof ta.selectionStart === 'number') ? ta.selectionStart : ta.value.length;
-        const end = (typeof ta.selectionEnd === 'number') ? ta.selectionEnd : start;
-        const before = ta.value.slice(0, start);
-        const after = ta.value.slice(end);
-        // if there's already a trailing space around insertion, avoid doubling
-        const insertText = timeStr;
-        ta.value = before + insertText + after;
-        const newPos = start + insertText.length;
-        ta.selectionStart = ta.selectionEnd = newPos;
-        ta.focus();
+        insertCurrentTimeIntoTextarea($('medDiaryText'));
         // autosave diary state
         try{ autoSaveEditor(); }catch(e){ console.warn('autosave after insert failed', e); }
       }catch(e){ console.warn('insertTimeBtn handler error', e); }
@@ -646,7 +673,7 @@ renderCalendar = function(){
     const rec = monthData[dk] || {};
     const legacySess = Array.isArray(rec.sessions)? rec.sessions : [];
     const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : [];
-    let hasPlank=false, hasWall=false, hasDiary=false;
+    let hasPlank=false, hasWall=false, hasRecord=false, hasDiary=false;
     // accumulate meditation seconds (legacy sessions stored as minutes)
     let medSeconds = 0;
     if(legacySess.length) medSeconds += legacySess.reduce((a,b)=>a + (Number(b||0)*60), 0);
@@ -660,6 +687,7 @@ renderCalendar = function(){
         }
       });
     }
+    if(rec.record && rec.record.text) hasRecord = true;
     if(rec.diary && rec.diary.text) hasDiary = true;
 
     const activityMarkers = [];
@@ -670,6 +698,7 @@ renderCalendar = function(){
       if(minutes>0) activityMarkers.push(`<span class="cal-mark">瞑${minutes}</span>`);
       else activityMarkers.push(`<span class="cal-mark">瞑</span>`);
     }
+    if(hasRecord) activityMarkers.push('<span class="cal-mark">記</span>');
     if(hasDiary) activityMarkers.push('<span class="cal-mark">📝</span>');
 
     // Garbage schedule markers (from schedule.js). Do NOT affect data-has highlighting.

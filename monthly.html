@@ -104,15 +104,16 @@
 
     <div id="allRecordsTimeline" style="margin-bottom:8px;"></div>
 
+    <div class="med-timer" id="medTimerBox" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
+      <strong style="width:56px">瞑想</strong>
+      <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:84px" />
+      <span id="medTimerDisplay" style="min-width:56px;text-align:center">--:--</span>
+      <button id="medTimerStart">開始</button>
+      <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
+    </div>
+
     <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
     <div id="exerciseList" style="display:none;margin-bottom:4px"></div>
-    <div style="margin-bottom:8px;">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <label>日記</label>
-        <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
-      </div>
-      <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
-    </div>
 
       <div id="tongueRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
         <strong style="width:56px;opacity:0.9">舌</strong>
@@ -224,12 +225,20 @@
       </div>
     </div>
 
-    <div class="med-timer" id="medTimerBox" style="margin-bottom:4px;display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
-      <strong style="width:56px">瞑想</strong>
-      <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:84px" />
-      <span id="medTimerDisplay" style="min-width:56px;text-align:center">--:--</span>
-      <button id="medTimerStart">開始</button>
-      <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
+    <div id="recordSection" style="margin:10px 0 8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <label>記録</label>
+        <button id="insertRecordTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+      </div>
+      <textarea id="medRecordText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
+    </div>
+
+    <div id="diarySection" style="margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <label>日記</label>
+        <button id="insertTimeBtn" title="現在時刻を挿入" style="background:transparent;border:none;color:#fff;font-size:18px;line-height:1;padding:4px 6px;">🕒</button>
+      </div>
+      <textarea id="medDiaryText" placeholder="メモ" style="width:100%;min-height:100px"></textarea>
     </div>
   </div>
 
