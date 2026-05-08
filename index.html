@@ -52,6 +52,95 @@
     body[data-page="daily"] #dailyTimelineCol{ width:100%; }
     body[data-page="daily"] .panel-title{ display:none; }
     body[data-page="daily"] .panel-box{ padding:10px; }
+    body[data-page="daily"]{
+      --daily-tap-bg: rgba(10,76,68,0.84);
+      --daily-tap-border: rgba(125,211,252,0.52);
+      background:
+        radial-gradient(circle at 50% -12%, rgba(251,191,36,0.28), transparent 34%),
+        radial-gradient(circle at 0 18%, rgba(45,212,191,0.18), transparent 36%),
+        linear-gradient(180deg,#062420 0%,#10262e 58%,#211923 100%);
+    }
+    body[data-page="daily"] .container.compact{
+      background: linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.015));
+    }
+    body[data-page="daily"] #medEditor{
+      background: rgba(5,14,22,0.62);
+      border: 1px solid rgba(251,191,36,0.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+    body[data-page="daily"] #editSection{
+      padding:8px;
+      border:1px solid rgba(251,191,36,0.26);
+      border-radius:10px;
+      background: rgba(251,191,36,0.08);
+    }
+    body[data-page="daily"] #editDate{
+      padding:4px 8px;
+      border-radius:999px;
+      color:#fde68a;
+      background: rgba(251,191,36,0.16);
+      border:1px solid rgba(251,191,36,0.28);
+    }
+    body[data-page="daily"] #dailyTimelineCol{
+      background: rgba(7,23,27,0.78);
+      border-color: rgba(251,191,36,0.34);
+      box-shadow: inset 0 0 0 1px rgba(251,191,36,0.08);
+    }
+    body[data-page="daily"] #dailyInputCol{
+      background: rgba(8,19,31,0.84);
+      border-color: rgba(45,212,191,0.34);
+      box-shadow: inset 0 0 0 1px rgba(45,212,191,0.08);
+    }
+    body[data-page="daily"] button,
+    body[data-page="daily"] .top a,
+    body[data-page="daily"] input,
+    body[data-page="daily"] textarea{
+      min-height:36px;
+      border-color: var(--daily-tap-border) !important;
+      background: var(--daily-tap-bg) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 0 0 1px rgba(45,212,191,0.10);
+      touch-action: manipulation;
+    }
+    body[data-page="daily"] textarea{
+      background: rgba(3,15,24,0.84) !important;
+      border-color: rgba(251,191,36,0.38) !important;
+    }
+    body[data-page="daily"] input[type="checkbox"]{
+      width:20px;
+      height:20px;
+      min-height:20px;
+      padding:0;
+      accent-color:#7dd3fc;
+      background: transparent !important;
+      box-shadow:none;
+    }
+    body[data-page="daily"] label[title]{
+      min-height:36px;
+      padding:4px 8px;
+      border:1px solid rgba(125,211,252,0.34);
+      border-radius:999px;
+      background: rgba(8,47,54,0.62);
+    }
+    body[data-page="daily"] .top #openPrevDay,
+    body[data-page="daily"] .top #openNextDay,
+    body[data-page="daily"] .top #openToday{
+      padding:6px 10px !important;
+      border:1px solid var(--daily-tap-border) !important;
+      border-radius:999px !important;
+      background: var(--daily-tap-bg) !important;
+      text-decoration:none !important;
+    }
+    body[data-page="daily"] button:active,
+    body[data-page="daily"] .top a:active{
+      transform: translateY(1px);
+      filter: brightness(1.14);
+    }
+    body[data-page="daily"] #allRecordsTimeline:empty{
+      min-height:44px;
+      border:1px dashed rgba(255,255,255,0.14);
+      border-radius:8px;
+      background: rgba(255,255,255,0.035);
+    }
   }
 
   /* responsive free record row: ensure add button stays visible on small screens */
