@@ -183,9 +183,9 @@ input::placeholder{color:#9fb0ff99}
 	.top button{padding:6px 8px;border-radius:10px;font-size:13px;line-height:1.2}
 	body[data-page="daily"] .top #openMonthly{order:1;display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 10px;border:1px solid rgba(255,255,255,0.12);border-radius:10px;background:#14224e;color:var(--text);text-decoration:none;font-size:13px;line-height:1.2}
 	body[data-page="daily"] .top > div[style*="flex:1"]{order:2}
-	body[data-page="daily"] .top #openPrevDay,body[data-page="daily"] .top #openNextDay,body[data-page="daily"] .top #openToday{order:3}
+	body[data-page="daily"] .top #dailyControls{order:3}
 	body[data-page="daily"] .top #msg{order:4}
-	.top #openPrevDay,.top #openNextDay,.top #openToday{margin-right:4px !important}
+	.top #dailyControls button{margin-right:0 !important}
 	.top #monthlyControls{gap:4px !important}
 	.top #monthlyControls button{padding:4px 6px}
 	.top #monthlyControls #monthLabel{min-width:6.5ch;font-size:14px}

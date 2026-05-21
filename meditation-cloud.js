@@ -538,8 +538,6 @@ function attachHandlers(){
   if(prevBtn) prevBtn.addEventListener('click', ()=>{ STATE.month--; if(STATE.month<0){ STATE.month=11; STATE.year--; } renderCalendar(); });
   const nextBtn = $('nextBtn');
   if(nextBtn) nextBtn.addEventListener('click', ()=>{ STATE.month++; if(STATE.month>11){ STATE.month=0; STATE.year++; } renderCalendar(); });
-  const todayBtn = $('todayBtn');
-  if(todayBtn) todayBtn.addEventListener('click', ()=>{ const n=new Date(); STATE.year=n.getFullYear(); STATE.month=n.getMonth(); renderCalendar(); setTimeout(()=>{ const key = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; const el = document.querySelector(`.cell[data-date="${key}"]`); if(el){ el.click(); el.scrollIntoView({block:'nearest'}); } },50); });
   const closeBtn = $('closeEditor');
   if(closeBtn) closeBtn.addEventListener('click', closeEditor);
 
@@ -966,7 +964,7 @@ function deleteTimeAt(kind, idx){
   const arr = Array.isArray(rec[kind]) ? rec[kind].slice() : [];
   if(typeof idx !== 'number' || idx < 0 || idx >= arr.length) return;
 
-  const kindLabel = (kind === 'wake') ? '起床' : (kind === 'awake') ? '覚醒' : (kind === 'sleep') ? '就寝' : '記録';
+  const kindLabel = (kind === 'wake') ? '🌅' : (kind === 'awake') ? '☀️' : (kind === 'sleep') ? '🌙' : '記録';
   if(!confirmDelete(`${kindLabel}の記録を削除しますか？`)) return;
 
   arr.splice(idx, 1);
@@ -1026,7 +1024,7 @@ function renderAllRecordsTimeline(){
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
   wakeArr.forEach((iso, i) => {
     allRecords.push({ type: 'wake', time: iso, label: '起床', data: { index: i } });
-  });
+  }); 
 
   // 覚醒記録 (複数対応)
   const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];

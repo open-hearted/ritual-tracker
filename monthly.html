@@ -67,6 +67,22 @@
     #monthlyControls{ display:flex; align-items:center; gap:8px; }
     #monthlyControls #monthLabel{ font-weight:700; min-width: 8ch; text-align:center; }
     #monthlyControls button{ padding:4px 8px; }
+    /* Style for openDaily button matching index's monthly button */
+    #openDaily {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 6px 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      background: #14224e;
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    #openDaily:active { filter: brightness(1.1); }
   </style>
 </head>
 <body data-page="monthly" data-auth="false">
@@ -78,9 +94,8 @@
       <button id="prevBtn" type="button">◀</button>
       <div id="monthLabel"></div>
       <button id="nextBtn" type="button">▶</button>
-      <button id="todayBtn" type="button">今日</button>
     </div>
-    <a id="openDaily" href="index.html" style="opacity:0.9">当日</a>
+    <a id="openDaily" href="index.html">今日</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
@@ -95,9 +110,9 @@
     <div id="editSection" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
       <strong id="editDate" style="margin-right:8px;">-</strong>
       <div style="display:flex;gap:8px;align-items:center;flex:1;justify-content:center">
-        <button data-action="record" data-kind="wake" class="time-btn" style="padding:6px 10px;border-radius:6px">起床</button>
-        <button data-action="record" data-kind="awake" class="time-btn" style="padding:6px 10px;border-radius:6px">覚醒</button>
-        <button data-action="record" data-kind="sleep" class="time-btn" style="padding:6px 10px;border-radius:6px">就寝</button>
+        <button data-action="record" data-kind="wake" class="time-btn" title="起床" style="padding:6px 10px;border-radius:6px;font-size:1.2em;line-height:1">🌅</button>
+        <button data-action="record" data-kind="awake" class="time-btn" title="覚醒" style="padding:6px 10px;border-radius:6px;font-size:1.2em;line-height:1">👀</button>
+        <button data-action="record" data-kind="sleep" class="time-btn" title="就寝" style="padding:6px 10px;border-radius:6px;font-size:1.2em;line-height:1">🌙</button>
       </div>
       <button id="closeEditor" type="button" aria-label="閉じる">閉じる</button>
     </div>
