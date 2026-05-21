@@ -73,8 +73,8 @@
       }
     });
 
-    function getDateKey(y,m,d){ return \\-\-\\; }
-    function getMonthKey(y,m){ return \\-\\; }
+    function getDateKey(y,m,d){ return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+    function getMonthKey(y,m){ return `${y}-${String(m+1).padStart(2,'0')}`; }
 
     function getPendingQueue() {
       try { return JSON.parse(localStorage.getItem('quickLogQueue') || '[]'); } catch(e){ return []; }
