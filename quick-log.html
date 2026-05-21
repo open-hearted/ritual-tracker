@@ -228,7 +228,7 @@
       try {
         const { data, error } = await supabaseClient
           .from('user_data')
-          .select('payload')
+          .select('id, payload')
           .eq('user_id', currentUser.id)
           .maybeSingle();
 
@@ -266,11 +266,21 @@
         payload.__meta.version = (payload.__meta.version || 0) + 1;
         payload.__meta.updatedAt = new Date().toISOString();
 
-        const { error: upsertErr } = await supabaseClient
-          .from('user_data')
-          .upsert({ user_id: currentUser.id, payload: payload }, { onConflict: 'user_id' });
+        let syncErr;
+        if (data && data.id) {
+          const { error } = await supabaseClient
+            .from('user_data')
+            .update({ payload: payload })
+            .eq('id', data.id);
+          syncErr = error;
+        } else {
+          const { error } = await supabaseClient
+            .from('user_data')
+            .insert({ user_id: currentUser.id, payload: payload });
+          syncErr = error;
+        }
 
-        if(upsertErr) throw upsertErr;
+        if(syncErr) throw syncErr;
 
         savePendingQueue([]);
         showStatus('Supabaseに同期完了！', 'success');
