@@ -3,7 +3,7 @@
   "short_name": "Ritual",
   "id": "/index.html",
   "start_url": "/index.html",
-  "scope": "/index.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",
