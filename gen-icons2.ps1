@@ -24,8 +24,6 @@ function New-SolidIcon {
 }
 
 $icons = @(
-    @{ Prefix = "wake"; Color = [System.Drawing.ColorTranslator]::FromHtml("#ff8c00") },
-    @{ Prefix = "awake"; Color = [System.Drawing.ColorTranslator]::FromHtml("#3cb371") },
     @{ Prefix = "sleep"; Color = [System.Drawing.ColorTranslator]::FromHtml("#191970") }
 )
 
