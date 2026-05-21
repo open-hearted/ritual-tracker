@@ -1,7 +1,7 @@
 {
   "headers": [
     {
-      "source": "/icon-(.*).png",
+      "source": "/(.*).png",
       "headers": [
         {
           "key": "Cache-Control",

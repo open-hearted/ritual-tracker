@@ -9,13 +9,13 @@
   "theme_color": "#191970",
   "icons": [
     {
-      "src": "/icon-sleep-192.png",
+      "src": "/sleep-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-sleep.png",
+      "src": "/sleep.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
