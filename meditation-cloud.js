@@ -1024,7 +1024,7 @@ function renderAllRecordsTimeline(){
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
   wakeArr.forEach((iso, i) => {
     allRecords.push({ type: 'wake', time: iso, label: '起床', data: { index: i } });
-  });
+  }); 
 
   // 覚醒記録 (複数対応)
   const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
