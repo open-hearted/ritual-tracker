@@ -1,0 +1,15 @@
+{
+  "name": "👀 覚醒",
+  "short_name": "覚醒",
+  "start_url": "awake.html",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#3cb371",
+  "icons": [
+    {
+      "src": "/icon-awake.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

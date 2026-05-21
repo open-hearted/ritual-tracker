@@ -1,0 +1,15 @@
+{
+  "name": "🌅 起床",
+  "short_name": "起床",
+  "start_url": "wake.html",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#ff8c00",
+  "icons": [
+    {
+      "src": "/icon-wake.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

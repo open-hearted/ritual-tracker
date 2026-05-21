@@ -1,0 +1,15 @@
+{
+  "name": "🌙 就寝",
+  "short_name": "就寝",
+  "start_url": "sleep.html",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#191970",
+  "icons": [
+    {
+      "src": "/icon-sleep.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
