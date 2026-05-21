@@ -187,9 +187,11 @@
     <button id="supabaseLoginBtn">Googleでログイン</button>
     <button id="signOutBtn" style="display:none">サインアウト</button>
     <div style="flex:1"></div>
-    <button id="openPrevDay" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">前日</button>
-    <button id="openNextDay" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">翌日</button>
-    <button id="openToday" style="background:transparent;border:none;color:#fff;text-decoration:underline;cursor:pointer;padding:0;margin-right:12px;">今日</button>
+    <div id="dailyControls" style="display:flex;align-items:center;gap:6px;margin-right:8px;">
+      <button id="openPrevDay" style="background:transparent;border:none;color:#fff;text-decoration:none;cursor:pointer;padding:0;">◀</button>
+      <button id="openToday" style="background:transparent;border:none;color:#fff;text-decoration:none;cursor:pointer;padding:0;">今日</button>
+      <button id="openNextDay" style="background:transparent;border:none;color:#fff;text-decoration:none;cursor:pointer;padding:0;">▶</button>
+    </div>
     <a id="openMonthly" href="monthly.html">月間</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
