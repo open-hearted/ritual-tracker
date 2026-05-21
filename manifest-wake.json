@@ -7,7 +7,7 @@
   "theme_color": "#ff8c00",
   "icons": [
     {
-      "src": "/icon-wake.png",
+      "src": "/icon-wake.png?v=2",
       "sizes": "512x512",
       "type": "image/png"
     }
