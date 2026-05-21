@@ -1,0 +1,179 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>👀 覚醒</title>
+  <link rel="icon" href="/icon-512.png" type="image/png">
+  <link rel="apple-touch-icon" href="/icon-512.png">
+  <meta name="theme-color" content="#111111">
+  <style>
+    :root { --bg: #111; --fg: #eee; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background: var(--bg); color: var(--fg); margin: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+    .icon { font-size: 6rem; margin-bottom: 0.5rem; }
+    #status { font-size: 1.2rem; margin-top: 1rem; padding: 10px; }
+    .success { color: #4ade80; font-weight: bold; }
+    .error { color: #f87171; }
+    button { background: #4285F4; color: white; border: none; padding: 1rem 2rem; font-size: 1.2rem; border-radius: 8px; cursor: pointer; margin-top: 1rem; }
+    .back { color:#888; font-size: 1rem; text-decoration:none; margin-top:3rem; padding: 10px; border: 1px solid #444; border-radius: 8px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="icon">👀</div>
+  <h1>👀 覚醒</h1>
+  <div id="status">準備中...</div>
+  
+  <div id="login-section" style="display:none">
+    <p>Supabaseにログインしていません</p>
+    <button onclick="signIn()">Googleでログイン</button>
+  </div>
+
+  <a href="index.html" class="back">メインアプリへ戻る</a>
+
+  <script>
+    const SUPABASE_URL = 'https://jlkfvijgfrvoesazegnc.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
+    const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+    let currentUser = null;
+    let hasLogged = false;
+
+    const dom = {
+      login: document.getElementById('login-section'),
+      status: document.getElementById('status')
+    };
+
+    function showStatus(msg, cls='') {
+      dom.status.textContent = msg;
+      dom.status.className = cls;
+    }
+
+    async function checkAuth() {
+      if(!supabaseClient) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if(session && session.user) {
+        currentUser = session.user;
+        dom.login.style.display = 'none';
+        triggerLog();
+      } else {
+        dom.login.style.display = 'block';
+        showStatus('');
+      }
+    }
+
+    async function signIn() {
+      await supabaseClient.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + window.location.pathname } });
+    }
+
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      if(session && session.user) {
+        currentUser = session.user;
+        dom.login.style.display = 'none';
+        triggerLog();
+      }
+    });
+
+    function getDateKey(y,m,d){ return \\-\-\\; }
+    function getMonthKey(y,m){ return \\-\\; }
+
+    function getPendingQueue() {
+      try { return JSON.parse(localStorage.getItem('quickLogQueue') || '[]'); } catch(e){ return []; }
+    }
+    function savePendingQueue(q) {
+      localStorage.setItem('quickLogQueue', JSON.stringify(q));
+    }
+
+    async function triggerLog() {
+      if(hasLogged) return;
+      hasLogged = true;
+
+      const kind = 'awake';
+      const iso = new Date().toISOString();
+      const q = getPendingQueue();
+      q.push({ kind, iso });
+      savePendingQueue(q);
+      
+      showStatus('📥 端末に記録しました... 同期中', '');
+
+      if(navigator.onLine && currentUser) {
+        await syncPending();
+      } else {
+        showStatus('✅ 記録完了 (オフラインのため後で同期されます)', 'success');
+      }
+    }
+
+    async function syncPending() {
+      const q = getPendingQueue();
+      if(q.length === 0) return;
+      if(!currentUser) return;
+      
+      try {
+        const { data, error } = await supabaseClient
+          .from('user_data')
+          .select('id, payload')
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        
+        let payload = (data && data.payload) ? data.payload : {};
+        if(!payload.data) payload.data = {};
+        if(!payload.__meta) payload.__meta = { version: 0, updatedAt: new Date().toISOString() };
+
+        for (let item of q) {
+          const d = new Date(item.iso);
+          const y = d.getFullYear();
+          const m = d.getMonth();
+          const p = d.getDate();
+          
+          const mk = getMonthKey(y, m);
+          const dk = getDateKey(y, m, p);
+
+          if(!payload.data[mk]) payload.data[mk] = {};
+          if(!payload.data[mk][dk]) payload.data[mk][dk] = {};
+          const rec = payload.data[mk][dk];
+
+          if(item.kind === 'wake') {
+            rec.wake = Array.isArray(rec.wake) ? rec.wake : [];
+            rec.wake.push(item.iso);
+          } else if(item.kind === 'awake') {
+            rec.awake = Array.isArray(rec.awake) ? rec.awake : [];
+            rec.awake.push(item.iso);
+          } else if(item.kind === 'sleep') {
+            rec.sleep = Array.isArray(rec.sleep) ? rec.sleep : [];
+            rec.sleep.push(item.iso);
+          }
+        }
+
+        payload.__meta.version = (payload.__meta.version || 0) + 1;
+        payload.__meta.updatedAt = new Date().toISOString();
+
+        let syncErr;
+        if (data && data.id) {
+          const { error } = await supabaseClient
+            .from('user_data')
+            .update({ payload: payload })
+            .eq('id', data.id);
+          syncErr = error;
+        } else {
+          const { error } = await supabaseClient
+            .from('user_data')
+            .insert({ user_id: currentUser.id, payload: payload });
+          syncErr = error;
+        }
+
+        if(syncErr) throw syncErr;
+
+        savePendingQueue([]);
+        showStatus('✅ 記録・同期が完了しました！', 'success');
+
+      } catch(e) {
+        console.error('Sync failed', e);
+        showStatus('✅ 記録は保存されました。 (同期は後で再試行されます)', 'success');
+      }
+    }
+
+    checkAuth();
+  </script>
+</body>
+</html>
