@@ -1023,13 +1023,13 @@ function renderAllRecordsTimeline(){
   // 起床記録 (複数対応)
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
   wakeArr.forEach((iso, i) => {
-    allRecords.push({ type: 'wake', time: iso, label: '🌅', data: { index: i } });
+    allRecords.push({ type: 'wake', time: iso, label: '起床', data: { index: i } });
   });
 
   // 覚醒記録 (複数対応)
   const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
   awakeArr.forEach((iso, i) => {
-    allRecords.push({ type: 'awake', time: iso, label: '☀️', data: { index: i } });
+    allRecords.push({ type: 'awake', time: iso, label: '覚醒', data: { index: i } });
   });
   
   // 瞑想記録
@@ -1064,7 +1064,7 @@ function renderAllRecordsTimeline(){
   // 就寝記録 (複数対応)
   const sleepArr = Array.isArray(rec.sleep) ? rec.sleep : [];
   sleepArr.forEach((iso, i) => {
-    allRecords.push({ type: 'sleep', time: iso, label: '🌙', data: { index: i } });
+    allRecords.push({ type: 'sleep', time: iso, label: '就寝', data: { index: i } });
   });
   
   // 時刻順にソート（時刻なしは最後へ）
