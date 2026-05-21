@@ -538,8 +538,6 @@ function attachHandlers(){
   if(prevBtn) prevBtn.addEventListener('click', ()=>{ STATE.month--; if(STATE.month<0){ STATE.month=11; STATE.year--; } renderCalendar(); });
   const nextBtn = $('nextBtn');
   if(nextBtn) nextBtn.addEventListener('click', ()=>{ STATE.month++; if(STATE.month>11){ STATE.month=0; STATE.year++; } renderCalendar(); });
-  const todayBtn = $('todayBtn');
-  if(todayBtn) todayBtn.addEventListener('click', ()=>{ const n=new Date(); STATE.year=n.getFullYear(); STATE.month=n.getMonth(); renderCalendar(); setTimeout(()=>{ const key = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; const el = document.querySelector(`.cell[data-date="${key}"]`); if(el){ el.click(); el.scrollIntoView({block:'nearest'}); } },50); });
   const closeBtn = $('closeEditor');
   if(closeBtn) closeBtn.addEventListener('click', closeEditor);
 
@@ -1395,12 +1393,6 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
       const dd = String(d.getDate()).padStart(2, '0');
       location.href = '?date=' + yy + '-' + mm + '-' + dd;
     }
-  });
-
-  const todayBtn = $('openToday');
-  if(todayBtn) todayBtn.addEventListener('click', (ev)=>{
-    ev.preventDefault();
-    location.href = '?';
   });
 
   // period record (生理 n日目)
