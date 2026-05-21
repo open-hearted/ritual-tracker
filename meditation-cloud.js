@@ -1395,6 +1395,12 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
     }
   });
 
+  const todayBtn = $('openToday');
+  if(todayBtn) todayBtn.addEventListener('click', (ev)=>{
+    ev.preventDefault();
+    location.href = '?';
+  });
+
   // period record (生理 n日目)
   const periodBtn = $('periodAdd');
   if(periodBtn) periodBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addPeriodRecord(); });
