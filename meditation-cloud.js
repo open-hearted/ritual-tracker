@@ -964,7 +964,7 @@ function deleteTimeAt(kind, idx){
   const arr = Array.isArray(rec[kind]) ? rec[kind].slice() : [];
   if(typeof idx !== 'number' || idx < 0 || idx >= arr.length) return;
 
-  const kindLabel = (kind === 'wake') ? '起床' : (kind === 'awake') ? '覚醒' : (kind === 'sleep') ? '就寝' : '記録';
+  const kindLabel = (kind === 'wake') ? '🌅' : (kind === 'awake') ? '☀️' : (kind === 'sleep') ? '🌙' : '記録';
   if(!confirmDelete(`${kindLabel}の記録を削除しますか？`)) return;
 
   arr.splice(idx, 1);
@@ -1023,13 +1023,13 @@ function renderAllRecordsTimeline(){
   // 起床記録 (複数対応)
   const wakeArr = Array.isArray(rec.wake) ? rec.wake : [];
   wakeArr.forEach((iso, i) => {
-    allRecords.push({ type: 'wake', time: iso, label: '起床', data: { index: i } });
+    allRecords.push({ type: 'wake', time: iso, label: '🌅', data: { index: i } });
   });
 
   // 覚醒記録 (複数対応)
   const awakeArr = Array.isArray(rec.awake) ? rec.awake : [];
   awakeArr.forEach((iso, i) => {
-    allRecords.push({ type: 'awake', time: iso, label: '覚醒', data: { index: i } });
+    allRecords.push({ type: 'awake', time: iso, label: '☀️', data: { index: i } });
   });
   
   // 瞑想記録
@@ -1064,7 +1064,7 @@ function renderAllRecordsTimeline(){
   // 就寝記録 (複数対応)
   const sleepArr = Array.isArray(rec.sleep) ? rec.sleep : [];
   sleepArr.forEach((iso, i) => {
-    allRecords.push({ type: 'sleep', time: iso, label: '就寝', data: { index: i } });
+    allRecords.push({ type: 'sleep', time: iso, label: '🌙', data: { index: i } });
   });
   
   // 時刻順にソート（時刻なしは最後へ）
