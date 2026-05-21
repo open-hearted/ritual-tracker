@@ -3,7 +3,7 @@
   "short_name": "起床",
   "id": "/wake.html",
   "start_url": "/wake.html",
-  "scope": "/",
+  "scope": "/wake.html",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#ff8c00",

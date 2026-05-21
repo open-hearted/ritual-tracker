@@ -3,7 +3,7 @@
   "short_name": "QuickLog",
   "id": "/quick-log.html",
   "start_url": "/quick-log.html",
-  "scope": "/",
+  "scope": "/quick-log.html",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",

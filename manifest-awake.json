@@ -3,7 +3,7 @@
   "short_name": "覚醒",
   "id": "/awake.html",
   "start_url": "/awake.html",
-  "scope": "/",
+  "scope": "/awake.html",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#3cb371",
