@@ -9,13 +9,13 @@
   "theme_color": "#ff8c00",
   "icons": [
     {
-      "src": "/icon-wake-192.png",
+      "src": "/getting_up-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-wake.png",
+      "src": "/getting_up.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
