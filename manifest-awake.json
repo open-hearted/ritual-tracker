@@ -9,13 +9,13 @@
   "theme_color": "#3cb371",
   "icons": [
     {
-      "src": "/icon-awake-192.png",
+      "src": "/awake-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-awake.png",
+      "src": "/awake.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
