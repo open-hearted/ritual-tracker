@@ -3,7 +3,7 @@
   "short_name": "就寝",
   "id": "/sleep.html",
   "start_url": "/sleep.html",
-  "scope": "/",
+  "scope": "/sleep.html",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#191970",
