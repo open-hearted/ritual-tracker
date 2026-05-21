@@ -67,6 +67,22 @@
     #monthlyControls{ display:flex; align-items:center; gap:8px; }
     #monthlyControls #monthLabel{ font-weight:700; min-width: 8ch; text-align:center; }
     #monthlyControls button{ padding:4px 8px; }
+    /* Style for openDaily button matching index's monthly button */
+    #openDaily {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 32px;
+      padding: 6px 14px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px;
+      background: #14224e;
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    #openDaily:active { filter: brightness(1.1); }
   </style>
 </head>
 <body data-page="monthly" data-auth="false">
@@ -79,7 +95,7 @@
       <div id="monthLabel"></div>
       <button id="nextBtn" type="button">▶</button>
     </div>
-    <a id="openDaily" href="index.html" style="opacity:0.9">当日</a>
+    <a id="openDaily" href="index.html">今日</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
