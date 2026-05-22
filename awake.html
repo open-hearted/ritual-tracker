@@ -173,12 +173,10 @@
 
         savePendingQueue([]);
         showStatus('✅ 記録・同期が完了しました！', 'success');
-        setTimeout(() => { window.location.href = '/index.html'; }, 1500);
 
       } catch(e) {
         console.error('Sync failed', e);
         showStatus('✅ 記録は保存されました。 (同期は後で再試行されます)', 'success');
-        setTimeout(() => { window.location.href = '/index.html'; }, 1500);
       }
     }
 
