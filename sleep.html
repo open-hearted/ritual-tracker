@@ -172,12 +172,12 @@
         if(syncErr) throw syncErr;
 
         savePendingQueue([]);
-        showStatus('✅ 記録・同期完了！（画面を閉じてください）', 'success');
+        showStatus('✅ 記録・同期完了！', 'success');
         setTimeout(() => { window.close(); }, 500);
 
       } catch(e) {
         console.error('Sync failed', e);
-        showStatus('✅ 保存完了/後で同期されます（画面を閉じてください）', 'success');
+        showStatus('✅ 保存完了 (後で同期されます)', 'success');
         setTimeout(() => { window.close(); }, 500);
       }
     }
