@@ -293,12 +293,13 @@
         if(syncErr) throw syncErr;
 
         savePendingQueue([]);
-        showStatus('Supabaseに同期完了！', 'success');
-        setTimeout(() => { window.location.href = '/index.html'; }, 1500);
+        showStatus('✅ 記録・同期完了！（画面を閉じてください）', 'success');
+        setTimeout(() => { window.close(); }, 500);
 
       } catch(e) {
         console.error('Sync failed', e);
-        showStatus('同期失敗。後で再試行します。', 'error');
+        showStatus('同期失敗。後で再試行します。（画面を閉じてください）', 'error');
+        setTimeout(() => { window.close(); }, 500);
       }
     }
 
