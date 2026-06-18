@@ -1042,6 +1042,40 @@ function formatExerciseRecordLabel(session){
   return jp || ko || '';
 }
 
+function formatImageTimelineLabel(session){
+  return (session?.note || '').toString().trim();
+}
+
+function editExerciseSessionTimeAt(idx){
+  const dk = STATE.selected;
+  if(!dk) return;
+  const rec = getDayRecord(dk);
+  const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
+  const cur = arr[idx];
+  if(!cur || !isImageRecordSession(cur)) return;
+
+  const curVal = cur.startedAt ? new Date(cur.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+  const input = prompt('時刻を HH:MM で入力してください（空欄で時刻なし）', curVal);
+  if(input === null) return;
+
+  const trimmed = input.trim();
+  if(trimmed){
+    const iso = parseDateKeyAndHHMMToISO(dk, trimmed);
+    if(!iso){ alert('HH:MM の形式で入力してください'); return; }
+    arr[idx].startedAt = iso;
+  }else{
+    arr[idx].startedAt = null;
+  }
+
+  rec.exercise.sessions = arr;
+  rec.exercise.updatedAt = nowISO();
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dk] = rec;
+  renderExerciseList();
+  renderAllRecordsTimeline();
+  med_saveAll();
+}
+
 // 全ての記録を時刻順に統一表示する関数
 function renderAllRecordsTimeline(){
   const wrap = $('allRecordsTimeline');
@@ -1112,7 +1146,7 @@ function renderAllRecordsTimeline(){
   exerciseSessions.forEach((session, i) => {
     const imageKind = getImageRecordKind(session);
     const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
-    const label = `${formatExerciseRecordLabel(session)}${secPart}`;
+    const label = imageKind ? formatImageTimelineLabel(session) : `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
       type: imageKind || 'exercise',
       time: session && session.startedAt ? session.startedAt : null,
@@ -1156,6 +1190,7 @@ function renderAllRecordsTimeline(){
       </div>`;
     } else if(getImageRecordConfig(record.type) && record.data){
       buttons = `<div style="display:flex;gap:8px">
+        <button data-img-time-edit="${record.data.index}" title="時刻変更">🕒</button>
         <button data-ex-del="${record.data.index}">✕</button>
       </div>`;
     } else if(record.type === 'exercise' && record.data){
@@ -1241,6 +1276,14 @@ function renderAllRecordsTimeline(){
       renderWakeSleep();
       renderAllRecordsTimeline();
       med_saveAll();
+    });
+  });
+
+  wrap.querySelectorAll('button[data-img-time-edit]').forEach(b => {
+    b.addEventListener('click', (ev) => {
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+      const idx = parseInt(b.getAttribute('data-img-time-edit'), 10);
+      editExerciseSessionTimeAt(idx);
     });
   });
   
