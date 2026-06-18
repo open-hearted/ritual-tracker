@@ -193,6 +193,248 @@ input::placeholder{color:#9fb0ff99}
 	.finger-exercise .finger-link{ width: 40px; height: 34px; }
 }
 
+@media (max-width: 600px){
+	html, body{
+		max-width:100%;
+		overflow-x:hidden;
+	}
+	.top{
+		display:flex !important;
+		flex-wrap:wrap !important;
+		align-items:center !important;
+		gap:8px !important;
+		padding:8px !important;
+		max-width:100vw;
+		overflow-x:hidden;
+		white-space:normal !important;
+	}
+	.top > div[style*="flex:1"]{
+		display:none !important;
+	}
+	.top #supabaseLoginBtn,
+	.top #signOutBtn,
+	.top #openMonthly,
+	.top #openDaily{
+		order:1;
+		min-height:40px;
+		padding:8px 10px;
+		line-height:1.2;
+		white-space:nowrap;
+	}
+	.top #dailyControls,
+	.top #monthlyControls{
+		order:2;
+		width:100%;
+		display:flex !important;
+		align-items:center !important;
+		justify-content:flex-end !important;
+		gap:8px !important;
+		margin-right:0 !important;
+		overflow:hidden;
+	}
+	.top #dailyControls button,
+	.top #monthlyControls button{
+		min-height:40px;
+		padding:8px 12px !important;
+		white-space:nowrap;
+	}
+	.top #monthlyControls #monthLabel{
+		min-width:0;
+		overflow:hidden;
+		text-overflow:ellipsis;
+		white-space:nowrap;
+	}
+	.top #msg{
+		order:3;
+		flex:1 0 100%;
+		width:100%;
+		min-height:18px;
+		font-size:12px;
+		line-height:1.35;
+		overflow:hidden;
+		text-overflow:ellipsis;
+		white-space:normal !important;
+	}
+
+	#medTimerBox,
+	.exercise-timer{
+		display:grid !important;
+		grid-template-columns:auto minmax(64px, 1fr) auto auto;
+		align-items:center !important;
+		gap:8px !important;
+		width:100%;
+		box-sizing:border-box;
+	}
+	#medTimerBox > strong,
+	.exercise-timer > strong{
+		grid-column:1 / -1;
+		width:auto !important;
+		max-width:100%;
+		white-space:nowrap;
+	}
+	#medTimerBox input,
+	.exercise-timer input[type="number"],
+	.exercise-timer button{
+		min-height:44px;
+		box-sizing:border-box;
+	}
+	#medTimerBox input,
+	.exercise-timer input[type="number"]{
+		width:100% !important;
+		min-width:0;
+	}
+	#medTimerBox button,
+	.exercise-timer button{
+		padding:8px 12px;
+		white-space:nowrap;
+	}
+	.exercise-timer > div{
+		display:flex !important;
+		align-items:center !important;
+		justify-content:flex-end;
+		gap:8px !important;
+		flex-wrap:wrap;
+	}
+	#cleanupText{
+		grid-column:1 / -1;
+		width:100% !important;
+		min-width:0 !important;
+		min-height:44px;
+		box-sizing:border-box;
+	}
+
+	#tongueRecordRow,
+	#periodRecordRow,
+	#rohtoRecordRow{
+		display:flex !important;
+		align-items:center !important;
+		gap:8px !important;
+		flex-wrap:wrap !important;
+		margin-bottom:12px !important;
+	}
+	#tongueRecordRow > strong,
+	#periodRecordRow > strong,
+	#rohtoRecordRow > strong{
+		width:auto !important;
+		max-width:100%;
+		white-space:nowrap !important;
+	}
+	#tongueRecordRow button,
+	#periodRecordRow button,
+	#rohtoRecordRow button,
+	#tongueRecordRow label[title],
+	#periodRecordRow label[title],
+	#rohtoRecordRow label[title]{
+		min-height:44px;
+		box-sizing:border-box;
+	}
+	#periodRecordRow input[type="number"],
+	#rohtoRecordRow input[type="number"]{
+		min-height:44px;
+		box-sizing:border-box;
+	}
+
+	#freeRecordRow,
+	#selfKindnessRecordRow,
+	#freeTextRecordRow,
+	#accomplishedRecordRow,
+	#codingRecordRow,
+	#mealImageRecordRow,
+	#otherImageRecordRow{
+		display:grid !important;
+		grid-template-columns:1fr auto auto !important;
+		align-items:center !important;
+		gap:8px !important;
+		margin-bottom:12px !important;
+		width:100%;
+		box-sizing:border-box;
+	}
+	#freeRecordRow > strong,
+	#selfKindnessRecordRow > strong,
+	#freeTextRecordRow > strong,
+	#accomplishedRecordRow > strong,
+	#codingRecordRow > strong,
+	#mealImageRecordRow > strong,
+	#otherImageRecordRow > strong{
+		grid-column:1 / -1;
+		width:auto !important;
+		max-width:100%;
+		min-width:0;
+		flex:initial !important;
+		white-space:nowrap !important;
+		overflow:visible !important;
+		text-overflow:clip !important;
+	}
+	#freeRecordRow input#freeKorean,
+	#selfKindnessRecordRow input#selfKindnessText,
+	#freeTextRecordRow input#freeText,
+	#accomplishedRecordRow input#accomplished,
+	#codingRecordRow input#codingText,
+	#otherImageRecordRow input#otherImageNote{
+		grid-column:1 / -1;
+		width:100% !important;
+		min-width:0 !important;
+		min-height:44px;
+		box-sizing:border-box;
+	}
+	#freeRecordRow label[title],
+	#selfKindnessRecordRow label[title],
+	#freeTextRecordRow label[title],
+	#accomplishedRecordRow label[title],
+	#codingRecordRow label[title],
+	#mealImageRecordRow label[title],
+	#otherImageRecordRow label[title]{
+		grid-column:2;
+		justify-self:end;
+		min-height:44px;
+		box-sizing:border-box;
+		padding:6px 8px;
+	}
+	#freeRecordRow button,
+	#selfKindnessRecordRow button,
+	#freeTextRecordRow button,
+	#accomplishedRecordRow button,
+	#codingRecordRow button,
+	#mealImageRecordRow button,
+	#otherImageRecordRow button{
+		grid-column:3;
+		justify-self:end;
+		min-width:44px;
+		min-height:44px;
+		box-sizing:border-box;
+		padding:8px 12px;
+		white-space:nowrap;
+	}
+
+	#mealImageRecordRow .meal-image-file-wrap,
+	#otherImageRecordRow .other-image-file-wrap{
+		grid-column:1 / 3;
+		width:100% !important;
+		min-width:0 !important;
+		min-height:44px;
+		box-sizing:border-box;
+	}
+	#mealImageRecordRow label:has(#mealImageCameraFile),
+	#otherImageRecordRow label:has(#otherImageCameraFile){
+		grid-column:3;
+		justify-self:end;
+		min-height:44px;
+		box-sizing:border-box;
+		display:flex !important;
+		align-items:center;
+		justify-content:center;
+		white-space:nowrap;
+	}
+	#mealImageFileName,
+	#otherImageFileName{
+		display:block;
+		min-width:0;
+		overflow:hidden !important;
+		text-overflow:ellipsis !important;
+		white-space:nowrap !important;
+	}
+}
+
 /* Meditation editor overlay */
 #medEditor{position:fixed; z-index:1000; width:210px; background:#132247; border:1px solid rgba(255,255,255,0.18); border-radius:14px; padding:10px 10px 12px; box-shadow:0 10px 28px -4px rgba(0,0,0,0.5); display:none;}
 #medEditor .med-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px; font-weight:600; letter-spacing:.5px}
