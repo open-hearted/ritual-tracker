@@ -252,6 +252,22 @@ input::placeholder{color:#9fb0ff99}
 		padding:8px 12px !important;
 		white-space:nowrap;
 	}
+	body[data-page="daily"] .top #signOutBtn{
+		order:1;
+	}
+	body[data-page="daily"] .top #dailyControls{
+		order:1;
+		width:auto;
+		flex:0 1 auto;
+		justify-content:flex-start !important;
+		gap:6px !important;
+	}
+	body[data-page="daily"] .top #openMonthly{
+		order:2;
+	}
+	body[data-page="daily"] .top #msg{
+		order:3;
+	}
 	.top #monthlyControls #monthLabel{
 		min-width:0;
 		overflow:hidden;
