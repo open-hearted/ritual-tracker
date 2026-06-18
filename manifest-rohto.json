@@ -3,7 +3,7 @@
   "short_name": "ロートV5",
   "id": "/rohto.html",
   "start_url": "/rohto.html",
-  "scope": "/",
+  "scope": "/rohto.html",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#e02424",

@@ -3,7 +3,7 @@
   "short_name": "ライスブラン",
   "id": "/rice-bran.html",
   "start_url": "/rice-bran.html",
-  "scope": "/",
+  "scope": "/rice-bran.html",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#d8a03d",

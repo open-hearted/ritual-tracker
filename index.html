@@ -203,6 +203,7 @@
       <button id="openNextDay" style="background:transparent;border:none;color:#fff;text-decoration:none;cursor:pointer;padding:0;">▶</button>
     </div>
     <a id="openMonthly" href="monthly.html">月間</a>
+    <button id="homeInstallBtn" type="button" style="display:none">ホーム画面に追加</button>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
@@ -398,6 +399,32 @@
     </div>
   </div>
   <script>
+    let homeInstallPrompt = null;
+    function isHomeStandaloneMode() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+    function setHomeInstallButtonVisible(visible) {
+      const btn = document.getElementById('homeInstallBtn');
+      if(!btn) return;
+      btn.style.display = visible ? 'inline-flex' : 'none';
+    }
+    window.addEventListener('beforeinstallprompt', (event) => {
+      if(isHomeStandaloneMode()) return;
+      event.preventDefault();
+      homeInstallPrompt = event;
+      setHomeInstallButtonVisible(true);
+    });
+    window.addEventListener('appinstalled', () => {
+      homeInstallPrompt = null;
+      setHomeInstallButtonVisible(false);
+    });
+    document.getElementById('homeInstallBtn')?.addEventListener('click', async () => {
+      if(!homeInstallPrompt) return;
+      setHomeInstallButtonVisible(false);
+      homeInstallPrompt.prompt();
+      try{ await homeInstallPrompt.userChoice; }catch(e){}
+      homeInstallPrompt = null;
+    });
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
     }

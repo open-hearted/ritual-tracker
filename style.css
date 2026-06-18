@@ -227,6 +227,7 @@ input::placeholder{color:#9fb0ff99}
 	}
 	.top #supabaseLoginBtn,
 	.top #signOutBtn,
+	.top #homeInstallBtn,
 	.top #openMonthly,
 	.top #openDaily{
 		order:1;
@@ -263,6 +264,9 @@ input::placeholder{color:#9fb0ff99}
 		gap:6px !important;
 	}
 	body[data-page="daily"] .top #openMonthly{
+		order:2;
+	}
+	body[data-page="daily"] .top #homeInstallBtn{
 		order:2;
 	}
 	body[data-page="daily"] .top #msg{

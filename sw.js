@@ -1,7 +1,8 @@
-const CACHE_NAME = 'ritual-tracker-v2';
+const CACHE_NAME = 'ritual-tracker-v3';
 const PRECACHE = [
   '/',
   '/index.html',
+  '/manifest-index.json',
   '/style.css',
   '/style-overrides-meditation.css',
   '/schedule.js',
