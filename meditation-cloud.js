@@ -19,6 +19,7 @@ const IMAGE_RECORD_CONFIGS = {
     type: '食事画像',
     category: 'meal',
     fileId: 'mealImageFile',
+    cameraFileId: 'mealImageCameraFile',
     fileNameId: 'mealImageFileName',
     useTimeId: 'mealImageUseTime',
     noteId: null,
@@ -29,6 +30,7 @@ const IMAGE_RECORD_CONFIGS = {
     type: 'その他画像',
     category: 'other',
     fileId: 'otherImageFile',
+    cameraFileId: 'otherImageCameraFile',
     fileNameId: 'otherImageFileName',
     useTimeId: 'otherImageUseTime',
     noteId: 'otherImageNote',
@@ -717,8 +719,8 @@ renderCalendar = function(){
     if(hasPlank) activityMarkers.push('<span class="cal-mark">P</span>');
     if(hasWall) activityMarkers.push('<span class="cal-mark">🪑</span>');
     if(medSeconds>0){
-      const minutes = Math.floor(medSeconds/60);
-      if(minutes>0) activityMarkers.push(`<span class="cal-mark">瞑${minutes}</span>`);
+      const minutes = formatCompactPositiveNumber(medSeconds/60);
+      if(minutes) activityMarkers.push(`<span class="cal-mark">瞑${minutes}分</span>`);
       else activityMarkers.push(`<span class="cal-mark">瞑</span>`);
     }
     if(hasRecord) activityMarkers.push('<span class="cal-mark">記</span>');
@@ -1040,6 +1042,64 @@ function formatExerciseRecordLabel(session){
   return jp || ko || '';
 }
 
+function isMeditationExerciseSession(session){
+  const type = (session?.type || '').toString().trim();
+  const lower = type.toLowerCase();
+  return type === '瞑想' || type.includes('瞑') || lower === 'meditation';
+}
+
+function formatCompactPositiveNumber(value){
+  const num = Number(value);
+  if(!Number.isFinite(num) || num <= 0) return '';
+  const rounded = Math.round(num * 100) / 100;
+  return String(rounded).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
+
+function formatExerciseDurationPart(session){
+  const seconds = Number(session?.seconds);
+  if(!(seconds > 0)) return '';
+  if(isMeditationExerciseSession(session)){
+    const minutes = formatCompactPositiveNumber(seconds / 60);
+    return minutes ? ` ${minutes}分` : '';
+  }
+  const secondsText = formatCompactPositiveNumber(seconds);
+  return secondsText ? ` ${secondsText}秒` : '';
+}
+
+function formatImageTimelineLabel(session){
+  return (session?.note || '').toString().trim();
+}
+
+function editExerciseSessionTimeAt(idx){
+  const dk = STATE.selected;
+  if(!dk) return;
+  const rec = getDayRecord(dk);
+  const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
+  const cur = arr[idx];
+  if(!cur || !isImageRecordSession(cur)) return;
+
+  const curVal = cur.startedAt ? new Date(cur.startedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+  const input = prompt('時刻を HH:MM で入力してください（空欄で時刻なし）', curVal);
+  if(input === null) return;
+
+  const trimmed = input.trim();
+  if(trimmed){
+    const iso = parseDateKeyAndHHMMToISO(dk, trimmed);
+    if(!iso){ alert('HH:MM の形式で入力してください'); return; }
+    arr[idx].startedAt = iso;
+  }else{
+    arr[idx].startedAt = null;
+  }
+
+  rec.exercise.sessions = arr;
+  rec.exercise.updatedAt = nowISO();
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dk] = rec;
+  renderExerciseList();
+  renderAllRecordsTimeline();
+  med_saveAll();
+}
+
 // 全ての記録を時刻順に統一表示する関数
 function renderAllRecordsTimeline(){
   const wrap = $('allRecordsTimeline');
@@ -1109,8 +1169,8 @@ function renderAllRecordsTimeline(){
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
     const imageKind = getImageRecordKind(session);
-    const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
-    const label = `${formatExerciseRecordLabel(session)}${secPart}`;
+    const secPart = formatExerciseDurationPart(session);
+    const label = imageKind ? formatImageTimelineLabel(session) : `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
       type: imageKind || 'exercise',
       time: session && session.startedAt ? session.startedAt : null,
@@ -1154,6 +1214,7 @@ function renderAllRecordsTimeline(){
       </div>`;
     } else if(getImageRecordConfig(record.type) && record.data){
       buttons = `<div style="display:flex;gap:8px">
+        <button data-img-time-edit="${record.data.index}" title="時刻変更">🕒</button>
         <button data-ex-del="${record.data.index}">✕</button>
       </div>`;
     } else if(record.type === 'exercise' && record.data){
@@ -1239,6 +1300,14 @@ function renderAllRecordsTimeline(){
       renderWakeSleep();
       renderAllRecordsTimeline();
       med_saveAll();
+    });
+  });
+
+  wrap.querySelectorAll('button[data-img-time-edit]').forEach(b => {
+    b.addEventListener('click', (ev) => {
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+      const idx = parseInt(b.getAttribute('data-img-time-edit'), 10);
+      editExerciseSessionTimeAt(idx);
     });
   });
   
@@ -1414,10 +1483,12 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
-  const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', updateMealImageFileLabel);
+  const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'picker'));
+  const mealImageCameraFileEl = $('mealImageCameraFile'); if(mealImageCameraFileEl) mealImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'camera'));
   updateMealImageFileLabel();
   const otherImageBtn = $('otherImageAdd'); if(otherImageBtn) otherImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addOtherImageRecord(); });
-  const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', updateOtherImageFileLabel);
+  const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'picker'));
+  const otherImageCameraFileEl = $('otherImageCameraFile'); if(otherImageCameraFileEl) otherImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'camera'));
   updateOtherImageFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
@@ -1602,7 +1673,7 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
   const idx = item.originalIndex;
   const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderRadius='0'; row.style.background='transparent'; row.style.color='#ffffff'; row.style.marginBottom='4px';
     const startTxt = it.startedAt ? formatTimeShort(it.startedAt) : '--:--';
-    const secPart = (Number(it.seconds) > 0) ? (` ${it.seconds}秒`) : '';
+    const secPart = formatExerciseDurationPart(it);
     const label = `${formatExerciseRecordLabel(it)}${secPart}`;
     const isImageRecord = isImageRecordSession(it);
     const imageThumb = isImageRecord ? renderImageThumbHtml(it) : '';
@@ -2031,6 +2102,36 @@ function renderExerciseViews(){
   renderAllRecordsTimeline();
 }
 
+function getImageInputFile(cfg){
+  if(!cfg) return null;
+  const pickerEl = $(cfg.fileId);
+  const cameraEl = cfg.cameraFileId ? $(cfg.cameraFileId) : null;
+  const pickerFile = pickerEl && pickerEl.files ? pickerEl.files[0] : null;
+  const cameraFile = cameraEl && cameraEl.files ? cameraEl.files[0] : null;
+  return cameraFile || pickerFile || null;
+}
+
+function clearImageInputs(cfg){
+  if(!cfg) return;
+  const pickerEl = $(cfg.fileId);
+  const cameraEl = cfg.cameraFileId ? $(cfg.cameraFileId) : null;
+  if(pickerEl) pickerEl.value = '';
+  if(cameraEl) cameraEl.value = '';
+}
+
+function handleImageFileInputChange(kind, source){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) return;
+  if(source === 'picker' && cfg.cameraFileId){
+    const cameraEl = $(cfg.cameraFileId);
+    if(cameraEl) cameraEl.value = '';
+  }else if(source === 'camera'){
+    const pickerEl = $(cfg.fileId);
+    if(pickerEl) pickerEl.value = '';
+  }
+  updateImageFileLabel(kind);
+}
+
 async function deleteExerciseSessionAt(idx){
   const dk = STATE.selected;
   if(!dk) return;
@@ -2040,7 +2141,7 @@ async function deleteExerciseSessionAt(idx){
   if(!item) return;
 
   try{
-    const secPart = (Number(item?.seconds) > 0) ? ` ${item.seconds}秒` : '';
+    const secPart = formatExerciseDurationPart(item);
     const label = `${formatExerciseRecordLabel(item)}${secPart}`.trim() || '記録';
     if(!confirmDelete(`${label} を削除しますか？`)) return;
   }catch(e){
@@ -2075,10 +2176,9 @@ async function deleteExerciseSessionAt(idx){
 function updateImageFileLabel(kind){
   const cfg = getImageRecordConfig(kind);
   if(!cfg) return;
-  const input = $(cfg.fileId);
   const label = $(cfg.fileNameId);
   if(!label) return;
-  const file = input && input.files ? input.files[0] : null;
+  const file = getImageInputFile(cfg);
   label.textContent = file && file.name ? file.name : '画像を選択';
 }
 
@@ -2207,10 +2307,9 @@ async function addImageRecord(kind){
     if(!ensureAuthOrSignOut()) return;
     targetDateKey = STATE.selected;
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
-    const fileEl = $(cfg.fileId);
     const useTimeEl = $(cfg.useTimeId);
     const noteEl = cfg.noteId ? $(cfg.noteId) : null;
-    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+    const file = getImageInputFile(cfg);
     if(!file){ alert('画像を選択してください'); return; }
     if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
 
@@ -2256,7 +2355,7 @@ async function addImageRecord(kind){
       return;
     }
 
-    if(fileEl) fileEl.value = '';
+    clearImageInputs(cfg);
     updateImageFileLabel(kind);
     if(noteEl) noteEl.value = '';
     setMsg(cfg.successMessage);
