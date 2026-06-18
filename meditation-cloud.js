@@ -10,9 +10,31 @@ const AUTH_EXP_SKEW_MS = 30*1000;
 const SUPABASE_URL = 'https://jlkfvijgfrvoesazegnc.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
-const MEAL_IMAGE_BUCKET = 'ritual-meal-images';
-const MEAL_IMAGE_SIGNED_URL_SECONDS = 60 * 60;
-const mealImageSignedUrlCache = new Map();
+const IMAGE_STORAGE_BUCKET = 'ritual-images';
+const IMAGE_SIGNED_URL_SECONDS = 60 * 60;
+const imageSignedUrlCache = new Map();
+const IMAGE_RECORD_CONFIGS = {
+  mealImage: {
+    kind: 'mealImage',
+    type: '食事画像',
+    category: 'meal',
+    fileId: 'mealImageFile',
+    fileNameId: 'mealImageFileName',
+    useTimeId: 'mealImageUseTime',
+    noteId: null,
+    successMessage: '食事画像を記録しました'
+  },
+  otherImage: {
+    kind: 'otherImage',
+    type: 'その他画像',
+    category: 'other',
+    fileId: 'otherImageFile',
+    fileNameId: 'otherImageFileName',
+    useTimeId: 'otherImageUseTime',
+    noteId: 'otherImageNote',
+    successMessage: 'その他画像を記録しました'
+  }
+};
 // ▲-------------------------------------------------------▲
 
 function getPageMode(){
@@ -976,26 +998,42 @@ function deleteTimeAt(kind, idx){
 
 function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null; const m = hhmm.trim().match(/^([0-2]?\d):([0-5]\d)$/); if(!m) return null; const hh = parseInt(m[1],10); if(hh>23) return null; const mm = parseInt(m[2],10); const now = new Date(); now.setHours(hh, mm, 0, 0); return now.toISOString(); }
 
-function getMealImageStoragePath(session){
+function getImageRecordConfig(kind){
+  return IMAGE_RECORD_CONFIGS[kind] || null;
+}
+
+function getImageRecordKind(session){
+  const kind = (session?.kind || '').toString().trim();
+  if(getImageRecordConfig(kind)) return kind;
+  if(!kind && toSafeImageDataUrl(session?.imageDataUrl)) return 'mealImage';
+  return null;
+}
+
+function getImageStoragePath(session){
   const path = (session?.storagePath || '').toString().trim();
   return path || null;
 }
 
-function getMealImageStorageBucket(session){
-  return (session?.storageBucket || MEAL_IMAGE_BUCKET).toString().trim() || MEAL_IMAGE_BUCKET;
+function getImageStorageBucket(session){
+  return (session?.storageBucket || IMAGE_STORAGE_BUCKET).toString().trim() || IMAGE_STORAGE_BUCKET;
 }
 
-function isMealImageSession(session){
-  return !!(toSafeImageDataUrl(session?.imageDataUrl) || getMealImageStoragePath(session));
+function isImageRecordSession(session){
+  return !!getImageRecordKind(session);
 }
 
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
   const imageName = (session?.imageName || '').toString().trim();
-  const hasMealImage = isMealImageSession(session);
+  const imageKind = getImageRecordKind(session);
   const periodDay = Number(session?.periodDay);
-  if(hasMealImage) return imageName ? `食事画像 ${imageName}` : '食事画像';
+  if(imageKind){
+    const cfg = getImageRecordConfig(imageKind);
+    const note = (session?.note || '').toString().trim();
+    if(imageKind === 'otherImage') return note ? `${cfg.type} ${note}` : (imageName ? `${cfg.type} ${imageName}` : cfg.type);
+    return imageName ? `${cfg.type} ${imageName}` : cfg.type;
+  }
   if(Number.isFinite(periodDay) && periodDay > 0 && (jp === '生理' || jp.includes('生理') || !jp)) return `生理 ${periodDay}日目`;
   if(jp && ko && jp !== ko) return `${jp} ${ko}`;
   if(ko && !jp) return `韓国語 ${ko}`;
@@ -1070,11 +1108,11 @@ function renderAllRecordsTimeline(){
   // エクササイズ記録
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
-    const isMealImage = isMealImageSession(session);
+    const imageKind = getImageRecordKind(session);
     const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
     const label = `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
-      type: isMealImage ? 'mealImage' : 'exercise',
+      type: imageKind || 'exercise',
       time: session && session.startedAt ? session.startedAt : null,
       label,
       data: { index: i, session }
@@ -1114,7 +1152,7 @@ function renderAllRecordsTimeline(){
         <button data-med-edit="${record.data.index}">✏</button>
         <button data-med-del="${record.data.index}">✕</button>
       </div>`;
-    } else if(record.type === 'mealImage' && record.data){
+    } else if(getImageRecordConfig(record.type) && record.data){
       buttons = `<div style="display:flex;gap:8px">
         <button data-ex-del="${record.data.index}">✕</button>
       </div>`;
@@ -1132,8 +1170,8 @@ function renderAllRecordsTimeline(){
     }
 
     const labelText = escapeHtml(record.label || '');
-    const imageThumb = (record.type === 'mealImage' && record.data)
-      ? renderMealImageThumbHtml(record.data.session)
+    const imageThumb = (getImageRecordConfig(record.type) && record.data)
+      ? renderImageThumbHtml(record.data.session)
       : '';
 
     row.innerHTML = `
@@ -1144,7 +1182,7 @@ function renderAllRecordsTimeline(){
     wrap.appendChild(row);
   });
 
-  hydrateMealImageSignedUrls(wrap);
+  hydrateImageSignedUrls(wrap);
   
   // イベントリスナーを追加
   wrap.querySelectorAll('button[data-med-edit]').forEach(b => {
@@ -1378,6 +1416,9 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
   const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', updateMealImageFileLabel);
   updateMealImageFileLabel();
+  const otherImageBtn = $('otherImageAdd'); if(otherImageBtn) otherImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addOtherImageRecord(); });
+  const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', updateOtherImageFileLabel);
+  updateOtherImageFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
@@ -1425,11 +1466,13 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const accomplished = $('accomplished');
   const codingText = $('codingText');
   const selfKindnessText = $('selfKindnessText');
+  const otherImageNote = $('otherImageNote');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
   attachNoCredentialBehavior(codingText);
   attachNoCredentialBehavior(selfKindnessText);
+  attachNoCredentialBehavior(otherImageNote);
 }); }catch(e){}
 
 function addPeriodRecord(){
@@ -1561,16 +1604,16 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
     const startTxt = it.startedAt ? formatTimeShort(it.startedAt) : '--:--';
     const secPart = (Number(it.seconds) > 0) ? (` ${it.seconds}秒`) : '';
     const label = `${formatExerciseRecordLabel(it)}${secPart}`;
-    const isMealImage = isMealImageSession(it);
-    const imageThumb = isMealImage ? renderMealImageThumbHtml(it) : '';
-    const buttons = isMealImage
+    const isImageRecord = isImageRecordSession(it);
+    const imageThumb = isImageRecord ? renderImageThumbHtml(it) : '';
+    const buttons = isImageRecord
       ? `<div style="display:flex;gap:8px"><button data-ex-del='${idx}'>✕</button></div>`
       : `<div style="display:flex;gap:8px"><button data-ex-edit='${idx}'>✏</button><button data-ex-del='${idx}'>✕</button></div>`;
     row.setAttribute('data-ex-idx', String(idx));
     row.innerHTML = `<div style="font-weight:700">${startTxt} <span style="font-weight:400;margin-left:8px">${escapeHtml(label)}</span>${imageThumb}</div>` + buttons;
     wrap.appendChild(row);
   });
-  hydrateMealImageSignedUrls(wrap);
+  hydrateImageSignedUrls(wrap);
   // attach handlers
   wrap.querySelectorAll('button[data-ex-edit]').forEach(b=> b.addEventListener('click', (ev)=>{ try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
     const idx = parseInt(b.getAttribute('data-ex-edit'),10);
@@ -1624,72 +1667,74 @@ function toSafeImageDataUrl(value){
   return s;
 }
 
-function getCachedMealImageSignedUrl(bucket, path){
+function getCachedImageSignedUrl(bucket, path){
   const key = `${bucket}:${path}`;
-  const cached = mealImageSignedUrlCache.get(key);
+  const cached = imageSignedUrlCache.get(key);
   if(cached && cached.url && cached.expiresAt > Date.now() + 60 * 1000) return cached.url;
   return null;
 }
 
-async function getMealImageSignedUrl(bucket, path){
+async function getImageSignedUrl(bucket, path){
   if(!supabaseClient) throw new Error('Supabase SDK is not available');
-  const safeBucket = bucket || MEAL_IMAGE_BUCKET;
+  const safeBucket = bucket || IMAGE_STORAGE_BUCKET;
   const safePath = (path || '').toString().trim();
   if(!safePath) throw new Error('storagePath is empty');
 
   const key = `${safeBucket}:${safePath}`;
-  const cached = mealImageSignedUrlCache.get(key);
+  const cached = imageSignedUrlCache.get(key);
   if(cached && cached.url && cached.expiresAt > Date.now() + 60 * 1000) return cached.url;
   if(cached && cached.promise) return cached.promise;
 
   const promise = supabaseClient.storage
     .from(safeBucket)
-    .createSignedUrl(safePath, MEAL_IMAGE_SIGNED_URL_SECONDS)
+    .createSignedUrl(safePath, IMAGE_SIGNED_URL_SECONDS)
     .then(({ data, error })=>{
       if(error) throw error;
       const signedUrl = data && data.signedUrl ? data.signedUrl : '';
       if(!signedUrl) throw new Error('signed URL is empty');
-      mealImageSignedUrlCache.set(key, {
+      imageSignedUrlCache.set(key, {
         url: signedUrl,
-        expiresAt: Date.now() + MEAL_IMAGE_SIGNED_URL_SECONDS * 1000
+        expiresAt: Date.now() + IMAGE_SIGNED_URL_SECONDS * 1000
       });
       return signedUrl;
     })
     .catch(err=>{
-      mealImageSignedUrlCache.delete(key);
+      imageSignedUrlCache.delete(key);
       throw err;
     });
 
-  mealImageSignedUrlCache.set(key, { promise, expiresAt: 0 });
+  imageSignedUrlCache.set(key, { promise, expiresAt: 0 });
   return promise;
 }
 
-function renderMealImageThumbHtml(session){
+function renderImageThumbHtml(session){
+  const cfg = getImageRecordConfig(getImageRecordKind(session));
+  const altText = cfg ? cfg.type : '画像';
   const legacyUrl = toSafeImageDataUrl(session?.imageDataUrl);
   if(legacyUrl){
     const url = escapeAttr(legacyUrl);
-    return `<a href="${url}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${url}" alt="食事画像" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`;
+    return `<a href="${url}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${url}" alt="${escapeAttr(altText)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`;
   }
 
-  const storagePath = getMealImageStoragePath(session);
+  const storagePath = getImageStoragePath(session);
   if(!storagePath) return '';
-  const bucket = getMealImageStorageBucket(session);
-  const cachedUrl = getCachedMealImageSignedUrl(bucket, storagePath);
+  const bucket = getImageStorageBucket(session);
+  const cachedUrl = getCachedImageSignedUrl(bucket, storagePath);
   if(cachedUrl){
     const url = escapeAttr(cachedUrl);
-    return `<a href="${url}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${url}" alt="食事画像" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`;
+    return `<a href="${url}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${url}" alt="${escapeAttr(altText)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`;
   }
 
-  return `<span data-meal-image-path="${escapeAttr(storagePath)}" data-meal-image-bucket="${escapeAttr(bucket)}" style="margin-left:8px;display:inline-flex;align-items:center;min-height:36px;color:rgba(226,232,240,0.72);font-size:12px">画像を読み込み中...</span>`;
+  return `<span data-image-path="${escapeAttr(storagePath)}" data-image-bucket="${escapeAttr(bucket)}" style="margin-left:8px;display:inline-flex;align-items:center;min-height:36px;color:rgba(226,232,240,0.72);font-size:12px">画像を読み込み中...</span>`;
 }
 
-function hydrateMealImageSignedUrls(root){
+function hydrateImageSignedUrls(root){
   if(!root) return;
-  const nodes = Array.from(root.querySelectorAll('[data-meal-image-path]'));
+  const nodes = Array.from(root.querySelectorAll('[data-image-path]'));
   nodes.forEach(node=>{
-    const path = node.getAttribute('data-meal-image-path') || '';
-    const bucket = node.getAttribute('data-meal-image-bucket') || MEAL_IMAGE_BUCKET;
-    getMealImageSignedUrl(bucket, path).then(url=>{
+    const path = node.getAttribute('data-image-path') || '';
+    const bucket = node.getAttribute('data-image-bucket') || IMAGE_STORAGE_BUCKET;
+    getImageSignedUrl(bucket, path).then(url=>{
       if(!node.isConnected) return;
       const a = document.createElement('a');
       a.href = url;
@@ -1700,7 +1745,7 @@ function hydrateMealImageSignedUrls(root){
       a.style.alignItems = 'center';
       const img = document.createElement('img');
       img.src = url;
-      img.alt = '食事画像';
+      img.alt = '画像';
       img.style.width = '36px';
       img.style.height = '36px';
       img.style.borderRadius = '6px';
@@ -1710,7 +1755,7 @@ function hydrateMealImageSignedUrls(root){
       node.textContent = '';
       node.appendChild(a);
     }).catch(err=>{
-      console.warn('meal image signed URL failed', { bucket, path, error: err });
+      console.warn('image signed URL failed', { bucket, path, error: err });
       if(node.isConnected) node.textContent = '画像を表示できません';
     });
   });
@@ -1817,35 +1862,37 @@ function randomStorageId(){
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
-function buildMealImageStoragePath(dateKey, createdAt){
+function buildImageStoragePath(kind, dateKey, createdAt){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) throw new Error('Invalid image kind');
   if(!currentUser || !currentUser.id) throw new Error('User is not authenticated');
   if(!isValidDateKey(dateKey)) throw new Error('Invalid selected date');
   const parts = dateKey.split('-');
   const stamp = compactIsoForFileName(createdAt || nowISO());
-  return `${currentUser.id}/meal-images/${parts[0]}/${parts[1]}/${parts[2]}/${stamp}-${randomStorageId()}.jpg`;
+  return `${currentUser.id}/${cfg.category}/${parts[0]}/${parts[1]}/${parts[2]}/${stamp}-${randomStorageId()}.jpg`;
 }
 
-async function uploadMealImageBlob(blob, dateKey, createdAt){
+async function uploadImageBlob(blob, kind, dateKey, createdAt){
   if(!supabaseClient) throw new Error('Supabase SDK is not available');
-  const storagePath = buildMealImageStoragePath(dateKey, createdAt);
+  const storagePath = buildImageStoragePath(kind, dateKey, createdAt);
   const { error } = await supabaseClient.storage
-    .from(MEAL_IMAGE_BUCKET)
+    .from(IMAGE_STORAGE_BUCKET)
     .upload(storagePath, blob, {
       contentType: 'image/jpeg',
       cacheControl: '3600',
       upsert: false
     });
   if(error) throw error;
-  return { storageBucket: MEAL_IMAGE_BUCKET, storagePath };
+  return { storageBucket: IMAGE_STORAGE_BUCKET, storagePath };
 }
 
-async function removeMealImageStorageObject(session){
-  const storagePath = getMealImageStoragePath(session);
+async function removeImageStorageObject(session){
+  const storagePath = getImageStoragePath(session);
   if(!storagePath) return true;
-  const storageBucket = getMealImageStorageBucket(session);
+  const storageBucket = getImageStorageBucket(session);
   const { error } = await supabaseClient.storage.from(storageBucket).remove([storagePath]);
   if(error) throw error;
-  mealImageSignedUrlCache.delete(`${storageBucket}:${storagePath}`);
+  imageSignedUrlCache.delete(`${storageBucket}:${storagePath}`);
   return true;
 }
 
@@ -1934,12 +1981,12 @@ async function deleteExerciseSessionAt(idx){
     return;
   }
 
-  if(getMealImageStoragePath(removedInfo.removed)){
+  if(getImageStoragePath(removedInfo.removed)){
     try{
-      await removeMealImageStorageObject(removedInfo.removed);
+      await removeImageStorageObject(removedInfo.removed);
     }catch(e){
-      console.warn('Meal image storage delete failed; payload deletion was kept', {
-        storagePath: getMealImageStoragePath(removedInfo.removed),
+      console.warn('Image storage delete failed; payload deletion was kept', {
+        storagePath: getImageStoragePath(removedInfo.removed),
         error: e
       });
       alert('記録は削除しましたが、Storage上の画像削除に失敗しました。storagePathをconsoleに残しました。');
@@ -1947,12 +1994,38 @@ async function deleteExerciseSessionAt(idx){
   }
 }
 
-function updateMealImageFileLabel(){
-  const input = $('mealImageFile');
-  const label = $('mealImageFileName');
+function updateImageFileLabel(kind){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) return;
+  const input = $(cfg.fileId);
+  const label = $(cfg.fileNameId);
   if(!label) return;
   const file = input && input.files ? input.files[0] : null;
   label.textContent = file && file.name ? file.name : '画像を選択';
+}
+
+function updateMealImageFileLabel(){ updateImageFileLabel('mealImage'); }
+function updateOtherImageFileLabel(){ updateImageFileLabel('otherImage'); }
+
+function createImageSession(kind, { createdAt, startedAt, storageInfo, imageName, note }){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) throw new Error('Invalid image kind');
+  const item = {
+    id: createRecordId('e'),
+    type: cfg.type,
+    kind,
+    seconds: 0,
+    startedAt: startedAt || null,
+    createdAt,
+    completedAt: null,
+    storageBucket: storageInfo.storageBucket,
+    storagePath: storageInfo.storagePath
+  };
+  const trimmedName = (imageName || '').toString().trim();
+  if(trimmedName) item.imageName = trimmedName.slice(0, 80);
+  const trimmedNote = (note || '').toString().trim();
+  if(trimmedNote) item.note = trimmedNote.slice(0, 120);
+  return item;
 }
 
 // handle free-add row (label + optional seconds)
@@ -2047,15 +2120,18 @@ function addCodingRecord(){ try{
   textEl.value = '';
 }catch(e){ console.warn('addCodingRecord failed', e); alert('記録に失敗しました'); }}
 
-async function addMealImageRecord(){
+async function addImageRecord(kind){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) return;
   let uploadedSession = null;
   let targetDateKey = null;
   try{
     if(!ensureAuthOrSignOut()) return;
     targetDateKey = STATE.selected;
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
-    const fileEl = $('mealImageFile');
-    const useTimeEl = $('mealImageUseTime');
+    const fileEl = $(cfg.fileId);
+    const useTimeEl = $(cfg.useTimeId);
+    const noteEl = cfg.noteId ? $(cfg.noteId) : null;
     const file = fileEl && fileEl.files ? fileEl.files[0] : null;
     if(!file){ alert('画像を選択してください'); return; }
     if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
@@ -2070,23 +2146,16 @@ async function addMealImageRecord(){
 
     const createdAt = nowISO();
     setMsg('画像をアップロード中...');
-    const storageInfo = await uploadMealImageBlob(imageBlob, targetDateKey, createdAt);
+    const storageInfo = await uploadImageBlob(imageBlob, kind, targetDateKey, createdAt);
 
     const useTime = !useTimeEl || !!useTimeEl.checked;
-    uploadedSession = {
-      id: createRecordId('e'),
-      type: '食事画像',
-      korean: '',
-      seconds: 0,
-      startedAt: useTime ? createdAt : null,
+    uploadedSession = createImageSession(kind, {
       createdAt,
-      completedAt: null,
-      kind: 'mealImage',
-      storageBucket: storageInfo.storageBucket,
-      storagePath: storageInfo.storagePath
-    };
-    const imageName = (file.name || '').trim();
-    if(imageName) uploadedSession.imageName = imageName.slice(0, 80);
+      startedAt: useTime ? createdAt : null,
+      storageInfo,
+      imageName: file.name || '',
+      note: noteEl ? noteEl.value : ''
+    });
 
     addExerciseSessionToPayload(targetDateKey, uploadedSession);
     renderExerciseViews();
@@ -2096,10 +2165,10 @@ async function addMealImageRecord(){
       removeExerciseSessionById(targetDateKey, uploadedSession.id);
       renderExerciseViews();
       try{
-        await removeMealImageStorageObject(uploadedSession);
+        await removeImageStorageObject(uploadedSession);
         alert('画像の記録保存に失敗したため、アップロード済み画像を削除しました');
       }catch(cleanupErr){
-        console.warn('Meal image cleanup failed after payload save failure', {
+        console.warn('Image cleanup failed after payload save failure', {
           storagePath: uploadedSession.storagePath,
           error: cleanupErr
         });
@@ -2110,22 +2179,23 @@ async function addMealImageRecord(){
     }
 
     if(fileEl) fileEl.value = '';
-    updateMealImageFileLabel();
-    setMsg('食事画像を記録しました');
+    updateImageFileLabel(kind);
+    if(noteEl) noteEl.value = '';
+    setMsg(cfg.successMessage);
   }catch(e){
-    console.warn('addMealImageRecord failed', e);
+    console.warn('addImageRecord failed', { kind, error: e });
     setMsg('');
     if(uploadedSession && uploadedSession.storagePath){
       try{
         removeExerciseSessionById(targetDateKey, uploadedSession.id);
         renderExerciseViews();
       }catch(localErr){
-        console.warn('Meal image local rollback failed after unexpected add failure', localErr);
+        console.warn('Image local rollback failed after unexpected add failure', localErr);
       }
       try{
-        await removeMealImageStorageObject(uploadedSession);
+        await removeImageStorageObject(uploadedSession);
       }catch(cleanupErr){
-        console.warn('Meal image cleanup failed after unexpected add failure', {
+        console.warn('Image cleanup failed after unexpected add failure', {
           storagePath: uploadedSession.storagePath,
           error: cleanupErr
         });
@@ -2134,6 +2204,9 @@ async function addMealImageRecord(){
     alert('画像アップロードまたは記録に失敗しました。payloadは変更していません。');
   }
 }
+
+async function addMealImageRecord(){ return addImageRecord('mealImage'); }
+async function addOtherImageRecord(){ return addImageRecord('otherImage'); }
 
 function addSelfKindnessJournal(){ try{
   const textEl = $('selfKindnessText');

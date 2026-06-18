@@ -30,9 +30,9 @@
     #selfKindnessRecordRow button#selfKindnessAdd{ flex:0 0 auto; min-width:44px; }
 
     /* Generic one-line free record row */
-    #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow, #mealImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #codingRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap { flex:1 1 220px; min-width:0; }
-    #freeTextRecordRow button, #accomplishedRecordRow button, #codingRecordRow button, #mealImageRecordRow button { flex:0 0 auto; min-width:44px; }
+    #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #codingRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
+    #freeTextRecordRow button, #accomplishedRecordRow button, #codingRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
 
     /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
     #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
@@ -222,6 +222,20 @@
         <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
       </label>
       <button id="mealImageAdd">保存</button>
+    </div>
+
+    <div id="otherImageRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
+      <strong style="width:70px;opacity:0.9">その他画像</strong>
+      <label class="other-image-file-wrap" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff;cursor:pointer;display:flex;align-items:center;gap:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+        <input id="otherImageFile" type="file" accept="image/*" capture="environment" style="display:none" />
+        <span id="otherImageFileName" style="opacity:0.9;overflow:hidden;text-overflow:ellipsis">画像を選択</span>
+      </label>
+      <input id="otherImageNote" name="other_image_note" type="text" placeholder="メモ（例：景色、部屋、買った物）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
+        <input id="otherImageUseTime" type="checkbox" checked />
+        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
+      </label>
+      <button id="otherImageAdd">保存</button>
     </div>
 
     <div id="exerciseTimers" style="display:flex;flex-direction:column;gap:8px;margin-bottom:4px">
