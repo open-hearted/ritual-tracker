@@ -211,6 +211,21 @@
       localStorage.setItem('quickLogQueue', JSON.stringify(q));
     }
 
+    function appendExerciseRecord(rec, kind, iso) {
+      rec.exercise = rec.exercise || { sessions: [], updatedAt: new Date().toISOString() };
+      const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
+      sessions.push({
+        id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        type: kind,
+        korean: '',
+        seconds: 0,
+        startedAt: iso,
+        completedAt: null
+      });
+      rec.exercise.sessions = sessions;
+      rec.exercise.updatedAt = new Date().toISOString();
+    }
+
     async function logTime(kind) {
       const iso = new Date().toISOString();
       const q = getPendingQueue();
@@ -270,6 +285,8 @@
           } else if(item.kind === 'sleep') {
             rec.sleep = Array.isArray(rec.sleep) ? rec.sleep : [];
             rec.sleep.push(item.iso);
+          } else if(item.kind === 'ロートV5' || item.kind === 'ライスブラン') {
+            appendExerciseRecord(rec, item.kind, item.iso);
           }
         }
 

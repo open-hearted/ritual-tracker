@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="ロートV5">
+  <meta name="apple-mobile-web-app-title" content="ライスブラン">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>ロートV5</title>
-  <link rel="icon" sizes="192x192" href="/rhoto_v5.png" type="image/png">
-  <link rel="icon" sizes="512x512" href="/rhoto_v5.png" type="image/png">
-  <link rel="apple-touch-icon" href="/rhoto_v5.png">
-  <link rel="manifest" href="/manifest-rohto.json">
+  <title>ライスブラン</title>
+  <link rel="icon" sizes="192x192" href="/rice_bran.png" type="image/png">
+  <link rel="icon" sizes="512x512" href="/rice_bran.png" type="image/png">
+  <link rel="apple-touch-icon" href="/rice_bran.png">
+  <link rel="manifest" href="/manifest-rice-bran.json">
   <meta name="theme-color" content="#111111">
   <style>
     :root { --bg: #111; --fg: #eee; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -27,10 +27,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <div class="icon"><img src="/rhoto_v5.png" alt="ロートV5"></div>
-  <h1>ロートV5</h1>
+  <div class="icon"><img src="/rice_bran.png" alt="ライスブラン"></div>
+  <h1>ライスブラン</h1>
   <div id="status">準備中...</div>
-  
+
   <div id="login-section" style="display:none">
     <p>Supabaseにログインしていません</p>
     <button onclick="signIn()">Googleでログイン</button>
@@ -41,6 +41,7 @@
   <script>
     const SUPABASE_URL = 'https://jlkfvijgfrvoesazegnc.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
+    const QUICK_KIND = 'ライスブラン';
     const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
     let currentUser = null;
     let hasLogged = false;
@@ -90,16 +91,30 @@
       localStorage.setItem('quickLogQueue', JSON.stringify(q));
     }
 
+    function appendExerciseRecord(rec, kind, iso) {
+      rec.exercise = rec.exercise || { sessions: [], updatedAt: new Date().toISOString() };
+      const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
+      sessions.push({
+        id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        type: kind,
+        korean: '',
+        seconds: 0,
+        startedAt: iso,
+        completedAt: null
+      });
+      rec.exercise.sessions = sessions;
+      rec.exercise.updatedAt = new Date().toISOString();
+    }
+
     async function triggerLog() {
       if(hasLogged) return;
       hasLogged = true;
 
-      const kind = 'ロートV5';
       const iso = new Date().toISOString();
       const q = getPendingQueue();
-      q.push({ kind, iso });
+      q.push({ kind: QUICK_KIND, iso });
       savePendingQueue(q);
-      
+
       showStatus('📥 端末に記録しました... 同期中', '');
 
       if(navigator.onLine && currentUser) {
@@ -113,7 +128,7 @@
       const q = getPendingQueue();
       if(q.length === 0) return;
       if(!currentUser) return;
-      
+
       try {
         const { data, error } = await supabaseClient
           .from('user_data')
@@ -122,7 +137,7 @@
           .maybeSingle();
 
         if (error) throw error;
-        
+
         let payload = (data && data.payload) ? data.payload : {};
         if(!payload.data) payload.data = {};
         if(!payload.__meta) payload.__meta = { version: 0, updatedAt: new Date().toISOString() };
@@ -132,7 +147,7 @@
           const y = d.getFullYear();
           const m = d.getMonth();
           const p = d.getDate();
-          
+
           const mk = getMonthKey(y, m);
           const dk = getDateKey(y, m, p);
 
@@ -150,18 +165,7 @@
             rec.sleep = Array.isArray(rec.sleep) ? rec.sleep : [];
             rec.sleep.push(item.iso);
           } else if(item.kind === 'ロートV5' || item.kind === 'ライスブラン') {
-            rec.exercise = rec.exercise || { sessions: [], updatedAt: new Date().toISOString() };
-            const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
-            sessions.push({
-              id: 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
-              type: item.kind,
-              korean: '',
-              seconds: 0,
-              startedAt: item.iso,
-              completedAt: null
-            });
-            rec.exercise.sessions = sessions;
-            rec.exercise.updatedAt = new Date().toISOString();
+            appendExerciseRecord(rec, item.kind, item.iso);
           }
         }
 

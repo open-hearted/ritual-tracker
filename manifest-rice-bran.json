@@ -1,21 +1,21 @@
 {
-  "name": "ロートV5",
-  "short_name": "ロートV5",
-  "id": "/rohto.html",
-  "start_url": "/rohto.html",
-  "scope": "/rohto.html",
+  "name": "ライスブラン",
+  "short_name": "ライスブラン",
+  "id": "/rice-bran.html",
+  "start_url": "/rice-bran.html",
+  "scope": "/rice-bran.html",
   "display": "standalone",
   "background_color": "#111111",
-  "theme_color": "#e02424",
+  "theme_color": "#d8a03d",
   "icons": [
     {
-      "src": "/rhoto_v5.png",
+      "src": "/rice_bran.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/rhoto_v5.png",
+      "src": "/rice_bran.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

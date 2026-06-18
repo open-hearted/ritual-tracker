@@ -9,6 +9,12 @@ const PRECACHE = [
   '/ritual_tracker.png',
   '/ritual_tracker-192.png',
   '/ritual_tracker-180.png',
+  '/rohto.html',
+  '/manifest-rohto.json',
+  '/rhoto_v5.png',
+  '/rice-bran.html',
+  '/manifest-rice-bran.json',
+  '/rice_bran.png',
 ];
 
 self.addEventListener('install', event => {
