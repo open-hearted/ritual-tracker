@@ -719,8 +719,8 @@ renderCalendar = function(){
     if(hasPlank) activityMarkers.push('<span class="cal-mark">P</span>');
     if(hasWall) activityMarkers.push('<span class="cal-mark">🪑</span>');
     if(medSeconds>0){
-      const minutes = Math.floor(medSeconds/60);
-      if(minutes>0) activityMarkers.push(`<span class="cal-mark">瞑${minutes}</span>`);
+      const minutes = formatCompactPositiveNumber(medSeconds/60);
+      if(minutes) activityMarkers.push(`<span class="cal-mark">瞑${minutes}分</span>`);
       else activityMarkers.push(`<span class="cal-mark">瞑</span>`);
     }
     if(hasRecord) activityMarkers.push('<span class="cal-mark">記</span>');
@@ -1042,6 +1042,30 @@ function formatExerciseRecordLabel(session){
   return jp || ko || '';
 }
 
+function isMeditationExerciseSession(session){
+  const type = (session?.type || '').toString().trim();
+  const lower = type.toLowerCase();
+  return type === '瞑想' || type.includes('瞑') || lower === 'meditation';
+}
+
+function formatCompactPositiveNumber(value){
+  const num = Number(value);
+  if(!Number.isFinite(num) || num <= 0) return '';
+  const rounded = Math.round(num * 100) / 100;
+  return String(rounded).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+}
+
+function formatExerciseDurationPart(session){
+  const seconds = Number(session?.seconds);
+  if(!(seconds > 0)) return '';
+  if(isMeditationExerciseSession(session)){
+    const minutes = formatCompactPositiveNumber(seconds / 60);
+    return minutes ? ` ${minutes}分` : '';
+  }
+  const secondsText = formatCompactPositiveNumber(seconds);
+  return secondsText ? ` ${secondsText}秒` : '';
+}
+
 function formatImageTimelineLabel(session){
   return (session?.note || '').toString().trim();
 }
@@ -1145,7 +1169,7 @@ function renderAllRecordsTimeline(){
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
     const imageKind = getImageRecordKind(session);
-    const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
+    const secPart = formatExerciseDurationPart(session);
     const label = imageKind ? formatImageTimelineLabel(session) : `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
       type: imageKind || 'exercise',
@@ -1649,7 +1673,7 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
   const idx = item.originalIndex;
   const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderRadius='0'; row.style.background='transparent'; row.style.color='#ffffff'; row.style.marginBottom='4px';
     const startTxt = it.startedAt ? formatTimeShort(it.startedAt) : '--:--';
-    const secPart = (Number(it.seconds) > 0) ? (` ${it.seconds}秒`) : '';
+    const secPart = formatExerciseDurationPart(it);
     const label = `${formatExerciseRecordLabel(it)}${secPart}`;
     const isImageRecord = isImageRecordSession(it);
     const imageThumb = isImageRecord ? renderImageThumbHtml(it) : '';
@@ -2117,7 +2141,7 @@ async function deleteExerciseSessionAt(idx){
   if(!item) return;
 
   try{
-    const secPart = (Number(item?.seconds) > 0) ? ` ${item.seconds}秒` : '';
+    const secPart = formatExerciseDurationPart(item);
     const label = `${formatExerciseRecordLabel(item)}${secPart}`.trim() || '記録';
     if(!confirmDelete(`${label} を削除しますか？`)) return;
   }catch(e){
