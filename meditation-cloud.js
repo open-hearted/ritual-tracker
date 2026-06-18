@@ -1660,6 +1660,79 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function escapeAttr(s){ return escapeHtml(s).replace(/'/g,'&#39;'); }
 
+function renderImagePreviewButton(src, altText){
+  const safeSrc = escapeAttr(src);
+  const safeAlt = escapeAttr(altText || '画像');
+  return `<button type="button" data-image-preview-src="${safeSrc}" data-image-preview-alt="${safeAlt}" style="margin-left:8px;display:inline-flex;align-items:center;padding:0;border:0;background:transparent;box-shadow:none;min-width:0;min-height:0;cursor:pointer"><img src="${safeSrc}" alt="${safeAlt}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></button>`;
+}
+
+function ensureImagePreviewOverlay(){
+  let overlay = $('imagePreviewOverlay');
+  if(overlay) return overlay;
+
+  overlay = document.createElement('div');
+  overlay.id = 'imagePreviewOverlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.zIndex = '5000';
+  overlay.style.display = 'none';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.padding = '16px';
+  overlay.style.background = 'rgba(0,0,0,0.82)';
+  overlay.style.boxSizing = 'border-box';
+
+  overlay.innerHTML = `
+    <div data-image-preview-panel style="position:relative;display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%">
+      <button id="imagePreviewClose" type="button" aria-label="閉じる" style="position:absolute;right:0;top:-48px;border:1px solid rgba(255,255,255,0.32);background:rgba(15,23,42,0.96);color:#fff;border-radius:999px;padding:8px 12px;font-weight:700">閉じる</button>
+      <img id="imagePreviewImg" alt="画像" style="display:block;max-width:calc(100vw - 32px);max-height:calc(100vh - 96px);object-fit:contain;border-radius:8px;background:rgba(255,255,255,0.04)" />
+    </div>
+  `;
+
+  overlay.addEventListener('click', (ev)=>{
+    try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+    const panel = ev.target && ev.target.closest ? ev.target.closest('[data-image-preview-panel]') : null;
+    if(!panel || ev.target?.id === 'imagePreviewClose') closeImagePreview();
+  });
+
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function openImagePreview(src, altText){
+  if(!src) return;
+  const overlay = ensureImagePreviewOverlay();
+  const img = $('imagePreviewImg');
+  if(img){
+    img.src = src;
+    img.alt = altText || '画像';
+  }
+  overlay.style.display = 'flex';
+}
+
+function closeImagePreview(){
+  const overlay = $('imagePreviewOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'none';
+  const img = $('imagePreviewImg');
+  if(img) img.removeAttribute('src');
+}
+
+try{
+  document.addEventListener('click', (ev)=>{
+    const trigger = ev.target && ev.target.closest ? ev.target.closest('[data-image-preview-src]') : null;
+    if(!trigger) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    openImagePreview(trigger.getAttribute('data-image-preview-src') || '', trigger.getAttribute('data-image-preview-alt') || '画像');
+  }, true);
+  document.addEventListener('keydown', (ev)=>{
+    if(ev.key === 'Escape') closeImagePreview();
+  });
+}catch(e){}
+
 function toSafeImageDataUrl(value){
   if(typeof value !== 'string') return null;
   const s = value.trim();
@@ -1712,8 +1785,7 @@ function renderImageThumbHtml(session){
   const altText = cfg ? cfg.type : '画像';
   const legacyUrl = toSafeImageDataUrl(session?.imageDataUrl);
   if(legacyUrl){
-    const url = escapeAttr(legacyUrl);
-    return `<a href="${url}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${url}" alt="${escapeAttr(altText)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`;
+    return renderImagePreviewButton(legacyUrl, altText);
   }
 
   const storagePath = getImageStoragePath(session);
@@ -1721,8 +1793,7 @@ function renderImageThumbHtml(session){
   const bucket = getImageStorageBucket(session);
   const cachedUrl = getCachedImageSignedUrl(bucket, storagePath);
   if(cachedUrl){
-    const url = escapeAttr(cachedUrl);
-    return `<a href="${url}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${url}" alt="${escapeAttr(altText)}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`;
+    return renderImagePreviewButton(cachedUrl, altText);
   }
 
   return `<span data-image-path="${escapeAttr(storagePath)}" data-image-bucket="${escapeAttr(bucket)}" style="margin-left:8px;display:inline-flex;align-items:center;min-height:36px;color:rgba(226,232,240,0.72);font-size:12px">画像を読み込み中...</span>`;
@@ -1736,13 +1807,20 @@ function hydrateImageSignedUrls(root){
     const bucket = node.getAttribute('data-image-bucket') || IMAGE_STORAGE_BUCKET;
     getImageSignedUrl(bucket, path).then(url=>{
       if(!node.isConnected) return;
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noreferrer';
-      a.style.marginLeft = '0';
-      a.style.display = 'inline-flex';
-      a.style.alignItems = 'center';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('data-image-preview-src', url);
+      btn.setAttribute('data-image-preview-alt', '画像');
+      btn.style.marginLeft = '0';
+      btn.style.display = 'inline-flex';
+      btn.style.alignItems = 'center';
+      btn.style.padding = '0';
+      btn.style.border = '0';
+      btn.style.background = 'transparent';
+      btn.style.boxShadow = 'none';
+      btn.style.minWidth = '0';
+      btn.style.minHeight = '0';
+      btn.style.cursor = 'pointer';
       const img = document.createElement('img');
       img.src = url;
       img.alt = '画像';
@@ -1751,9 +1829,9 @@ function hydrateImageSignedUrls(root){
       img.style.borderRadius = '6px';
       img.style.objectFit = 'cover';
       img.style.border = '1px solid rgba(255,255,255,0.18)';
-      a.appendChild(img);
+      btn.appendChild(img);
       node.textContent = '';
-      node.appendChild(a);
+      node.appendChild(btn);
     }).catch(err=>{
       console.warn('image signed URL failed', { bucket, path, error: err });
       if(node.isConnected) node.textContent = '画像を表示できません';
