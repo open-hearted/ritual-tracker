@@ -10,6 +10,31 @@ const AUTH_EXP_SKEW_MS = 30*1000;
 const SUPABASE_URL = 'https://jlkfvijgfrvoesazegnc.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const IMAGE_STORAGE_BUCKET = 'ritual-images';
+const IMAGE_SIGNED_URL_SECONDS = 60 * 60;
+const imageSignedUrlCache = new Map();
+const IMAGE_RECORD_CONFIGS = {
+  mealImage: {
+    kind: 'mealImage',
+    type: '食事画像',
+    category: 'meal',
+    fileId: 'mealImageFile',
+    fileNameId: 'mealImageFileName',
+    useTimeId: 'mealImageUseTime',
+    noteId: null,
+    successMessage: '食事画像を記録しました'
+  },
+  otherImage: {
+    kind: 'otherImage',
+    type: 'その他画像',
+    category: 'other',
+    fileId: 'otherImageFile',
+    fileNameId: 'otherImageFileName',
+    useTimeId: 'otherImageUseTime',
+    noteId: 'otherImageNote',
+    successMessage: 'その他画像を記録しました'
+  }
+};
 // ▲-------------------------------------------------------▲
 
 function getPageMode(){
@@ -973,10 +998,42 @@ function deleteTimeAt(kind, idx){
 
 function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null; const m = hhmm.trim().match(/^([0-2]?\d):([0-5]\d)$/); if(!m) return null; const hh = parseInt(m[1],10); if(hh>23) return null; const mm = parseInt(m[2],10); const now = new Date(); now.setHours(hh, mm, 0, 0); return now.toISOString(); }
 
+function getImageRecordConfig(kind){
+  return IMAGE_RECORD_CONFIGS[kind] || null;
+}
+
+function getImageRecordKind(session){
+  const kind = (session?.kind || '').toString().trim();
+  if(getImageRecordConfig(kind)) return kind;
+  if(!kind && toSafeImageDataUrl(session?.imageDataUrl)) return 'mealImage';
+  return null;
+}
+
+function getImageStoragePath(session){
+  const path = (session?.storagePath || '').toString().trim();
+  return path || null;
+}
+
+function getImageStorageBucket(session){
+  return (session?.storageBucket || IMAGE_STORAGE_BUCKET).toString().trim() || IMAGE_STORAGE_BUCKET;
+}
+
+function isImageRecordSession(session){
+  return !!getImageRecordKind(session);
+}
+
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
+  const imageName = (session?.imageName || '').toString().trim();
+  const imageKind = getImageRecordKind(session);
   const periodDay = Number(session?.periodDay);
+  if(imageKind){
+    const cfg = getImageRecordConfig(imageKind);
+    const note = (session?.note || '').toString().trim();
+    if(imageKind === 'otherImage') return note ? `${cfg.type} ${note}` : (imageName ? `${cfg.type} ${imageName}` : cfg.type);
+    return imageName ? `${cfg.type} ${imageName}` : cfg.type;
+  }
   if(Number.isFinite(periodDay) && periodDay > 0 && (jp === '生理' || jp.includes('生理') || !jp)) return `生理 ${periodDay}日目`;
   if(jp && ko && jp !== ko) return `${jp} ${ko}`;
   if(ko && !jp) return `韓国語 ${ko}`;
@@ -1051,10 +1108,11 @@ function renderAllRecordsTimeline(){
   // エクササイズ記録
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
+    const imageKind = getImageRecordKind(session);
     const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
     const label = `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
-      type: 'exercise',
+      type: imageKind || 'exercise',
       time: session && session.startedAt ? session.startedAt : null,
       label,
       data: { index: i, session }
@@ -1094,6 +1152,10 @@ function renderAllRecordsTimeline(){
         <button data-med-edit="${record.data.index}">✏</button>
         <button data-med-del="${record.data.index}">✕</button>
       </div>`;
+    } else if(getImageRecordConfig(record.type) && record.data){
+      buttons = `<div style="display:flex;gap:8px">
+        <button data-ex-del="${record.data.index}">✕</button>
+      </div>`;
     } else if(record.type === 'exercise' && record.data){
       buttons = `<div style="display:flex;gap:8px">
         <button data-ex-edit="${record.data.index}">✏</button>
@@ -1107,13 +1169,20 @@ function renderAllRecordsTimeline(){
       </div>`;
     }
 
+    const labelText = escapeHtml(record.label || '');
+    const imageThumb = (getImageRecordConfig(record.type) && record.data)
+      ? renderImageThumbHtml(record.data.session)
+      : '';
+
     row.innerHTML = `
-      <div style="font-weight:700">${timePart}<span style="font-weight:400;margin-left:8px">${record.label}</span></div>
+      <div style="font-weight:700">${timePart}<span style="font-weight:400;margin-left:8px">${labelText}</span>${imageThumb}</div>
       ${buttons}
     `;
     
     wrap.appendChild(row);
   });
+
+  hydrateImageSignedUrls(wrap);
   
   // イベントリスナーを追加
   wrap.querySelectorAll('button[data-med-edit]').forEach(b => {
@@ -1214,31 +1283,10 @@ function renderAllRecordsTimeline(){
   });
   
   wrap.querySelectorAll('button[data-ex-del]').forEach(b => {
-    b.addEventListener('click', (ev) => {
+    b.addEventListener('click', async (ev) => {
       try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
       const idx = parseInt(b.getAttribute('data-ex-del'), 10);
-      const dk = STATE.selected;
-      if(!dk) return;
-      const rec = getDayRecord(dk);
-      const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions.slice() : [];
-
-      try{
-        const it = arr[idx];
-        const secPart = (Number(it?.seconds) > 0) ? ` ${it.seconds}秒` : '';
-        const label = `${formatExerciseRecordLabel(it)}${secPart}`.trim() || '記録';
-        if(!confirmDelete(`${label} を削除しますか？`)) return;
-      }catch(e){
-        if(!confirmDelete('この記録を削除しますか？')) return;
-      }
-
-      arr.splice(idx, 1);
-      rec.exercise.sessions = arr;
-      rec.exercise.updatedAt = nowISO();
-      const mk = getMonthKey();
-      STATE.payload.data[mk][dk] = rec;
-      renderExerciseList();
-      renderAllRecordsTimeline();
-      med_saveAll();
+      await deleteExerciseSessionAt(idx);
     });
   });
   
@@ -1365,6 +1413,12 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
+  const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
+  const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', updateMealImageFileLabel);
+  updateMealImageFileLabel();
+  const otherImageBtn = $('otherImageAdd'); if(otherImageBtn) otherImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addOtherImageRecord(); });
+  const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', updateOtherImageFileLabel);
+  updateOtherImageFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
@@ -1412,11 +1466,13 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const accomplished = $('accomplished');
   const codingText = $('codingText');
   const selfKindnessText = $('selfKindnessText');
+  const otherImageNote = $('otherImageNote');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
   attachNoCredentialBehavior(codingText);
   attachNoCredentialBehavior(selfKindnessText);
+  attachNoCredentialBehavior(otherImageNote);
 }); }catch(e){}
 
 function addPeriodRecord(){
@@ -1548,11 +1604,16 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
     const startTxt = it.startedAt ? formatTimeShort(it.startedAt) : '--:--';
     const secPart = (Number(it.seconds) > 0) ? (` ${it.seconds}秒`) : '';
     const label = `${formatExerciseRecordLabel(it)}${secPart}`;
+    const isImageRecord = isImageRecordSession(it);
+    const imageThumb = isImageRecord ? renderImageThumbHtml(it) : '';
+    const buttons = isImageRecord
+      ? `<div style="display:flex;gap:8px"><button data-ex-del='${idx}'>✕</button></div>`
+      : `<div style="display:flex;gap:8px"><button data-ex-edit='${idx}'>✏</button><button data-ex-del='${idx}'>✕</button></div>`;
     row.setAttribute('data-ex-idx', String(idx));
-    row.innerHTML = `<div style="font-weight:700">${startTxt} <span style="font-weight:400;margin-left:8px">${label}</span></div>` +
-                    `<div style="display:flex;gap:8px"><button data-ex-edit='${idx}'>✏</button><button data-ex-del='${idx}'>✕</button></div>`;
+    row.innerHTML = `<div style="font-weight:700">${startTxt} <span style="font-weight:400;margin-left:8px">${escapeHtml(label)}</span>${imageThumb}</div>` + buttons;
     wrap.appendChild(row);
   });
+  hydrateImageSignedUrls(wrap);
   // attach handlers
   wrap.querySelectorAll('button[data-ex-edit]').forEach(b=> b.addEventListener('click', (ev)=>{ try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
     const idx = parseInt(b.getAttribute('data-ex-edit'),10);
@@ -1587,35 +1648,463 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
     const iso = parseHHMMToISO(input);
     if(!iso){ alert('HH:MM の形式で入力してください'); return; }
     arr[idx].startedAt = iso; rec.exercise.sessions = arr; rec.exercise.updatedAt = nowISO(); const mk = getMonthKey(); STATE.payload.data[mk][dk] = rec; renderExerciseList(); renderAllRecordsTimeline(); med_saveAll(); }));
-  wrap.querySelectorAll('button[data-ex-del]').forEach(b=> b.addEventListener('click', (ev)=>{
+  wrap.querySelectorAll('button[data-ex-del]').forEach(b=> b.addEventListener('click', async (ev)=>{
     try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
     const idx = parseInt(b.getAttribute('data-ex-del'),10);
-    const dk = STATE.selected; if(!dk) return;
-    const rec = getDayRecord(dk);
-    const arr = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions.slice() : [];
-
-    try{
-      const it = arr[idx];
-      const secPart = (Number(it?.seconds) > 0) ? ` ${it.seconds}秒` : '';
-      const label = `${formatExerciseRecordLabel(it)}${secPart}`.trim() || '記録';
-      if(!confirmDelete(`${label} を削除しますか？`)) return;
-    }catch(e){
-      if(!confirmDelete('この記録を削除しますか？')) return;
-    }
-
-    arr.splice(idx,1);
-    rec.exercise.sessions = arr;
-    rec.exercise.updatedAt = nowISO();
-    const mk = getMonthKey();
-    STATE.payload.data[mk][dk] = rec;
-    renderExerciseList();
-    med_saveAll();
+    await deleteExerciseSessionAt(idx);
   }));
 }
 
 // Inline editing removed: edits are now handled via prompt dialogs to simplify UI.
 
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escapeAttr(s){ return escapeHtml(s).replace(/'/g,'&#39;'); }
+
+function renderImagePreviewButton(src, altText){
+  const safeSrc = escapeAttr(src);
+  const safeAlt = escapeAttr(altText || '画像');
+  return `<button type="button" data-image-preview-src="${safeSrc}" data-image-preview-alt="${safeAlt}" style="margin-left:8px;display:inline-flex;align-items:center;padding:0;border:0;background:transparent;box-shadow:none;min-width:0;min-height:0;cursor:pointer"><img src="${safeSrc}" alt="${safeAlt}" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></button>`;
+}
+
+function ensureImagePreviewOverlay(){
+  let overlay = $('imagePreviewOverlay');
+  if(overlay) return overlay;
+
+  overlay = document.createElement('div');
+  overlay.id = 'imagePreviewOverlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.style.position = 'fixed';
+  overlay.style.inset = '0';
+  overlay.style.zIndex = '5000';
+  overlay.style.display = 'none';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.padding = '16px';
+  overlay.style.background = 'rgba(0,0,0,0.82)';
+  overlay.style.boxSizing = 'border-box';
+
+  overlay.innerHTML = `
+    <div data-image-preview-panel style="position:relative;display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%">
+      <button id="imagePreviewClose" type="button" aria-label="閉じる" style="position:absolute;right:0;top:-48px;border:1px solid rgba(255,255,255,0.32);background:rgba(15,23,42,0.96);color:#fff;border-radius:999px;padding:8px 12px;font-weight:700">閉じる</button>
+      <img id="imagePreviewImg" alt="画像" style="display:block;max-width:calc(100vw - 32px);max-height:calc(100vh - 96px);object-fit:contain;border-radius:8px;background:rgba(255,255,255,0.04)" />
+    </div>
+  `;
+
+  overlay.addEventListener('click', (ev)=>{
+    try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+    const panel = ev.target && ev.target.closest ? ev.target.closest('[data-image-preview-panel]') : null;
+    if(!panel || ev.target?.id === 'imagePreviewClose') closeImagePreview();
+  });
+
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function openImagePreview(src, altText){
+  if(!src) return;
+  const overlay = ensureImagePreviewOverlay();
+  const img = $('imagePreviewImg');
+  if(img){
+    img.src = src;
+    img.alt = altText || '画像';
+  }
+  overlay.style.display = 'flex';
+}
+
+function closeImagePreview(){
+  const overlay = $('imagePreviewOverlay');
+  if(!overlay) return;
+  overlay.style.display = 'none';
+  const img = $('imagePreviewImg');
+  if(img) img.removeAttribute('src');
+}
+
+try{
+  document.addEventListener('click', (ev)=>{
+    const trigger = ev.target && ev.target.closest ? ev.target.closest('[data-image-preview-src]') : null;
+    if(!trigger) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    openImagePreview(trigger.getAttribute('data-image-preview-src') || '', trigger.getAttribute('data-image-preview-alt') || '画像');
+  }, true);
+  document.addEventListener('keydown', (ev)=>{
+    if(ev.key === 'Escape') closeImagePreview();
+  });
+}catch(e){}
+
+function toSafeImageDataUrl(value){
+  if(typeof value !== 'string') return null;
+  const s = value.trim();
+  if(!/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(s)) return null;
+  return s;
+}
+
+function getCachedImageSignedUrl(bucket, path){
+  const key = `${bucket}:${path}`;
+  const cached = imageSignedUrlCache.get(key);
+  if(cached && cached.url && cached.expiresAt > Date.now() + 60 * 1000) return cached.url;
+  return null;
+}
+
+async function getImageSignedUrl(bucket, path){
+  if(!supabaseClient) throw new Error('Supabase SDK is not available');
+  const safeBucket = bucket || IMAGE_STORAGE_BUCKET;
+  const safePath = (path || '').toString().trim();
+  if(!safePath) throw new Error('storagePath is empty');
+
+  const key = `${safeBucket}:${safePath}`;
+  const cached = imageSignedUrlCache.get(key);
+  if(cached && cached.url && cached.expiresAt > Date.now() + 60 * 1000) return cached.url;
+  if(cached && cached.promise) return cached.promise;
+
+  const promise = supabaseClient.storage
+    .from(safeBucket)
+    .createSignedUrl(safePath, IMAGE_SIGNED_URL_SECONDS)
+    .then(({ data, error })=>{
+      if(error) throw error;
+      const signedUrl = data && data.signedUrl ? data.signedUrl : '';
+      if(!signedUrl) throw new Error('signed URL is empty');
+      imageSignedUrlCache.set(key, {
+        url: signedUrl,
+        expiresAt: Date.now() + IMAGE_SIGNED_URL_SECONDS * 1000
+      });
+      return signedUrl;
+    })
+    .catch(err=>{
+      imageSignedUrlCache.delete(key);
+      throw err;
+    });
+
+  imageSignedUrlCache.set(key, { promise, expiresAt: 0 });
+  return promise;
+}
+
+function renderImageThumbHtml(session){
+  const cfg = getImageRecordConfig(getImageRecordKind(session));
+  const altText = cfg ? cfg.type : '画像';
+  const legacyUrl = toSafeImageDataUrl(session?.imageDataUrl);
+  if(legacyUrl){
+    return renderImagePreviewButton(legacyUrl, altText);
+  }
+
+  const storagePath = getImageStoragePath(session);
+  if(!storagePath) return '';
+  const bucket = getImageStorageBucket(session);
+  const cachedUrl = getCachedImageSignedUrl(bucket, storagePath);
+  if(cachedUrl){
+    return renderImagePreviewButton(cachedUrl, altText);
+  }
+
+  return `<span data-image-path="${escapeAttr(storagePath)}" data-image-bucket="${escapeAttr(bucket)}" style="margin-left:8px;display:inline-flex;align-items:center;min-height:36px;color:rgba(226,232,240,0.72);font-size:12px">画像を読み込み中...</span>`;
+}
+
+function hydrateImageSignedUrls(root){
+  if(!root) return;
+  const nodes = Array.from(root.querySelectorAll('[data-image-path]'));
+  nodes.forEach(node=>{
+    const path = node.getAttribute('data-image-path') || '';
+    const bucket = node.getAttribute('data-image-bucket') || IMAGE_STORAGE_BUCKET;
+    getImageSignedUrl(bucket, path).then(url=>{
+      if(!node.isConnected) return;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('data-image-preview-src', url);
+      btn.setAttribute('data-image-preview-alt', '画像');
+      btn.style.marginLeft = '0';
+      btn.style.display = 'inline-flex';
+      btn.style.alignItems = 'center';
+      btn.style.padding = '0';
+      btn.style.border = '0';
+      btn.style.background = 'transparent';
+      btn.style.boxShadow = 'none';
+      btn.style.minWidth = '0';
+      btn.style.minHeight = '0';
+      btn.style.cursor = 'pointer';
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = '画像';
+      img.style.width = '36px';
+      img.style.height = '36px';
+      img.style.borderRadius = '6px';
+      img.style.objectFit = 'cover';
+      img.style.border = '1px solid rgba(255,255,255,0.18)';
+      btn.appendChild(img);
+      node.textContent = '';
+      node.appendChild(btn);
+    }).catch(err=>{
+      console.warn('image signed URL failed', { bucket, path, error: err });
+      if(node.isConnected) node.textContent = '画像を表示できません';
+    });
+  });
+}
+
+function dataUrlApproxBytes(dataUrl){
+  if(typeof dataUrl !== 'string') return 0;
+  const idx = dataUrl.indexOf(',');
+  if(idx < 0) return 0;
+  const b64 = dataUrl.slice(idx + 1);
+  return Math.floor((b64.length * 3) / 4);
+}
+
+function fileToDataUrl(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(String(r.result || ''));
+    r.onerror = ()=> reject(new Error('file read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = ()=> reject(new Error('invalid image'));
+    img.src = dataUrl;
+  });
+}
+
+async function compressImageForRecord(file){
+  const source = await fileToDataUrl(file);
+  const img = await loadImageFromDataUrl(source);
+
+  const maxSide = 1280;
+  const w = img.naturalWidth || img.width || 0;
+  const h = img.naturalHeight || img.height || 0;
+  if(!w || !h) return null;
+
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  const outW = Math.max(1, Math.round(w * scale));
+  const outH = Math.max(1, Math.round(h * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  if(!ctx) return null;
+  ctx.drawImage(img, 0, 0, outW, outH);
+
+  const targetBytes = 360 * 1024;
+  let quality = 0.84;
+  let out = canvas.toDataURL('image/jpeg', quality);
+  while(dataUrlApproxBytes(out) > targetBytes && quality > 0.42){
+    quality -= 0.08;
+    out = canvas.toDataURL('image/jpeg', quality);
+  }
+  if(dataUrlApproxBytes(out) > 900 * 1024) return null;
+  return out;
+}
+
+function canvasToJpegBlob(canvas, quality){
+  return new Promise((resolve)=> canvas.toBlob(blob=> resolve(blob), 'image/jpeg', quality));
+}
+
+async function compressImageBlobForRecord(file){
+  const source = await fileToDataUrl(file);
+  const img = await loadImageFromDataUrl(source);
+
+  const maxSide = 1280;
+  const w = img.naturalWidth || img.width || 0;
+  const h = img.naturalHeight || img.height || 0;
+  if(!w || !h) return null;
+
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  const outW = Math.max(1, Math.round(w * scale));
+  const outH = Math.max(1, Math.round(h * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  if(!ctx) return null;
+  ctx.drawImage(img, 0, 0, outW, outH);
+
+  const targetBytes = 360 * 1024;
+  let quality = 0.84;
+  let blob = await canvasToJpegBlob(canvas, quality);
+  while(blob && blob.size > targetBytes && quality > 0.42){
+    quality -= 0.08;
+    blob = await canvasToJpegBlob(canvas, quality);
+  }
+  if(!blob || blob.size > 900 * 1024) return null;
+  return blob;
+}
+
+function compactIsoForFileName(iso){
+  return String(iso || nowISO()).replace(/[-:.]/g, '').replace(/\.\d+Z$/, 'Z');
+}
+
+function randomStorageId(){
+  try{ if(window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID(); }catch(e){}
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function buildImageStoragePath(kind, dateKey, createdAt){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) throw new Error('Invalid image kind');
+  if(!currentUser || !currentUser.id) throw new Error('User is not authenticated');
+  if(!isValidDateKey(dateKey)) throw new Error('Invalid selected date');
+  const parts = dateKey.split('-');
+  const stamp = compactIsoForFileName(createdAt || nowISO());
+  return `${currentUser.id}/${cfg.category}/${parts[0]}/${parts[1]}/${parts[2]}/${stamp}-${randomStorageId()}.jpg`;
+}
+
+async function uploadImageBlob(blob, kind, dateKey, createdAt){
+  if(!supabaseClient) throw new Error('Supabase SDK is not available');
+  const storagePath = buildImageStoragePath(kind, dateKey, createdAt);
+  const { error } = await supabaseClient.storage
+    .from(IMAGE_STORAGE_BUCKET)
+    .upload(storagePath, blob, {
+      contentType: 'image/jpeg',
+      cacheControl: '3600',
+      upsert: false
+    });
+  if(error) throw error;
+  return { storageBucket: IMAGE_STORAGE_BUCKET, storagePath };
+}
+
+async function removeImageStorageObject(session){
+  const storagePath = getImageStoragePath(session);
+  if(!storagePath) return true;
+  const storageBucket = getImageStorageBucket(session);
+  const { error } = await supabaseClient.storage.from(storageBucket).remove([storagePath]);
+  if(error) throw error;
+  imageSignedUrlCache.delete(`${storageBucket}:${storagePath}`);
+  return true;
+}
+
+function createRecordId(prefix){
+  return `${prefix || 'e'}${Date.now().toString(36)}${Math.random().toString(36).slice(2,7)}`;
+}
+
+function addExerciseSessionToPayload(dateKey, item){
+  const rec = getDayRecord(dateKey);
+  rec.exercise = rec.exercise || { sessions: [], updatedAt: nowISO() };
+  const sessions = Array.isArray(rec.exercise.sessions) ? rec.exercise.sessions.slice() : [];
+  sessions.push(item);
+  rec.exercise.sessions = sessions;
+  rec.exercise.updatedAt = nowISO();
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+}
+
+function removeExerciseSessionById(dateKey, id){
+  const rec = getDayRecord(dateKey);
+  const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions.slice() : [];
+  const idx = sessions.findIndex(it => it && it.id === id);
+  if(idx < 0) return null;
+  const removed = sessions.splice(idx, 1)[0];
+  rec.exercise.sessions = sessions;
+  rec.exercise.updatedAt = nowISO();
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+  return { removed, index: idx };
+}
+
+function removeExerciseSessionAt(dateKey, idx){
+  const rec = getDayRecord(dateKey);
+  const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions.slice() : [];
+  if(!Number.isInteger(idx) || idx < 0 || idx >= sessions.length) return null;
+  const removed = sessions.splice(idx, 1)[0];
+  rec.exercise.sessions = sessions;
+  rec.exercise.updatedAt = nowISO();
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+  return { removed, index: idx };
+}
+
+function restoreExerciseSessionAt(dateKey, item, idx){
+  if(!item) return;
+  const rec = getDayRecord(dateKey);
+  const sessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions.slice() : [];
+  const insertAt = Math.max(0, Math.min(Number.isInteger(idx) ? idx : sessions.length, sessions.length));
+  sessions.splice(insertAt, 0, item);
+  rec.exercise.sessions = sessions;
+  rec.exercise.updatedAt = nowISO();
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+}
+
+function renderExerciseViews(){
+  renderExerciseList();
+  renderAllRecordsTimeline();
+}
+
+async function deleteExerciseSessionAt(idx){
+  const dk = STATE.selected;
+  if(!dk) return;
+  const rec = getDayRecord(dk);
+  const arr = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
+  const item = arr[idx];
+  if(!item) return;
+
+  try{
+    const secPart = (Number(item?.seconds) > 0) ? ` ${item.seconds}秒` : '';
+    const label = `${formatExerciseRecordLabel(item)}${secPart}`.trim() || '記録';
+    if(!confirmDelete(`${label} を削除しますか？`)) return;
+  }catch(e){
+    if(!confirmDelete('この記録を削除しますか？')) return;
+  }
+
+  const removedInfo = removeExerciseSessionAt(dk, idx);
+  if(!removedInfo) return;
+  renderExerciseViews();
+
+  const saved = await med_saveAll();
+  if(!saved){
+    restoreExerciseSessionAt(dk, removedInfo.removed, removedInfo.index);
+    renderExerciseViews();
+    alert('記録削除の保存に失敗したため、削除を取り消しました');
+    return;
+  }
+
+  if(getImageStoragePath(removedInfo.removed)){
+    try{
+      await removeImageStorageObject(removedInfo.removed);
+    }catch(e){
+      console.warn('Image storage delete failed; payload deletion was kept', {
+        storagePath: getImageStoragePath(removedInfo.removed),
+        error: e
+      });
+      alert('記録は削除しましたが、Storage上の画像削除に失敗しました。storagePathをconsoleに残しました。');
+    }
+  }
+}
+
+function updateImageFileLabel(kind){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) return;
+  const input = $(cfg.fileId);
+  const label = $(cfg.fileNameId);
+  if(!label) return;
+  const file = input && input.files ? input.files[0] : null;
+  label.textContent = file && file.name ? file.name : '画像を選択';
+}
+
+function updateMealImageFileLabel(){ updateImageFileLabel('mealImage'); }
+function updateOtherImageFileLabel(){ updateImageFileLabel('otherImage'); }
+
+function createImageSession(kind, { createdAt, startedAt, storageInfo, imageName, note }){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) throw new Error('Invalid image kind');
+  const item = {
+    id: createRecordId('e'),
+    type: cfg.type,
+    kind,
+    seconds: 0,
+    startedAt: startedAt || null,
+    createdAt,
+    completedAt: null,
+    storageBucket: storageInfo.storageBucket,
+    storagePath: storageInfo.storagePath
+  };
+  const trimmedName = (imageName || '').toString().trim();
+  if(trimmedName) item.imageName = trimmedName.slice(0, 80);
+  const trimmedNote = (note || '').toString().trim();
+  if(trimmedNote) item.note = trimmedNote.slice(0, 120);
+  return item;
+}
 
 // handle free-add row (label + optional seconds)
 function addFreeRecord(){ try{
@@ -1709,6 +2198,94 @@ function addCodingRecord(){ try{
   textEl.value = '';
 }catch(e){ console.warn('addCodingRecord failed', e); alert('記録に失敗しました'); }}
 
+async function addImageRecord(kind){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) return;
+  let uploadedSession = null;
+  let targetDateKey = null;
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    targetDateKey = STATE.selected;
+    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
+    const fileEl = $(cfg.fileId);
+    const useTimeEl = $(cfg.useTimeId);
+    const noteEl = cfg.noteId ? $(cfg.noteId) : null;
+    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+    if(!file){ alert('画像を選択してください'); return; }
+    if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
+
+    setMsg('画像を圧縮中...');
+    const imageBlob = await compressImageBlobForRecord(file);
+    if(!imageBlob){
+      setMsg('');
+      alert('画像サイズが大きすぎます。別の画像を選択してください');
+      return;
+    }
+
+    const createdAt = nowISO();
+    setMsg('画像をアップロード中...');
+    const storageInfo = await uploadImageBlob(imageBlob, kind, targetDateKey, createdAt);
+
+    const useTime = !useTimeEl || !!useTimeEl.checked;
+    uploadedSession = createImageSession(kind, {
+      createdAt,
+      startedAt: useTime ? createdAt : null,
+      storageInfo,
+      imageName: file.name || '',
+      note: noteEl ? noteEl.value : ''
+    });
+
+    addExerciseSessionToPayload(targetDateKey, uploadedSession);
+    renderExerciseViews();
+
+    const saved = await med_saveAll();
+    if(!saved){
+      removeExerciseSessionById(targetDateKey, uploadedSession.id);
+      renderExerciseViews();
+      try{
+        await removeImageStorageObject(uploadedSession);
+        alert('画像の記録保存に失敗したため、アップロード済み画像を削除しました');
+      }catch(cleanupErr){
+        console.warn('Image cleanup failed after payload save failure', {
+          storagePath: uploadedSession.storagePath,
+          error: cleanupErr
+        });
+        alert('画像の記録保存に失敗し、Storage上の孤立画像削除にも失敗しました。storagePathをconsoleに残しました。');
+      }
+      setMsg('画像の記録保存に失敗しました');
+      return;
+    }
+
+    if(fileEl) fileEl.value = '';
+    updateImageFileLabel(kind);
+    if(noteEl) noteEl.value = '';
+    setMsg(cfg.successMessage);
+  }catch(e){
+    console.warn('addImageRecord failed', { kind, error: e });
+    setMsg('');
+    if(uploadedSession && uploadedSession.storagePath){
+      try{
+        removeExerciseSessionById(targetDateKey, uploadedSession.id);
+        renderExerciseViews();
+      }catch(localErr){
+        console.warn('Image local rollback failed after unexpected add failure', localErr);
+      }
+      try{
+        await removeImageStorageObject(uploadedSession);
+      }catch(cleanupErr){
+        console.warn('Image cleanup failed after unexpected add failure', {
+          storagePath: uploadedSession.storagePath,
+          error: cleanupErr
+        });
+      }
+    }
+    alert('画像アップロードまたは記録に失敗しました。payloadは変更していません。');
+  }
+}
+
+async function addMealImageRecord(){ return addImageRecord('mealImage'); }
+async function addOtherImageRecord(){ return addImageRecord('otherImage'); }
+
 function addSelfKindnessJournal(){ try{
   const textEl = $('selfKindnessText');
   const useTimeEl = $('selfKindnessUseTime');
@@ -1756,7 +2333,7 @@ function addRohtoRecord(){ try{
   });
 }catch(e){ console.warn('addRohtoRecord failed', e); alert('記録に失敗しました'); }}
 
-function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay }){
+function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay, imageDataUrl, imageName, kind }){
   try{
     const dk = STATE.selected;
     if(!dk) return;
@@ -1772,6 +2349,14 @@ function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, peri
       startedAt: startedAt || null,
       completedAt: null
     };
+
+    const safeImage = toSafeImageDataUrl(imageDataUrl);
+    if(safeImage){
+      item.imageDataUrl = safeImage;
+      item.kind = kind || 'mealImage';
+      if(imageName) item.imageName = String(imageName).slice(0, 80);
+      if(!item.type || item.type === 'record') item.type = '食事画像';
+    }
 
     // optional metadata
     if(Number.isFinite(Number(periodDay))){
