@@ -377,9 +377,11 @@ function autoSaveEditor(){
     if(recordTxt){ rec.record = { text: recordTxt, updatedAt: nowISO() }; }
     else { if(rec && rec.record) delete rec.record; }
     const diaryEl = $('medDiaryText');
-    const diaryTxt = diaryEl ? (diaryEl.value || '') : '';
-    if(diaryTxt){ rec.diary = { text: diaryTxt, updatedAt: nowISO() }; }
-    else { if(rec && rec.diary) delete rec.diary; }
+    if(diaryEl){
+      const diaryTxt = diaryEl.value || '';
+      if(diaryTxt){ rec.diary = { text: diaryTxt, updatedAt: nowISO() }; }
+      else { if(rec && rec.diary) delete rec.diary; }
+    }
     rec.dayTs = nowISO();
     STATE.payload.data[mk][dk] = rec;
     // fire save but don't block close
@@ -594,9 +596,12 @@ function attachHandlers(){
       const recordTxt = $('medRecordText') ? ($('medRecordText').value || '') : '';
       if(recordTxt) rec.record = { text: recordTxt, updatedAt: nowISO() };
       else delete rec.record;
-      const diaryTxt = $('medDiaryText') ? ($('medDiaryText').value || '') : '';
-      if(diaryTxt) rec.diary = { text: diaryTxt, updatedAt: nowISO() };
-      else delete rec.diary;
+      const diaryEl = $('medDiaryText');
+      if(diaryEl){
+        const diaryTxt = diaryEl.value || '';
+        if(diaryTxt) rec.diary = { text: diaryTxt, updatedAt: nowISO() };
+        else delete rec.diary;
+      }
       STATE.payload.data[mk][dk] = rec;
       closeEditor(); med_saveAll();
     });
