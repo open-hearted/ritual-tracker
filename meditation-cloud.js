@@ -976,7 +976,10 @@ function parseHHMMToISO(hhmm){ if(!hhmm || typeof hhmm !== 'string') return null
 function formatExerciseRecordLabel(session){
   const jp = (session?.type || '').toString().trim();
   const ko = (session?.korean || '').toString().trim();
+  const imageName = (session?.imageName || '').toString().trim();
+  const hasMealImage = (session?.kind === 'mealImage') && !!toSafeImageDataUrl(session?.imageDataUrl);
   const periodDay = Number(session?.periodDay);
+  if(hasMealImage) return imageName ? `食事画像 ${imageName}` : '食事画像';
   if(Number.isFinite(periodDay) && periodDay > 0 && (jp === '生理' || jp.includes('生理') || !jp)) return `生理 ${periodDay}日目`;
   if(jp && ko && jp !== ko) return `${jp} ${ko}`;
   if(ko && !jp) return `韓国語 ${ko}`;
@@ -1051,13 +1054,15 @@ function renderAllRecordsTimeline(){
   // エクササイズ記録
   const exerciseSessions = Array.isArray(rec.exercise?.sessions) ? rec.exercise.sessions : [];
   exerciseSessions.forEach((session, i) => {
+    const imageDataUrl = toSafeImageDataUrl(session?.imageDataUrl);
+    const isMealImage = (session?.kind === 'mealImage') && !!imageDataUrl;
     const secPart = (Number(session?.seconds) > 0) ? ` ${session.seconds}秒` : '';
     const label = `${formatExerciseRecordLabel(session)}${secPart}`;
     allRecords.push({
-      type: 'exercise',
+      type: isMealImage ? 'mealImage' : 'exercise',
       time: session && session.startedAt ? session.startedAt : null,
       label,
-      data: { index: i, session }
+      data: { index: i, session, imageDataUrl }
     });
   });
   
@@ -1094,6 +1099,10 @@ function renderAllRecordsTimeline(){
         <button data-med-edit="${record.data.index}">✏</button>
         <button data-med-del="${record.data.index}">✕</button>
       </div>`;
+    } else if(record.type === 'mealImage' && record.data){
+      buttons = `<div style="display:flex;gap:8px">
+        <button data-ex-del="${record.data.index}">✕</button>
+      </div>`;
     } else if(record.type === 'exercise' && record.data){
       buttons = `<div style="display:flex;gap:8px">
         <button data-ex-edit="${record.data.index}">✏</button>
@@ -1107,8 +1116,13 @@ function renderAllRecordsTimeline(){
       </div>`;
     }
 
+    const labelText = escapeHtml(record.label || '');
+    const imageThumb = (record.type === 'mealImage' && record.data && record.data.imageDataUrl)
+      ? `<a href="${record.data.imageDataUrl}" target="_blank" rel="noreferrer" style="margin-left:8px;display:inline-flex;align-items:center"><img src="${record.data.imageDataUrl}" alt="食事画像" style="width:36px;height:36px;border-radius:6px;object-fit:cover;border:1px solid rgba(255,255,255,0.18)"></a>`
+      : '';
+
     row.innerHTML = `
-      <div style="font-weight:700">${timePart}<span style="font-weight:400;margin-left:8px">${record.label}</span></div>
+      <div style="font-weight:700">${timePart}<span style="font-weight:400;margin-left:8px">${labelText}</span>${imageThumb}</div>
       ${buttons}
     `;
     
@@ -1365,6 +1379,9 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
+  const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
+  const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', updateMealImageFileLabel);
+  updateMealImageFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
@@ -1617,6 +1634,78 @@ function renderExerciseList(){ const wrap = $('exerciseList'); if(!wrap) return;
 
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+function toSafeImageDataUrl(value){
+  if(typeof value !== 'string') return null;
+  const s = value.trim();
+  if(!/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(s)) return null;
+  return s;
+}
+
+function dataUrlApproxBytes(dataUrl){
+  if(typeof dataUrl !== 'string') return 0;
+  const idx = dataUrl.indexOf(',');
+  if(idx < 0) return 0;
+  const b64 = dataUrl.slice(idx + 1);
+  return Math.floor((b64.length * 3) / 4);
+}
+
+function fileToDataUrl(file){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(String(r.result || ''));
+    r.onerror = ()=> reject(new Error('file read failed'));
+    r.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = ()=> reject(new Error('invalid image'));
+    img.src = dataUrl;
+  });
+}
+
+async function compressImageForRecord(file){
+  const source = await fileToDataUrl(file);
+  const img = await loadImageFromDataUrl(source);
+
+  const maxSide = 1280;
+  const w = img.naturalWidth || img.width || 0;
+  const h = img.naturalHeight || img.height || 0;
+  if(!w || !h) return null;
+
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  const outW = Math.max(1, Math.round(w * scale));
+  const outH = Math.max(1, Math.round(h * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW;
+  canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  if(!ctx) return null;
+  ctx.drawImage(img, 0, 0, outW, outH);
+
+  const targetBytes = 360 * 1024;
+  let quality = 0.84;
+  let out = canvas.toDataURL('image/jpeg', quality);
+  while(dataUrlApproxBytes(out) > targetBytes && quality > 0.42){
+    quality -= 0.08;
+    out = canvas.toDataURL('image/jpeg', quality);
+  }
+  if(dataUrlApproxBytes(out) > 900 * 1024) return null;
+  return out;
+}
+
+function updateMealImageFileLabel(){
+  const input = $('mealImageFile');
+  const label = $('mealImageFileName');
+  if(!label) return;
+  const file = input && input.files ? input.files[0] : null;
+  label.textContent = file && file.name ? file.name : '画像を選択';
+}
+
 // handle free-add row (label + optional seconds)
 function addFreeRecord(){ try{
   const koreanEl = $('freeKorean');
@@ -1709,6 +1798,46 @@ function addCodingRecord(){ try{
   textEl.value = '';
 }catch(e){ console.warn('addCodingRecord failed', e); alert('記録に失敗しました'); }}
 
+async function addMealImageRecord(){
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    const fileEl = $('mealImageFile');
+    const useTimeEl = $('mealImageUseTime');
+    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+    if(!file){ alert('画像を選択してください'); return; }
+    if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
+
+    setMsg('画像を圧縮中...');
+    const imageDataUrl = await compressImageForRecord(file);
+    if(!imageDataUrl){
+      setMsg('');
+      alert('画像サイズが大きすぎます。別の画像を選択してください');
+      return;
+    }
+
+    const useTime = !useTimeEl || !!useTimeEl.checked;
+    const iso = useTime ? new Date().toISOString() : null;
+
+    addFreeRecordWithOptionalTime({
+      seconds: 0,
+      label: '食事画像',
+      korean: '',
+      startedAt: iso,
+      imageDataUrl,
+      imageName: (file.name || '').trim(),
+      kind: 'mealImage'
+    });
+
+    if(fileEl) fileEl.value = '';
+    updateMealImageFileLabel();
+    setMsg('食事画像を記録しました');
+  }catch(e){
+    console.warn('addMealImageRecord failed', e);
+    setMsg('');
+    alert('画像の記録に失敗しました');
+  }
+}
+
 function addSelfKindnessJournal(){ try{
   const textEl = $('selfKindnessText');
   const useTimeEl = $('selfKindnessUseTime');
@@ -1756,7 +1885,7 @@ function addRohtoRecord(){ try{
   });
 }catch(e){ console.warn('addRohtoRecord failed', e); alert('記録に失敗しました'); }}
 
-function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay }){
+function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, periodDay, imageDataUrl, imageName, kind }){
   try{
     const dk = STATE.selected;
     if(!dk) return;
@@ -1772,6 +1901,14 @@ function addFreeRecordWithOptionalTime({ seconds, label, korean, startedAt, peri
       startedAt: startedAt || null,
       completedAt: null
     };
+
+    const safeImage = toSafeImageDataUrl(imageDataUrl);
+    if(safeImage){
+      item.imageDataUrl = safeImage;
+      item.kind = kind || 'mealImage';
+      if(imageName) item.imageName = String(imageName).slice(0, 80);
+      if(!item.type || item.type === 'record') item.type = '食事画像';
+    }
 
     // optional metadata
     if(Number.isFinite(Number(periodDay))){
