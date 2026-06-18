@@ -19,6 +19,7 @@ const IMAGE_RECORD_CONFIGS = {
     type: '食事画像',
     category: 'meal',
     fileId: 'mealImageFile',
+    cameraFileId: 'mealImageCameraFile',
     fileNameId: 'mealImageFileName',
     useTimeId: 'mealImageUseTime',
     noteId: null,
@@ -29,6 +30,7 @@ const IMAGE_RECORD_CONFIGS = {
     type: 'その他画像',
     category: 'other',
     fileId: 'otherImageFile',
+    cameraFileId: 'otherImageCameraFile',
     fileNameId: 'otherImageFileName',
     useTimeId: 'otherImageUseTime',
     noteId: 'otherImageNote',
@@ -1414,10 +1416,12 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
-  const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', updateMealImageFileLabel);
+  const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'picker'));
+  const mealImageCameraFileEl = $('mealImageCameraFile'); if(mealImageCameraFileEl) mealImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'camera'));
   updateMealImageFileLabel();
   const otherImageBtn = $('otherImageAdd'); if(otherImageBtn) otherImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addOtherImageRecord(); });
-  const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', updateOtherImageFileLabel);
+  const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'picker'));
+  const otherImageCameraFileEl = $('otherImageCameraFile'); if(otherImageCameraFileEl) otherImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'camera'));
   updateOtherImageFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
@@ -2031,6 +2035,36 @@ function renderExerciseViews(){
   renderAllRecordsTimeline();
 }
 
+function getImageInputFile(cfg){
+  if(!cfg) return null;
+  const pickerEl = $(cfg.fileId);
+  const cameraEl = cfg.cameraFileId ? $(cfg.cameraFileId) : null;
+  const pickerFile = pickerEl && pickerEl.files ? pickerEl.files[0] : null;
+  const cameraFile = cameraEl && cameraEl.files ? cameraEl.files[0] : null;
+  return cameraFile || pickerFile || null;
+}
+
+function clearImageInputs(cfg){
+  if(!cfg) return;
+  const pickerEl = $(cfg.fileId);
+  const cameraEl = cfg.cameraFileId ? $(cfg.cameraFileId) : null;
+  if(pickerEl) pickerEl.value = '';
+  if(cameraEl) cameraEl.value = '';
+}
+
+function handleImageFileInputChange(kind, source){
+  const cfg = getImageRecordConfig(kind);
+  if(!cfg) return;
+  if(source === 'picker' && cfg.cameraFileId){
+    const cameraEl = $(cfg.cameraFileId);
+    if(cameraEl) cameraEl.value = '';
+  }else if(source === 'camera'){
+    const pickerEl = $(cfg.fileId);
+    if(pickerEl) pickerEl.value = '';
+  }
+  updateImageFileLabel(kind);
+}
+
 async function deleteExerciseSessionAt(idx){
   const dk = STATE.selected;
   if(!dk) return;
@@ -2075,10 +2109,9 @@ async function deleteExerciseSessionAt(idx){
 function updateImageFileLabel(kind){
   const cfg = getImageRecordConfig(kind);
   if(!cfg) return;
-  const input = $(cfg.fileId);
   const label = $(cfg.fileNameId);
   if(!label) return;
-  const file = input && input.files ? input.files[0] : null;
+  const file = getImageInputFile(cfg);
   label.textContent = file && file.name ? file.name : '画像を選択';
 }
 
@@ -2207,10 +2240,9 @@ async function addImageRecord(kind){
     if(!ensureAuthOrSignOut()) return;
     targetDateKey = STATE.selected;
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
-    const fileEl = $(cfg.fileId);
     const useTimeEl = $(cfg.useTimeId);
     const noteEl = cfg.noteId ? $(cfg.noteId) : null;
-    const file = fileEl && fileEl.files ? fileEl.files[0] : null;
+    const file = getImageInputFile(cfg);
     if(!file){ alert('画像を選択してください'); return; }
     if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
 
@@ -2256,7 +2288,7 @@ async function addImageRecord(kind){
       return;
     }
 
-    if(fileEl) fileEl.value = '';
+    clearImageInputs(cfg);
     updateImageFileLabel(kind);
     if(noteEl) noteEl.value = '';
     setMsg(cfg.successMessage);
