@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ritual-tracker-v1';
+const CACHE_NAME = 'ritual-tracker-v2';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -12,9 +12,15 @@ const PRECACHE = [
   '/rohto.html',
   '/manifest-rohto.json',
   '/rhoto_v5.png',
+  '/rhoto_v5-180.png',
+  '/rhoto_v5-192.png',
+  '/rhoto_v5-512.png',
   '/rice-bran.html',
   '/manifest-rice-bran.json',
   '/rice_bran.png',
+  '/rice_bran-180.png',
+  '/rice_bran-192.png',
+  '/rice_bran-512.png',
 ];
 
 self.addEventListener('install', event => {

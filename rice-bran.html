@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-title" content="ライスブラン">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>ライスブラン</title>
-  <link rel="icon" sizes="192x192" href="/rice_bran.png" type="image/png">
-  <link rel="icon" sizes="512x512" href="/rice_bran.png" type="image/png">
-  <link rel="apple-touch-icon" href="/rice_bran.png">
+  <link rel="icon" sizes="192x192" href="/rice_bran-192.png" type="image/png">
+  <link rel="icon" sizes="512x512" href="/rice_bran-512.png" type="image/png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/rice_bran-180.png">
   <link rel="manifest" href="/manifest-rice-bran.json">
   <meta name="theme-color" content="#111111">
   <style>
@@ -22,6 +22,7 @@
     .success { color: #4ade80; font-weight: bold; }
     .error { color: #f87171; }
     button { background: #4285F4; color: white; border: none; padding: 1rem 2rem; font-size: 1.2rem; border-radius: 8px; cursor: pointer; margin-top: 1rem; }
+    #installBtn { display:none; background:#16a34a; }
     .back { color:#888; font-size: 1rem; text-decoration:none; margin-top:3rem; padding: 10px; border: 1px solid #444; border-radius: 8px; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -30,6 +31,7 @@
   <div class="icon"><img src="/rice_bran.png" alt="ライスブラン"></div>
   <h1>ライスブラン</h1>
   <div id="status">準備中...</div>
+  <button id="installBtn" type="button">ホーム画面に追加</button>
 
   <div id="login-section" style="display:none">
     <p>Supabaseにログインしていません</p>
@@ -45,11 +47,35 @@
     const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
     let currentUser = null;
     let hasLogged = false;
+    let deferredInstallPrompt = null;
 
     const dom = {
       login: document.getElementById('login-section'),
-      status: document.getElementById('status')
+      status: document.getElementById('status'),
+      install: document.getElementById('installBtn')
     };
+
+    function isStandaloneMode() {
+      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    }
+
+    function closeIfStandalone() {
+      if(isStandaloneMode()) setTimeout(() => { window.close(); }, 500);
+    }
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      dom.install.style.display = 'inline-block';
+    });
+
+    dom.install.addEventListener('click', async () => {
+      if(!deferredInstallPrompt) return;
+      dom.install.style.display = 'none';
+      deferredInstallPrompt.prompt();
+      try{ await deferredInstallPrompt.userChoice; }catch(e){}
+      deferredInstallPrompt = null;
+    });
 
     function showStatus(msg, cls='') {
       dom.status.textContent = msg;
@@ -121,6 +147,7 @@
         await syncPending();
       } else {
         showStatus('✅ 記録完了 (オフラインのため後で同期されます)', 'success');
+        closeIfStandalone();
       }
     }
 
@@ -190,12 +217,12 @@
 
         savePendingQueue([]);
         showStatus('✅ 記録・同期完了！', 'success');
-        setTimeout(() => { window.close(); }, 500);
+        closeIfStandalone();
 
       } catch(e) {
         console.error('Sync failed', e);
         showStatus('✅ 保存完了 (後で同期されます)', 'success');
-        setTimeout(() => { window.close(); }, 500);
+        closeIfStandalone();
       }
     }
 

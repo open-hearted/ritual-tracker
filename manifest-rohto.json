@@ -3,19 +3,19 @@
   "short_name": "ロートV5",
   "id": "/rohto.html",
   "start_url": "/rohto.html",
-  "scope": "/rohto.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#e02424",
   "icons": [
     {
-      "src": "/rhoto_v5.png",
+      "src": "/rhoto_v5-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/rhoto_v5.png",
+      "src": "/rhoto_v5-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

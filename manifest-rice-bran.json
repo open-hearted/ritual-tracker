@@ -3,19 +3,19 @@
   "short_name": "ライスブラン",
   "id": "/rice-bran.html",
   "start_url": "/rice-bran.html",
-  "scope": "/rice-bran.html",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#d8a03d",
   "icons": [
     {
-      "src": "/rice_bran.png",
+      "src": "/rice_bran-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/rice_bran.png",
+      "src": "/rice_bran-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
