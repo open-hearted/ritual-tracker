@@ -1222,12 +1222,12 @@ function renderAllRecordsTimeline(){
     });
   });
   
-  // 支出記録（撮影日とレシート日付が違う場合は時刻なし扱い）
+  // 支出記録（レシート印字時刻があればそれを優先。撮影日とレシート日付が違う場合は時刻なし扱い）
   const expenseArr = Array.isArray(rec.expenses) ? rec.expenses : [];
   expenseArr.forEach((item, i) => {
     allRecords.push({
       type: 'expenseRecord',
-      time: isoMatchesDateKey(item?.createdAt, dk) ? item.createdAt : null,
+      time: item?.occurredAt || (isoMatchesDateKey(item?.createdAt, dk) ? item.createdAt : null),
       label: `💴 ${formatExpenseRecordLabel(item)}`,
       data: { index: i, session: item }
     });
@@ -2689,6 +2689,7 @@ function resetExpenseForm(){
   pendingExpenseAnalysis = null;
   const storeEl = $('expenseStore'); if(storeEl) storeEl.value = '';
   const dateEl = $('expenseDate'); if(dateEl) dateEl.value = isValidDateKey(STATE.selected) ? STATE.selected : '';
+  const timeEl = $('expenseTime'); if(timeEl) timeEl.value = '';
   const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = '';
   const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = '';
 }
@@ -2735,6 +2736,7 @@ async function analyzeExpenseReceipt(){
     const data = json.data || {};
     const storeEl = $('expenseStore'); if(storeEl) storeEl.value = data.store || '';
     const dateEl = $('expenseDate'); if(dateEl) dateEl.value = data.date || targetDateKey;
+    const timeEl = $('expenseTime'); if(timeEl) timeEl.value = data.time || '';
     const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (data.total !== null && data.total !== undefined) ? data.total : '';
     const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(data.category) ? data.category : '';
     setMsg('解析結果を確認して保存してください');
@@ -2757,10 +2759,12 @@ async function saveExpenseRecord(){
 
     const storeEl = $('expenseStore');
     const dateEl = $('expenseDate');
+    const timeEl = $('expenseTime');
     const totalEl = $('expenseTotal');
     const categoryEl = $('expenseCategory');
     const store = storeEl ? (storeEl.value || '').trim() : '';
     const dateVal = dateEl ? (dateEl.value || '').trim() : '';
+    const timeVal = timeEl ? (timeEl.value || '').trim() : '';
     const totalVal = totalEl ? (totalEl.value || '').trim() : '';
     const category = categoryEl ? (categoryEl.value || '').trim() : '';
 
@@ -2791,6 +2795,8 @@ async function saveExpenseRecord(){
       source: 'receipt',
       store: store || null,
       date: dateVal || null,
+      time: timeVal || null,
+      occurredAt: timeVal ? parseDateKeyAndHHMMToISO(targetDateKey, timeVal) : null,
       total: totalVal !== '' && Number.isFinite(Number(totalVal)) ? Number(totalVal) : null,
       category: EXPENSE_CATEGORIES.includes(category) ? category : null,
       items: [],
