@@ -1563,6 +1563,7 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const expenseCameraBtn = $('expenseCameraBtn'); if(expenseCameraBtn) expenseCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openExpenseCameraOverlay(); });
   const expenseCameraShutter = $('expenseCameraShutter'); if(expenseCameraShutter) expenseCameraShutter.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); captureExpensePhotoFromOverlay(); });
   const expenseCameraCancel = $('expenseCameraCancel'); if(expenseCameraCancel) expenseCameraCancel.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeExpenseCameraOverlay(); });
+  const expenseCameraVideo = $('expenseCameraVideo'); if(expenseCameraVideo) expenseCameraVideo.addEventListener('click', (ev)=>{ tapToFocusExpenseCamera(ev); });
   updateExpenseFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
@@ -2575,6 +2576,65 @@ async function openExpenseCameraOverlay(){
       ? 'カメラの使用が許可されていません。Chromeのサイト設定でカメラを「許可」にしてください。'
       : `カメラを起動できませんでした（${e && e.name ? e.name : 'エラー'}）。`;
     alert(`${reason}\n「レシート画像を選択」から画像を選ぶこともできます。`);
+  }
+}
+
+function showExpenseFocusRing(clientX, clientY){
+  const overlay = $('expenseCameraOverlay');
+  if(!overlay) return;
+  let ring = $('expenseFocusRing');
+  if(!ring){
+    ring = document.createElement('div');
+    ring.id = 'expenseFocusRing';
+    ring.style.position = 'fixed';
+    ring.style.width = '64px';
+    ring.style.height = '64px';
+    ring.style.border = '2px solid #fbbf24';
+    ring.style.borderRadius = '50%';
+    ring.style.pointerEvents = 'none';
+    ring.style.zIndex = '10000';
+    ring.style.transition = 'opacity 0.6s ease';
+    overlay.appendChild(ring);
+  }
+  ring.style.left = (clientX - 32) + 'px';
+  ring.style.top = (clientY - 32) + 'px';
+  ring.style.opacity = '1';
+  setTimeout(()=>{ try{ ring.style.opacity = '0'; }catch(e){} }, 700);
+}
+
+async function tapToFocusExpenseCamera(ev){
+  const video = $('expenseCameraVideo');
+  const track = expenseCameraStream ? expenseCameraStream.getVideoTracks()[0] : null;
+  if(!video || !track || !video.videoWidth) return;
+  const rect = video.getBoundingClientRect();
+  if(!rect.width || !rect.height) return;
+  showExpenseFocusRing(ev.clientX, ev.clientY);
+
+  // object-fit:cover による切り抜きを補正して、映像フレーム内の正規化座標(0..1)へ変換
+  const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
+  const dispW = video.videoWidth * scale;
+  const dispH = video.videoHeight * scale;
+  const offsetX = (dispW - rect.width) / 2;
+  const offsetY = (dispH - rect.height) / 2;
+  const x = Math.min(1, Math.max(0, ((ev.clientX - rect.left) + offsetX) / dispW));
+  const y = Math.min(1, Math.max(0, ((ev.clientY - rect.top) + offsetY) / dispH));
+
+  if(!track.applyConstraints) return;
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  const focusModes = Array.isArray(caps.focusMode) ? caps.focusMode : [];
+  const constraint = {};
+  if('pointsOfInterest' in caps) constraint.pointsOfInterest = [{ x, y }];
+  if(focusModes.includes('single-shot')) constraint.focusMode = 'single-shot';
+  else if(focusModes.includes('continuous')) constraint.focusMode = 'continuous';
+  if(!Object.keys(constraint).length) return;
+  try{
+    await track.applyConstraints({ advanced: [constraint] });
+    // single-shot でピントを合わせた後は連続AFに戻す（対応端末のみ）
+    if(constraint.focusMode === 'single-shot' && focusModes.includes('continuous')){
+      setTimeout(()=>{ try{ track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); }catch(e){} }, 3000);
+    }
+  }catch(e){
+    console.warn('tap-to-focus failed', e);
   }
 }
 
