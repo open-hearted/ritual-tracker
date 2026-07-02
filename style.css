@@ -369,7 +369,6 @@ input::placeholder{color:#9fb0ff99}
 	}
 
 	#freeRecordRow,
-	#selfKindnessRecordRow,
 	#freeTextRecordRow,
 	#accomplishedRecordRow,
 	#mealImageRecordRow,
@@ -383,7 +382,6 @@ input::placeholder{color:#9fb0ff99}
 		box-sizing:border-box;
 	}
 	#freeRecordRow > strong,
-	#selfKindnessRecordRow > strong,
 	#freeTextRecordRow > strong,
 	#accomplishedRecordRow > strong,
 	#mealImageRecordRow > strong,
@@ -398,7 +396,6 @@ input::placeholder{color:#9fb0ff99}
 		text-overflow:clip !important;
 	}
 	#freeRecordRow input#freeKorean,
-	#selfKindnessRecordRow input#selfKindnessText,
 	#freeTextRecordRow input#freeText,
 	#accomplishedRecordRow input#accomplished,
 	#otherImageRecordRow input#otherImageNote{
@@ -409,7 +406,6 @@ input::placeholder{color:#9fb0ff99}
 		box-sizing:border-box;
 	}
 	#freeRecordRow label[title],
-	#selfKindnessRecordRow label[title],
 	#freeTextRecordRow label[title],
 	#accomplishedRecordRow label[title],
 	#mealImageRecordRow label[title],
@@ -421,7 +417,6 @@ input::placeholder{color:#9fb0ff99}
 		padding:6px 8px;
 	}
 	#freeRecordRow button,
-	#selfKindnessRecordRow button,
 	#freeTextRecordRow button,
 	#accomplishedRecordRow button,
 	#mealImageRecordRow button,

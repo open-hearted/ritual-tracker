@@ -1564,7 +1564,6 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const expenseCameraCancel = $('expenseCameraCancel'); if(expenseCameraCancel) expenseCameraCancel.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeExpenseCameraOverlay(); });
   const expenseCameraVideo = $('expenseCameraVideo'); if(expenseCameraVideo) expenseCameraVideo.addEventListener('click', (ev)=>{ tapToFocusExpenseCamera(ev); });
   updateExpenseFileLabel();
-  const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
 
@@ -1609,13 +1608,11 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeUseTime = $('freeUseTime');
   const freeTextUseTime = $('freeTextUseTime');
   const accomplished = $('accomplished');
-  const selfKindnessText = $('selfKindnessText');
   const otherImageNote = $('otherImageNote');
   const expenseStore = $('expenseStore');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
-  attachNoCredentialBehavior(selfKindnessText);
   attachNoCredentialBehavior(otherImageNote);
   attachNoCredentialBehavior(expenseStore);
 }); }catch(e){}
@@ -2871,27 +2868,6 @@ function formatExpenseRecordLabel(item){
   if(item.total !== null && item.total !== undefined) parts.push(`¥${Number(item.total).toLocaleString('ja-JP')}`);
   return parts.join(' ') || 'レシート';
 }
-
-function addSelfKindnessJournal(){ try{
-  const textEl = $('selfKindnessText');
-  const useTimeEl = $('selfKindnessUseTime');
-  if(!textEl) return;
-
-  const text = (textEl.value || '').trim();
-  if(!text){ alert('内容を入力してください'); return; }
-
-  const useTime = !useTimeEl || !!useTimeEl.checked;
-  const iso = useTime ? new Date().toISOString() : null;
-
-  addFreeRecordWithOptionalTime({
-    seconds: 0,
-    label: 'self-kindness journal',
-    korean: text,
-    startedAt: iso
-  });
-
-  textEl.value = '';
-}catch(e){ console.warn('addSelfKindnessJournal failed', e); alert('記録に失敗しました'); }}
 
 function addTongueRecord(){ try{
   const useTimeEl = $('tongueUseTime');
