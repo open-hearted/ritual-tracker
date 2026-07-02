@@ -52,6 +52,10 @@ const IMAGE_RECORD_CONFIGS = {
 
 const EXPENSE_CATEGORIES = ['食費', '日用品', '交通費', '娯楽', 'その他'];
 let pendingExpenseAnalysis = null; // { dataUrl, mimeType }
+// カメラアプリへの切替中にOSがページを破棄する端末があるため、
+// レシート撮影はページ内カメラ(getUserMedia)で行い、失敗時のみ capture input にフォールバックする
+let expenseCapturedBlob = null;
+let expenseCameraStream = null;
 
 function getPageMode(){
   try{ return (document.body && document.body.getAttribute('data-page')) || ''; }catch(e){ return ''; }
@@ -355,7 +359,7 @@ function openEditorFor(dateKey, opts){
     // Repaint can fire when returning from the camera app (Supabase re-emits
     // SIGNED_IN on refocus) — never clear an in-progress receipt selection here.
     try{
-      const hasPendingReceipt = !!pendingExpenseAnalysis || !!getImageInputFile(getImageRecordConfig('expense'));
+      const hasPendingReceipt = !!pendingExpenseAnalysis || !!expenseCapturedBlob || !!getImageInputFile(getImageRecordConfig('expense'));
       if(!hasPendingReceipt){
         const expenseDateEl = $('expenseDate');
         if(expenseDateEl) expenseDateEl.value = dateKey;
@@ -1556,6 +1560,9 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const expenseSaveBtn = $('expenseSave'); if(expenseSaveBtn) expenseSaveBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); saveExpenseRecord(); });
   const expenseFileEl = $('expenseFile'); if(expenseFileEl) expenseFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'picker'));
   const expenseCameraFileEl = $('expenseCameraFile'); if(expenseCameraFileEl) expenseCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'camera'));
+  const expenseCameraBtn = $('expenseCameraBtn'); if(expenseCameraBtn) expenseCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openExpenseCameraOverlay(); });
+  const expenseCameraShutter = $('expenseCameraShutter'); if(expenseCameraShutter) expenseCameraShutter.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); captureExpensePhotoFromOverlay(); });
+  const expenseCameraCancel = $('expenseCameraCancel'); if(expenseCameraCancel) expenseCameraCancel.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeExpenseCameraOverlay(); });
   updateExpenseFileLabel();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
@@ -2254,6 +2261,10 @@ function handleImageFileInputChange(kind, source){
     const pickerEl = $(cfg.fileId);
     if(pickerEl) pickerEl.value = '';
   }
+  if(kind === 'expense' && getImageInputFile(cfg)){
+    expenseCapturedBlob = null;
+    pendingExpenseAnalysis = null;
+  }
   updateImageFileLabel(kind);
 }
 
@@ -2303,8 +2314,9 @@ function updateImageFileLabel(kind){
   if(!cfg) return;
   const label = $(cfg.fileNameId);
   if(!label) return;
+  if(kind === 'expense' && expenseCapturedBlob){ label.textContent = '撮影済みの写真'; return; }
   const file = getImageInputFile(cfg);
-  label.textContent = file && file.name ? file.name : '画像を選択';
+  label.textContent = file && file.name ? file.name : (kind === 'expense' ? 'レシート画像を選択' : '画像を選択');
 }
 
 function updateMealImageFileLabel(){ updateImageFileLabel('mealImage'); }
@@ -2529,9 +2541,64 @@ async function getSupabaseAccessToken(){
   }catch(e){ return null; }
 }
 
+async function openExpenseCameraOverlay(){
+  const overlay = $('expenseCameraOverlay');
+  const video = $('expenseCameraVideo');
+  if(!overlay || !video || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    const fallback = $('expenseCameraFile');
+    if(fallback) fallback.click();
+    return;
+  }
+  try{
+    expenseCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+    video.srcObject = expenseCameraStream;
+    overlay.style.display = 'flex';
+    try{ await video.play(); }catch(e){}
+  }catch(e){
+    console.warn('getUserMedia failed; falling back to capture input', e);
+    closeExpenseCameraOverlay();
+    const fallback = $('expenseCameraFile');
+    if(fallback) fallback.click();
+  }
+}
+
+function closeExpenseCameraOverlay(){
+  const overlay = $('expenseCameraOverlay');
+  const video = $('expenseCameraVideo');
+  if(video) video.srcObject = null;
+  if(expenseCameraStream){
+    try{ expenseCameraStream.getTracks().forEach(t=> t.stop()); }catch(e){}
+    expenseCameraStream = null;
+  }
+  if(overlay) overlay.style.display = 'none';
+}
+
+async function captureExpensePhotoFromOverlay(){
+  const video = $('expenseCameraVideo');
+  if(!video || !video.videoWidth){ alert('カメラ映像を取得できませんでした'); return; }
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  if(!ctx){ alert('画像の生成に失敗しました'); return; }
+  ctx.drawImage(video, 0, 0);
+  const blob = await canvasToJpegBlob(canvas, 0.9);
+  closeExpenseCameraOverlay();
+  if(!blob){ alert('撮影に失敗しました'); return; }
+  expenseCapturedBlob = blob;
+  pendingExpenseAnalysis = null;
+  clearImageInputs(getImageRecordConfig('expense'));
+  updateExpenseFileLabel();
+  setMsg('撮影しました。「AIで解析」を押してください');
+}
+
 function resetExpenseForm(){
   const cfg = getImageRecordConfig('expense');
   clearImageInputs(cfg);
+  expenseCapturedBlob = null;
   updateExpenseFileLabel();
   pendingExpenseAnalysis = null;
   const storeEl = $('expenseStore'); if(storeEl) storeEl.value = '';
@@ -2546,8 +2613,8 @@ async function analyzeExpenseReceipt(){
     if(!ensureAuthOrSignOut()) return;
     const targetDateKey = STATE.selected;
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
-    const file = getImageInputFile(cfg);
-    if(!file){ alert('レシート画像を選択してください'); return; }
+    const file = expenseCapturedBlob || getImageInputFile(cfg);
+    if(!file){ alert('レシートを撮影するか、画像を選択してください'); return; }
     if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
 
     setMsg('画像を圧縮中...');
@@ -2599,8 +2666,8 @@ async function saveExpenseRecord(){
   try{
     if(!ensureAuthOrSignOut()) return;
 
-    const file = getImageInputFile(cfg);
-    if(!file && !pendingExpenseAnalysis){ alert('レシート画像を選択してください'); return; }
+    const file = expenseCapturedBlob || getImageInputFile(cfg);
+    if(!file && !pendingExpenseAnalysis){ alert('レシートを撮影するか、画像を選択してください'); return; }
 
     const storeEl = $('expenseStore');
     const dateEl = $('expenseDate');

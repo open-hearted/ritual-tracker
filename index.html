@@ -210,7 +210,6 @@
       <button id="openNextDay" style="background:transparent;border:none;color:#fff;text-decoration:none;cursor:pointer;padding:0;">▶</button>
     </div>
     <a id="openMonthly" href="monthly.html">月間</a>
-    <button id="homeInstallBtn" type="button" style="display:none">ホーム画面に追加</button>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
@@ -363,10 +362,8 @@
             <input id="expenseFile" type="file" accept="image/*" style="display:none" />
             <span id="expenseFileName" style="opacity:0.9;overflow:hidden;text-overflow:ellipsis">レシート画像を選択</span>
           </label>
-          <label style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff;cursor:pointer;text-align:center">
-            <input id="expenseCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
-            撮影
-          </label>
+          <button id="expenseCameraBtn" type="button" style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff">撮影</button>
+          <input id="expenseCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
           <button id="expenseAnalyze">AIで解析</button>
         </div>
         <div id="expenseFormRow" style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
@@ -427,33 +424,14 @@
       </div>
     </div>
   </div>
+  <div id="expenseCameraOverlay" style="display:none;position:fixed;inset:0;background:#000;z-index:9999;flex-direction:column">
+    <video id="expenseCameraVideo" autoplay playsinline muted style="flex:1;width:100%;object-fit:cover;min-height:0"></video>
+    <div style="display:flex;gap:16px;justify-content:center;align-items:center;padding:16px;background:#000">
+      <button id="expenseCameraCancel" type="button" style="padding:10px 18px;border-radius:8px;border:1px solid rgba(255,255,255,0.3);background:transparent;color:#fff">キャンセル</button>
+      <button id="expenseCameraShutter" type="button" style="padding:10px 26px;border-radius:8px;border:0;background:#fff;color:#000;font-weight:700">撮影</button>
+    </div>
+  </div>
   <script>
-    let homeInstallPrompt = null;
-    function isHomeStandaloneMode() {
-      return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    }
-    function setHomeInstallButtonVisible(visible) {
-      const btn = document.getElementById('homeInstallBtn');
-      if(!btn) return;
-      btn.style.display = visible ? 'inline-flex' : 'none';
-    }
-    window.addEventListener('beforeinstallprompt', (event) => {
-      if(isHomeStandaloneMode()) return;
-      event.preventDefault();
-      homeInstallPrompt = event;
-      setHomeInstallButtonVisible(true);
-    });
-    window.addEventListener('appinstalled', () => {
-      homeInstallPrompt = null;
-      setHomeInstallButtonVisible(false);
-    });
-    document.getElementById('homeInstallBtn')?.addEventListener('click', async () => {
-      if(!homeInstallPrompt) return;
-      setHomeInstallButtonVisible(false);
-      homeInstallPrompt.prompt();
-      try{ await homeInstallPrompt.userChoice; }catch(e){}
-      homeInstallPrompt = null;
-    });
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
     }
