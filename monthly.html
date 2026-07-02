@@ -193,8 +193,10 @@
         <input id="mealImageFile" type="file" accept="image/*" style="display:none" />
         <span id="mealImageFileName" style="opacity:0.9;overflow:hidden;text-overflow:ellipsis">画像を選択</span>
       </label>
-      <button id="mealImageCameraBtn" type="button" style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff">撮影</button>
-      <input id="mealImageCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
+      <label style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff;cursor:pointer;text-align:center">
+        <input id="mealImageCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
+        撮影
+      </label>
       <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
         <input id="mealImageUseTime" type="checkbox" checked />
         <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
@@ -208,8 +210,10 @@
         <input id="otherImageFile" type="file" accept="image/*" style="display:none" />
         <span id="otherImageFileName" style="opacity:0.9;overflow:hidden;text-overflow:ellipsis">画像を選択</span>
       </label>
-      <button id="otherImageCameraBtn" type="button" style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff">撮影</button>
-      <input id="otherImageCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
+      <label style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff;cursor:pointer;text-align:center">
+        <input id="otherImageCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
+        撮影
+      </label>
       <input id="otherImageNote" name="other_image_note" type="text" placeholder="メモ（例：景色、部屋、買った物）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
       <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
         <input id="otherImageUseTime" type="checkbox" checked />
