@@ -1547,7 +1547,6 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
-  const codingBtn = $('codingAdd'); if(codingBtn) codingBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addCodingRecord(); });
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
   const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'picker'));
   const mealImageCameraFileEl = $('mealImageCameraFile'); if(mealImageCameraFileEl) mealImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'camera'));
@@ -1610,14 +1609,12 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeUseTime = $('freeUseTime');
   const freeTextUseTime = $('freeTextUseTime');
   const accomplished = $('accomplished');
-  const codingText = $('codingText');
   const selfKindnessText = $('selfKindnessText');
   const otherImageNote = $('otherImageNote');
   const expenseStore = $('expenseStore');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
-  attachNoCredentialBehavior(codingText);
   attachNoCredentialBehavior(selfKindnessText);
   attachNoCredentialBehavior(otherImageNote);
   attachNoCredentialBehavior(expenseStore);
@@ -2415,27 +2412,6 @@ function addAccomplishedRecord(){ try{
 
   textEl.value = '';
 }catch(e){ console.warn('addAccomplishedRecord failed', e); alert('記録に失敗しました'); }}
-
-function addCodingRecord(){ try{
-  const textEl = $('codingText');
-  const useTimeEl = $('codingUseTime');
-  if(!textEl) return;
-
-  const text = (textEl.value || '').trim();
-  if(!text){ alert('内容を入力してください'); return; }
-
-  const useTime = !useTimeEl || !!useTimeEl.checked;
-  const iso = useTime ? new Date().toISOString() : null;
-
-  addFreeRecordWithOptionalTime({
-    seconds: 0,
-    label: 'コーディング',
-    korean: text,
-    startedAt: iso
-  });
-
-  textEl.value = '';
-}catch(e){ console.warn('addCodingRecord failed', e); alert('記録に失敗しました'); }}
 
 async function addImageRecord(kind){
   const cfg = getImageRecordConfig(kind);

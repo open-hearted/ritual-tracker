@@ -372,7 +372,6 @@ input::placeholder{color:#9fb0ff99}
 	#selfKindnessRecordRow,
 	#freeTextRecordRow,
 	#accomplishedRecordRow,
-	#codingRecordRow,
 	#mealImageRecordRow,
 	#otherImageRecordRow{
 		display:grid !important;
@@ -387,7 +386,6 @@ input::placeholder{color:#9fb0ff99}
 	#selfKindnessRecordRow > strong,
 	#freeTextRecordRow > strong,
 	#accomplishedRecordRow > strong,
-	#codingRecordRow > strong,
 	#mealImageRecordRow > strong,
 	#otherImageRecordRow > strong{
 		grid-column:1 / -1;
@@ -403,7 +401,6 @@ input::placeholder{color:#9fb0ff99}
 	#selfKindnessRecordRow input#selfKindnessText,
 	#freeTextRecordRow input#freeText,
 	#accomplishedRecordRow input#accomplished,
-	#codingRecordRow input#codingText,
 	#otherImageRecordRow input#otherImageNote{
 		grid-column:1 / -1;
 		width:100% !important;
@@ -415,7 +412,6 @@ input::placeholder{color:#9fb0ff99}
 	#selfKindnessRecordRow label[title],
 	#freeTextRecordRow label[title],
 	#accomplishedRecordRow label[title],
-	#codingRecordRow label[title],
 	#mealImageRecordRow label[title],
 	#otherImageRecordRow label[title]{
 		grid-column:2;
@@ -428,7 +424,6 @@ input::placeholder{color:#9fb0ff99}
 	#selfKindnessRecordRow button,
 	#freeTextRecordRow button,
 	#accomplishedRecordRow button,
-	#codingRecordRow button,
 	#mealImageRecordRow button,
 	#otherImageRecordRow button{
 		grid-column:3;

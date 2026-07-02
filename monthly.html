@@ -30,9 +30,9 @@
     #selfKindnessRecordRow button#selfKindnessAdd{ flex:0 0 auto; min-width:44px; }
 
     /* Generic one-line free record row */
-    #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #codingRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
-    #freeTextRecordRow button, #accomplishedRecordRow button, #codingRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
+    #freeTextRecordRow, #accomplishedRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
+    #freeTextRecordRow button, #accomplishedRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
 
     /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
     #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
@@ -199,16 +199,6 @@
         <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
       </label>
       <button id="accomplishedAdd" style="flex-shrink:0">追加</button>
-    </div>
-
-    <div id="codingRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-      <strong style="width:56px;opacity:0.9">コーディング</strong>
-      <input id="codingText" name="coding_record_text" type="text" placeholder="内容（例: ACG2修正）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
-      <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
-        <input id="codingUseTime" type="checkbox" checked />
-        <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
-      </label>
-      <button id="codingAdd">追加</button>
     </div>
 
     <div id="mealImageRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">

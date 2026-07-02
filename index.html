@@ -165,9 +165,9 @@
   #selfKindnessRecordRow button#selfKindnessAdd{ flex:0 0 auto; min-width:44px; }
 
   /* Generic one-line free record row */
-  #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #codingRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
-  #freeTextRecordRow button, #accomplishedRecordRow button, #codingRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
+  #freeTextRecordRow, #accomplishedRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
+  #freeTextRecordRow button, #accomplishedRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
 
   /* Expense (receipt) record */
   /* 撮影オーバーレイのシャッターはモバイル共通ボタン配色より優先して白丸にする */
@@ -217,7 +217,7 @@
     <a id="openMonthly" href="monthly.html">月間</a>
     <div id="msg" style="color:#6b7280"></div>
     <!-- デプロイ確認用バッジ（本番運用時はこの要素・下部のfetch・api/version.js を削除） -->
-    <div id="buildInfo" style="font-size:10px;opacity:0.65;color:#9ca3af;white-space:nowrap"></div>
+    <div id="buildInfo" style="font-size:15px;font-weight:700;letter-spacing:0;color:#fff;background:#334155;border:1px solid rgba(255,255,255,0.24);border-radius:6px;padding:4px 8px;white-space:nowrap"></div>
   </div>
 
   <div class="container compact" style="padding:12px">
@@ -315,16 +315,6 @@
           <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
         </label>
         <button id="accomplishedAdd" style="flex-shrink:0">追加</button>
-      </div>
-
-      <div id="codingRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-        <strong style="width:56px;opacity:0.9">コーディング</strong>
-        <input id="codingText" name="coding_record_text" type="text" placeholder="内容（例: ACG2修正）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
-        <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
-          <input id="codingUseTime" type="checkbox" checked />
-          <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
-        </label>
-        <button id="codingAdd">追加</button>
       </div>
 
       <div id="mealImageRecordRow" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap">
@@ -447,7 +437,7 @@
     // デプロイ確認用（本番運用時に削除）
     fetch('/api/version').then(r => r.json()).then(v => {
       const el = document.getElementById('buildInfo');
-      if (el) el.textContent = v && v.sha ? 'ver ' + v.sha.slice(0, 7) : 'ver local';
+      if (el) el.textContent = v && v.sha ? 'SHA ' + v.sha.slice(0, 7) : 'SHA local';
     }).catch(() => {});
   </script>
   </body>
