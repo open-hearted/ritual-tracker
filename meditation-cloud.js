@@ -356,6 +356,46 @@ function openEditorFor(dateKey, opts){
     renderWakeSleep();
     renderExerciseList();
     renderAllRecordsTimeline();
+    
+    // シフト時間中はタイムラインと生理記録を非表示にする
+    try {
+      const shift = getShiftForDateKey(dateKey);
+      const isToday = dateKey === todayDateKey();
+      let hideForShift = false;
+      if (isToday && shift && shift.start && shift.end) {
+        const now = new Date();
+        const startMatch = shift.start.match(/^(\d{1,2}):(\d{2})$/);
+        const endMatch = shift.end.match(/^(\d{1,2}):(\d{2})$/);
+        if (startMatch && endMatch) {
+          const startTime = new Date(now);
+          startTime.setHours(Number(startMatch[1]), Number(startMatch[2]), 0, 0);
+          const endTime = new Date(now);
+          let endH = Number(endMatch[1]);
+          if (endH < Number(startMatch[1])) {
+            endTime.setDate(endTime.getDate() + 1); // 翌日またぎ
+          }
+          endTime.setHours(endH, Number(endMatch[2]), 0, 0);
+          if (now >= startTime && now <= endTime) {
+            hideForShift = true;
+          }
+        }
+      }
+      
+      const timelineCol = document.getElementById('dailyTimelineCol');
+      const allRecordsTimeline = document.getElementById('allRecordsTimeline');
+      const periodRow = document.getElementById('periodRecordRow');
+      
+      if (hideForShift) {
+        if (timelineCol) timelineCol.style.display = 'none';
+        else if (allRecordsTimeline) allRecordsTimeline.style.display = 'none';
+        if (periodRow) periodRow.style.display = 'none';
+      } else {
+        if (timelineCol) timelineCol.style.display = '';
+        else if (allRecordsTimeline) allRecordsTimeline.style.display = '';
+        if (periodRow) periodRow.style.display = ''; // style.cssに合わせるためinlineのflex指定はしないか空文字
+      }
+    } catch(e) { console.error('Shift hide logic error', e); }
+
     // Repaint can fire when returning from the camera app (Supabase re-emits
     // SIGNED_IN on refocus) — never clear an in-progress receipt selection here.
     try{
