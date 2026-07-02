@@ -69,6 +69,16 @@ function todayDateKey(){
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
 }
 
+function isoMatchesDateKey(iso, dateKey){
+  if(!iso || !isValidDateKey(dateKey)) return false;
+  try{
+    const d = new Date(iso);
+    if(isNaN(d)) return false;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return key === dateKey;
+  }catch(e){ return false; }
+}
+
 function setStateMonthFromDateKey(dateKey){
   if(!isValidDateKey(dateKey)) return;
   const m = String(dateKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -323,7 +333,7 @@ function getShiftForDateKey(dateKey){
   return null;
 }
 
-function renderCalendar(){ const grid=$('calGrid'); grid.innerHTML=''; $('monthLabel').textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; if(sess.length || ex.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=> openEditorFor(dk)); grid.appendChild(btn); } }
+function renderCalendar(){ const grid=$('calGrid'); if(!grid) return; grid.innerHTML=''; const monthLabelEl=$('monthLabel'); if(monthLabelEl) monthLabelEl.textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; const exp = Array.isArray(rec.expenses)? rec.expenses : []; if(sess.length || ex.length || exp.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=>{ if(isMonthlyPage()){ location.href = 'index.html?date=' + dk; } else { openEditorFor(dk); } }); grid.appendChild(btn); } }
 
 function openEditorFor(dateKey, opts){
   // save current editor state before switching dates
@@ -341,7 +351,6 @@ function openEditorFor(dateKey, opts){
     renderMedSessionList();
     renderWakeSleep();
     renderExerciseList();
-    renderExpenseList();
     renderAllRecordsTimeline();
     // Repaint can fire when returning from the camera app (Supabase re-emits
     // SIGNED_IN on refocus) — never clear an in-progress receipt selection here.
@@ -1209,12 +1218,23 @@ function renderAllRecordsTimeline(){
     });
   });
   
+  // 支出記録（撮影日とレシート日付が違う場合は時刻なし扱い）
+  const expenseArr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  expenseArr.forEach((item, i) => {
+    allRecords.push({
+      type: 'expenseRecord',
+      time: isoMatchesDateKey(item?.createdAt, dk) ? item.createdAt : null,
+      label: `💴 ${formatExpenseRecordLabel(item)}`,
+      data: { index: i, session: item }
+    });
+  });
+
   // 就寝記録 (複数対応)
   const sleepArr = Array.isArray(rec.sleep) ? rec.sleep : [];
   sleepArr.forEach((iso, i) => {
     allRecords.push({ type: 'sleep', time: iso, label: '就寝', data: { index: i } });
   });
-  
+
   // 時刻順にソート（時刻なしは最後へ）
   allRecords.sort((a, b) => {
     const ta = a && a.time ? new Date(a.time).getTime() : Number.POSITIVE_INFINITY;
@@ -1258,10 +1278,14 @@ function renderAllRecordsTimeline(){
         <button data-${kind}-edit="${record.data.index}">✏</button>
         <button data-${kind}-del="${record.data.index}">✕</button>
       </div>`;
+    } else if(record.type === 'expenseRecord' && record.data){
+      buttons = `<div style="display:flex;gap:8px">
+        <button data-expense-del="${record.data.index}">✕</button>
+      </div>`;
     }
 
     const labelText = escapeHtml(record.label || '');
-    const imageThumb = (getImageRecordConfig(record.type) && record.data)
+    const imageThumb = ((getImageRecordConfig(record.type) || record.type === 'expenseRecord') && record.data)
       ? renderImageThumbHtml(record.data.session)
       : '';
 
@@ -1388,7 +1412,15 @@ function renderAllRecordsTimeline(){
       await deleteExerciseSessionAt(idx);
     });
   });
-  
+
+  wrap.querySelectorAll('button[data-expense-del]').forEach(b => {
+    b.addEventListener('click', async (ev) => {
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+      const idx = parseInt(b.getAttribute('data-expense-del'), 10);
+      await deleteExpenseRecordAt(idx);
+    });
+  });
+
   // 起床・覚醒・就寝 個別編集・削除リスナー
   ['wake','awake','sleep'].forEach(kind=>{
     wrap.querySelectorAll(`button[data-${kind}-edit]`).forEach(b=>{
@@ -1525,7 +1557,6 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const expenseFileEl = $('expenseFile'); if(expenseFileEl) expenseFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'picker'));
   const expenseCameraFileEl = $('expenseCameraFile'); if(expenseCameraFileEl) expenseCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'camera'));
   updateExpenseFileLabel();
-  renderExpenseList();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
@@ -2140,47 +2171,60 @@ function renderExerciseViews(){
   renderAllRecordsTimeline();
 }
 
+// Expense records can target a different month than the currently displayed one
+// (the receipt's date decides where they live), so derive the month bucket from
+// the dateKey instead of STATE-based getMonthKey().
+function monthKeyFromDateKey(dateKey){ return String(dateKey).slice(0, 7); }
+
+function getDayRecordByDateKey(dateKey){
+  const mk = monthKeyFromDateKey(dateKey);
+  STATE.payload.data = STATE.payload.data || {};
+  STATE.payload.data[mk] = STATE.payload.data[mk] || {};
+  let rec = STATE.payload.data[mk][dateKey];
+  if(!rec){
+    rec = { sessions: [], starts: [], ids: [], times: {} };
+    STATE.payload.data[mk][dateKey] = rec;
+  }
+  return normalizeDayRecord(rec);
+}
+
 function addExpenseRecordToPayload(dateKey, item){
-  const rec = getDayRecord(dateKey);
+  const rec = getDayRecordByDateKey(dateKey);
   const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
   arr.push(item);
   rec.expenses = arr;
-  const mk = getMonthKey();
-  STATE.payload.data[mk][dateKey] = rec;
+  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
 }
 
 function removeExpenseRecordById(dateKey, id){
-  const rec = getDayRecord(dateKey);
+  const rec = getDayRecordByDateKey(dateKey);
   const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
   const idx = arr.findIndex(it => it && it.id === id);
   if(idx < 0) return null;
   const removed = arr.splice(idx, 1)[0];
   rec.expenses = arr;
-  const mk = getMonthKey();
-  STATE.payload.data[mk][dateKey] = rec;
+  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
   return { removed, index: idx };
 }
 
 function removeExpenseRecordAt(dateKey, idx){
-  const rec = getDayRecord(dateKey);
+  const rec = getDayRecordByDateKey(dateKey);
   const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
   if(!Number.isInteger(idx) || idx < 0 || idx >= arr.length) return null;
   const removed = arr.splice(idx, 1)[0];
   rec.expenses = arr;
-  const mk = getMonthKey();
-  STATE.payload.data[mk][dateKey] = rec;
+  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
   return { removed, index: idx };
 }
 
 function restoreExpenseRecordAt(dateKey, item, idx){
   if(!item) return;
-  const rec = getDayRecord(dateKey);
+  const rec = getDayRecordByDateKey(dateKey);
   const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
   const insertAt = Math.max(0, Math.min(Number.isInteger(idx) ? idx : arr.length, arr.length));
   arr.splice(insertAt, 0, item);
   rec.expenses = arr;
-  const mk = getMonthKey();
-  STATE.payload.data[mk][dateKey] = rec;
+  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
 }
 
 function getImageInputFile(cfg){
@@ -2491,7 +2535,7 @@ function resetExpenseForm(){
   updateExpenseFileLabel();
   pendingExpenseAnalysis = null;
   const storeEl = $('expenseStore'); if(storeEl) storeEl.value = '';
-  const dateEl = $('expenseDate'); if(dateEl) dateEl.value = '';
+  const dateEl = $('expenseDate'); if(dateEl) dateEl.value = isValidDateKey(STATE.selected) ? STATE.selected : '';
   const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = '';
   const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = '';
 }
@@ -2554,8 +2598,6 @@ async function saveExpenseRecord(){
   let targetDateKey = null;
   try{
     if(!ensureAuthOrSignOut()) return;
-    targetDateKey = STATE.selected;
-    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
 
     const file = getImageInputFile(cfg);
     if(!file && !pendingExpenseAnalysis){ alert('レシート画像を選択してください'); return; }
@@ -2568,6 +2610,10 @@ async function saveExpenseRecord(){
     const dateVal = dateEl ? (dateEl.value || '').trim() : '';
     const totalVal = totalEl ? (totalEl.value || '').trim() : '';
     const category = categoryEl ? (categoryEl.value || '').trim() : '';
+
+    // レシートの日付の日に記録する（未入力なら表示中の日）
+    targetDateKey = isValidDateKey(dateVal) ? dateVal : STATE.selected;
+    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
 
     let imageBlob = pendingExpenseAnalysis && pendingExpenseAnalysis.dataUrl
       ? dataUrlToBlob(pendingExpenseAnalysis.dataUrl)
@@ -2602,12 +2648,12 @@ async function saveExpenseRecord(){
     };
 
     addExpenseRecordToPayload(targetDateKey, uploadedRecord);
-    renderExpenseList();
+    renderAllRecordsTimeline();
 
     const saved = await med_saveAll();
     if(!saved){
       removeExpenseRecordById(targetDateKey, uploadedRecord.id);
-      renderExpenseList();
+      renderAllRecordsTimeline();
       try{
         await removeImageStorageObject(uploadedRecord);
         alert('支出記録の保存に失敗したため、アップロード済み画像を削除しました');
@@ -2623,14 +2669,14 @@ async function saveExpenseRecord(){
     }
 
     resetExpenseForm();
-    setMsg(cfg.successMessage);
+    setMsg(targetDateKey === STATE.selected ? cfg.successMessage : `支出を ${targetDateKey} に記録しました`);
   }catch(e){
     console.warn('saveExpenseRecord failed', e);
     setMsg('');
     if(uploadedRecord && uploadedRecord.storagePath){
       try{
         removeExpenseRecordById(targetDateKey, uploadedRecord.id);
-        renderExpenseList();
+        renderAllRecordsTimeline();
       }catch(localErr){
         console.warn('Expense local rollback failed after unexpected save failure', localErr);
       }
@@ -2650,7 +2696,7 @@ async function saveExpenseRecord(){
 async function deleteExpenseRecordAt(idx){
   const dk = STATE.selected;
   if(!dk) return;
-  const rec = getDayRecord(dk);
+  const rec = getDayRecordByDateKey(dk);
   const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
   const item = arr[idx];
   if(!item) return;
@@ -2660,12 +2706,12 @@ async function deleteExpenseRecordAt(idx){
 
   const removedInfo = removeExpenseRecordAt(dk, idx);
   if(!removedInfo) return;
-  renderExpenseList();
+  renderAllRecordsTimeline();
 
   const saved = await med_saveAll();
   if(!saved){
     restoreExpenseRecordAt(dk, removedInfo.removed, removedInfo.index);
-    renderExpenseList();
+    renderAllRecordsTimeline();
     alert('記録削除の保存に失敗したため、削除を取り消しました');
     return;
   }
@@ -2689,31 +2735,6 @@ function formatExpenseRecordLabel(item){
   if(item.category) parts.push(`[${item.category}]`);
   if(item.total !== null && item.total !== undefined) parts.push(`¥${Number(item.total).toLocaleString('ja-JP')}`);
   return parts.join(' ') || 'レシート';
-}
-
-function renderExpenseList(){
-  const wrap = $('expenseList'); if(!wrap) return; wrap.innerHTML = '';
-  const dk = STATE.selected; if(!dk) return;
-  const rec = getExistingDayRecord(dk) || {};
-  const items = Array.isArray(rec.expenses) ? rec.expenses : [];
-  if(!items.length){ wrap.innerHTML = ''; return; }
-
-  items.forEach((it, idx)=>{
-    const row = document.createElement('div');
-    row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderRadius='0'; row.style.background='transparent'; row.style.color='#ffffff'; row.style.marginBottom='4px';
-    const dateTxt = it.date || '';
-    const label = formatExpenseRecordLabel(it);
-    const imageThumb = renderImageThumbHtml(it);
-    const buttons = `<div style="display:flex;gap:8px"><button data-exp-del='${idx}'>✕</button></div>`;
-    row.innerHTML = `<div style="font-weight:700">${escapeHtml(dateTxt)} <span style="font-weight:400;margin-left:8px">${escapeHtml(label)}</span>${imageThumb}</div>` + buttons;
-    wrap.appendChild(row);
-  });
-  hydrateImageSignedUrls(wrap);
-  wrap.querySelectorAll('button[data-exp-del]').forEach(b=> b.addEventListener('click', async (ev)=>{
-    try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
-    const idx = parseInt(b.getAttribute('data-exp-del'),10);
-    await deleteExpenseRecordAt(idx);
-  }));
 }
 
 function addSelfKindnessJournal(){ try{
