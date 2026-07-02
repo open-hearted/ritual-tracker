@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ritual-tracker-v3';
+const CACHE_NAME = 'ritual-tracker-v4';
 const PRECACHE = [
   '/',
   '/index.html',

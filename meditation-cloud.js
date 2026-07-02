@@ -35,9 +35,23 @@ const IMAGE_RECORD_CONFIGS = {
     useTimeId: 'otherImageUseTime',
     noteId: 'otherImageNote',
     successMessage: 'その他画像を記録しました'
+  },
+  expense: {
+    kind: 'expense',
+    type: '支出',
+    category: 'expense',
+    fileId: 'expenseFile',
+    cameraFileId: 'expenseCameraFile',
+    fileNameId: 'expenseFileName',
+    useTimeId: null,
+    noteId: null,
+    successMessage: '支出を記録しました'
   }
 };
 // ▲-------------------------------------------------------▲
+
+const EXPENSE_CATEGORIES = ['食費', '日用品', '交通費', '娯楽', 'その他'];
+let pendingExpenseAnalysis = null; // { dataUrl, mimeType }
 
 function getPageMode(){
   try{ return (document.body && document.body.getAttribute('data-page')) || ''; }catch(e){ return ''; }
@@ -327,7 +341,10 @@ function openEditorFor(dateKey, opts){
     renderMedSessionList();
     renderWakeSleep();
     renderExerciseList();
+    renderExpenseList();
     renderAllRecordsTimeline();
+    resetExpenseForm();
+    const expenseDateEl = $('expenseDate'); if(expenseDateEl) expenseDateEl.value = dateKey;
     if(ed) ed.style.display='block';
   };
 
@@ -1495,6 +1512,12 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'picker'));
   const otherImageCameraFileEl = $('otherImageCameraFile'); if(otherImageCameraFileEl) otherImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'camera'));
   updateOtherImageFileLabel();
+  const expenseAnalyzeBtn = $('expenseAnalyze'); if(expenseAnalyzeBtn) expenseAnalyzeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); analyzeExpenseReceipt(); });
+  const expenseSaveBtn = $('expenseSave'); if(expenseSaveBtn) expenseSaveBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); saveExpenseRecord(); });
+  const expenseFileEl = $('expenseFile'); if(expenseFileEl) expenseFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'picker'));
+  const expenseCameraFileEl = $('expenseCameraFile'); if(expenseCameraFileEl) expenseCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'camera'));
+  updateExpenseFileLabel();
+  renderExpenseList();
   const selfKindnessBtn = $('selfKindnessAdd'); if(selfKindnessBtn) selfKindnessBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addSelfKindnessJournal(); });
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
@@ -1543,12 +1566,14 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const codingText = $('codingText');
   const selfKindnessText = $('selfKindnessText');
   const otherImageNote = $('otherImageNote');
+  const expenseStore = $('expenseStore');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
   attachNoCredentialBehavior(codingText);
   attachNoCredentialBehavior(selfKindnessText);
   attachNoCredentialBehavior(otherImageNote);
+  attachNoCredentialBehavior(expenseStore);
 }); }catch(e){}
 
 function addPeriodRecord(){
@@ -2107,6 +2132,49 @@ function renderExerciseViews(){
   renderAllRecordsTimeline();
 }
 
+function addExpenseRecordToPayload(dateKey, item){
+  const rec = getDayRecord(dateKey);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
+  arr.push(item);
+  rec.expenses = arr;
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+}
+
+function removeExpenseRecordById(dateKey, id){
+  const rec = getDayRecord(dateKey);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
+  const idx = arr.findIndex(it => it && it.id === id);
+  if(idx < 0) return null;
+  const removed = arr.splice(idx, 1)[0];
+  rec.expenses = arr;
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+  return { removed, index: idx };
+}
+
+function removeExpenseRecordAt(dateKey, idx){
+  const rec = getDayRecord(dateKey);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
+  if(!Number.isInteger(idx) || idx < 0 || idx >= arr.length) return null;
+  const removed = arr.splice(idx, 1)[0];
+  rec.expenses = arr;
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+  return { removed, index: idx };
+}
+
+function restoreExpenseRecordAt(dateKey, item, idx){
+  if(!item) return;
+  const rec = getDayRecord(dateKey);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
+  const insertAt = Math.max(0, Math.min(Number.isInteger(idx) ? idx : arr.length, arr.length));
+  arr.splice(insertAt, 0, item);
+  rec.expenses = arr;
+  const mk = getMonthKey();
+  STATE.payload.data[mk][dateKey] = rec;
+}
+
 function getImageInputFile(cfg){
   if(!cfg) return null;
   const pickerEl = $(cfg.fileId);
@@ -2189,6 +2257,7 @@ function updateImageFileLabel(kind){
 
 function updateMealImageFileLabel(){ updateImageFileLabel('mealImage'); }
 function updateOtherImageFileLabel(){ updateImageFileLabel('otherImage'); }
+function updateExpenseFileLabel(){ updateImageFileLabel('expense'); }
 
 function createImageSession(kind, { createdAt, startedAt, storageInfo, imageName, note }){
   const cfg = getImageRecordConfig(kind);
@@ -2389,6 +2458,255 @@ async function addImageRecord(kind){
 
 async function addMealImageRecord(){ return addImageRecord('mealImage'); }
 async function addOtherImageRecord(){ return addImageRecord('otherImage'); }
+
+function dataUrlToBlob(dataUrl){
+  const match = /^data:([^;]+);base64,(.*)$/.exec(dataUrl || '');
+  if(!match) return null;
+  const mimeType = match[1];
+  const binary = atob(match[2]);
+  const bytes = new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function getSupabaseAccessToken(){
+  if(!supabaseClient) return null;
+  try{
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    return session ? session.access_token : null;
+  }catch(e){ return null; }
+}
+
+function resetExpenseForm(){
+  const cfg = getImageRecordConfig('expense');
+  clearImageInputs(cfg);
+  updateExpenseFileLabel();
+  pendingExpenseAnalysis = null;
+  const storeEl = $('expenseStore'); if(storeEl) storeEl.value = '';
+  const dateEl = $('expenseDate'); if(dateEl) dateEl.value = '';
+  const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = '';
+  const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = '';
+}
+
+async function analyzeExpenseReceipt(){
+  const cfg = getImageRecordConfig('expense');
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    const targetDateKey = STATE.selected;
+    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
+    const file = getImageInputFile(cfg);
+    if(!file){ alert('レシート画像を選択してください'); return; }
+    if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
+
+    setMsg('画像を圧縮中...');
+    const dataUrl = await compressImageForRecord(file);
+    if(!dataUrl){
+      setMsg('');
+      alert('画像サイズが大きすぎます。別の画像を選択してください');
+      return;
+    }
+    const mimeMatch = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+    if(!mimeMatch){ setMsg(''); alert('画像の読み込みに失敗しました'); return; }
+    const mimeType = mimeMatch[1];
+    const imageBase64 = mimeMatch[2];
+    pendingExpenseAnalysis = { dataUrl, mimeType };
+
+    const accessToken = await getSupabaseAccessToken();
+    if(!accessToken){ setMsg(''); alert('ログインし直してください'); return; }
+
+    setMsg('AIで解析中...');
+    const res = await fetch('/api/receipt-analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+      body: JSON.stringify({ imageBase64, mimeType })
+    });
+    const json = await res.json().catch(()=>null);
+    if(!res.ok || !json || !json.ok){
+      setMsg('');
+      alert('AI解析に失敗しました。フォームに手動で入力してください');
+      return;
+    }
+
+    const data = json.data || {};
+    const storeEl = $('expenseStore'); if(storeEl) storeEl.value = data.store || '';
+    const dateEl = $('expenseDate'); if(dateEl) dateEl.value = data.date || targetDateKey;
+    const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (data.total !== null && data.total !== undefined) ? data.total : '';
+    const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(data.category) ? data.category : '';
+    setMsg('解析結果を確認して保存してください');
+  }catch(e){
+    console.warn('analyzeExpenseReceipt failed', e);
+    setMsg('');
+    alert('AI解析でエラーが発生しました');
+  }
+}
+
+async function saveExpenseRecord(){
+  const cfg = getImageRecordConfig('expense');
+  let uploadedRecord = null;
+  let targetDateKey = null;
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    targetDateKey = STATE.selected;
+    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
+
+    const file = getImageInputFile(cfg);
+    if(!file && !pendingExpenseAnalysis){ alert('レシート画像を選択してください'); return; }
+
+    const storeEl = $('expenseStore');
+    const dateEl = $('expenseDate');
+    const totalEl = $('expenseTotal');
+    const categoryEl = $('expenseCategory');
+    const store = storeEl ? (storeEl.value || '').trim() : '';
+    const dateVal = dateEl ? (dateEl.value || '').trim() : '';
+    const totalVal = totalEl ? (totalEl.value || '').trim() : '';
+    const category = categoryEl ? (categoryEl.value || '').trim() : '';
+
+    let imageBlob = pendingExpenseAnalysis && pendingExpenseAnalysis.dataUrl
+      ? dataUrlToBlob(pendingExpenseAnalysis.dataUrl)
+      : null;
+    if(!imageBlob && file){
+      setMsg('画像を圧縮中...');
+      imageBlob = await compressImageBlobForRecord(file);
+    }
+    if(!imageBlob){
+      setMsg('');
+      alert('画像サイズが大きすぎます。別の画像を選択してください');
+      return;
+    }
+
+    const createdAt = nowISO();
+    setMsg('画像をアップロード中...');
+    const storageInfo = await uploadImageBlob(imageBlob, 'expense', targetDateKey, createdAt);
+
+    uploadedRecord = {
+      id: createRecordId('exp'),
+      kind: 'expense',
+      source: 'receipt',
+      store: store || null,
+      date: dateVal || null,
+      total: totalVal !== '' && Number.isFinite(Number(totalVal)) ? Number(totalVal) : null,
+      category: EXPENSE_CATEGORIES.includes(category) ? category : null,
+      items: [],
+      storageBucket: storageInfo.storageBucket,
+      storagePath: storageInfo.storagePath,
+      createdAt,
+      updatedAt: createdAt
+    };
+
+    addExpenseRecordToPayload(targetDateKey, uploadedRecord);
+    renderExpenseList();
+
+    const saved = await med_saveAll();
+    if(!saved){
+      removeExpenseRecordById(targetDateKey, uploadedRecord.id);
+      renderExpenseList();
+      try{
+        await removeImageStorageObject(uploadedRecord);
+        alert('支出記録の保存に失敗したため、アップロード済み画像を削除しました');
+      }catch(cleanupErr){
+        console.warn('Expense image cleanup failed after payload save failure', {
+          storagePath: uploadedRecord.storagePath,
+          error: cleanupErr
+        });
+        alert('支出記録の保存に失敗し、Storage上の孤立画像削除にも失敗しました。storagePathをconsoleに残しました。');
+      }
+      setMsg('支出記録の保存に失敗しました');
+      return;
+    }
+
+    resetExpenseForm();
+    setMsg(cfg.successMessage);
+  }catch(e){
+    console.warn('saveExpenseRecord failed', e);
+    setMsg('');
+    if(uploadedRecord && uploadedRecord.storagePath){
+      try{
+        removeExpenseRecordById(targetDateKey, uploadedRecord.id);
+        renderExpenseList();
+      }catch(localErr){
+        console.warn('Expense local rollback failed after unexpected save failure', localErr);
+      }
+      try{
+        await removeImageStorageObject(uploadedRecord);
+      }catch(cleanupErr){
+        console.warn('Expense image cleanup failed after unexpected save failure', {
+          storagePath: uploadedRecord.storagePath,
+          error: cleanupErr
+        });
+      }
+    }
+    alert('支出の保存に失敗しました。payloadは変更していません。');
+  }
+}
+
+async function deleteExpenseRecordAt(idx){
+  const dk = STATE.selected;
+  if(!dk) return;
+  const rec = getDayRecord(dk);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  const item = arr[idx];
+  if(!item) return;
+
+  const label = item.store || '支出記録';
+  if(!confirmDelete(`${label} を削除しますか？`)) return;
+
+  const removedInfo = removeExpenseRecordAt(dk, idx);
+  if(!removedInfo) return;
+  renderExpenseList();
+
+  const saved = await med_saveAll();
+  if(!saved){
+    restoreExpenseRecordAt(dk, removedInfo.removed, removedInfo.index);
+    renderExpenseList();
+    alert('記録削除の保存に失敗したため、削除を取り消しました');
+    return;
+  }
+
+  if(getImageStoragePath(removedInfo.removed)){
+    try{
+      await removeImageStorageObject(removedInfo.removed);
+    }catch(e){
+      console.warn('Expense image storage delete failed; payload deletion was kept', {
+        storagePath: getImageStoragePath(removedInfo.removed),
+        error: e
+      });
+      alert('記録は削除しましたが、Storage上の画像削除に失敗しました。storagePathをconsoleに残しました。');
+    }
+  }
+}
+
+function formatExpenseRecordLabel(item){
+  const parts = [];
+  if(item.store) parts.push(item.store);
+  if(item.category) parts.push(`[${item.category}]`);
+  if(item.total !== null && item.total !== undefined) parts.push(`¥${Number(item.total).toLocaleString('ja-JP')}`);
+  return parts.join(' ') || 'レシート';
+}
+
+function renderExpenseList(){
+  const wrap = $('expenseList'); if(!wrap) return; wrap.innerHTML = '';
+  const dk = STATE.selected; if(!dk) return;
+  const rec = getExistingDayRecord(dk) || {};
+  const items = Array.isArray(rec.expenses) ? rec.expenses : [];
+  if(!items.length){ wrap.innerHTML = ''; return; }
+
+  items.forEach((it, idx)=>{
+    const row = document.createElement('div');
+    row.style.display='flex'; row.style.justifyContent='space-between'; row.style.alignItems='center'; row.style.padding='6px'; row.style.borderRadius='0'; row.style.background='transparent'; row.style.color='#ffffff'; row.style.marginBottom='4px';
+    const dateTxt = it.date || '';
+    const label = formatExpenseRecordLabel(it);
+    const imageThumb = renderImageThumbHtml(it);
+    const buttons = `<div style="display:flex;gap:8px"><button data-exp-del='${idx}'>✕</button></div>`;
+    row.innerHTML = `<div style="font-weight:700">${escapeHtml(dateTxt)} <span style="font-weight:400;margin-left:8px">${escapeHtml(label)}</span>${imageThumb}</div>` + buttons;
+    wrap.appendChild(row);
+  });
+  hydrateImageSignedUrls(wrap);
+  wrap.querySelectorAll('button[data-exp-del]').forEach(b=> b.addEventListener('click', async (ev)=>{
+    try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+    const idx = parseInt(b.getAttribute('data-exp-del'),10);
+    await deleteExpenseRecordAt(idx);
+  }));
+}
 
 function addSelfKindnessJournal(){ try{
   const textEl = $('selfKindnessText');

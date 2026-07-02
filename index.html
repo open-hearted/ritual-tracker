@@ -168,6 +168,13 @@
   #freeTextRecordRow, #accomplishedRecordRow, #codingRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
   #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #codingRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
   #freeTextRecordRow button, #accomplishedRecordRow button, #codingRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
+
+  /* Expense (receipt) record */
+  #expenseRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  #expenseRecordRow .expense-file-wrap { flex:1 1 220px; min-width:0; }
+  #expenseRecordRow button { flex:0 0 auto; min-width:44px; }
+  #expenseFormRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+  #expenseFormRow input, #expenseFormRow select { flex:1 1 120px; min-width:0; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:#fff; }
   /* Ensure inputs in the modal are not rendered as password bullets on some mobile browsers */
   #medEditor input, #medEditor textarea { -webkit-text-security: none !important; }
   /* Remove native number input spinners */
@@ -347,6 +354,36 @@
           <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
         </label>
         <button id="otherImageAdd">保存</button>
+      </div>
+
+      <div id="expenseRecordRow" style="margin-bottom:6px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <strong style="width:56px;opacity:0.9">支出</strong>
+          <label class="expense-file-wrap" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff;cursor:pointer;display:flex;align-items:center;gap:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+            <input id="expenseFile" type="file" accept="image/*" style="display:none" />
+            <span id="expenseFileName" style="opacity:0.9;overflow:hidden;text-overflow:ellipsis">レシート画像を選択</span>
+          </label>
+          <label style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff;cursor:pointer;text-align:center">
+            <input id="expenseCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
+            撮影
+          </label>
+          <button id="expenseAnalyze">AIで解析</button>
+        </div>
+        <div id="expenseFormRow" style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <input id="expenseStore" name="expense_store" type="text" placeholder="店名" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1 1 140px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+          <input id="expenseDate" type="date" style="flex:1 1 140px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+          <input id="expenseTotal" type="number" min="0" step="1" placeholder="金額" style="flex:1 1 100px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+          <select id="expenseCategory" style="flex:1 1 100px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#0b1330;color:#fff">
+            <option value="">カテゴリ</option>
+            <option value="食費">食費</option>
+            <option value="日用品">日用品</option>
+            <option value="交通費">交通費</option>
+            <option value="娯楽">娯楽</option>
+            <option value="その他">その他</option>
+          </select>
+          <button id="expenseSave">保存</button>
+        </div>
+        <div id="expenseList" style="margin-top:6px"></div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
       </div>
