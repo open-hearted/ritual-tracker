@@ -211,6 +211,8 @@
     </div>
     <a id="openMonthly" href="monthly.html">月間</a>
     <div id="msg" style="color:#6b7280"></div>
+    <!-- デプロイ確認用バッジ（本番運用時はこの要素・下部のfetch・api/version.js を削除） -->
+    <div id="buildInfo" style="font-size:10px;opacity:0.65;color:#9ca3af;white-space:nowrap"></div>
   </div>
 
   <div class="container compact" style="padding:12px">
@@ -436,6 +438,11 @@
       navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
       if (window.caches && caches.keys) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
+    // デプロイ確認用（本番運用時に削除）
+    fetch('/api/version').then(r => r.json()).then(v => {
+      const el = document.getElementById('buildInfo');
+      if (el) el.textContent = v && v.sha ? 'ver ' + v.sha.slice(0, 7) : 'ver local';
+    }).catch(() => {});
   </script>
   </body>
   </html>
