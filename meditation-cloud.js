@@ -2551,9 +2551,18 @@ async function openExpenseCameraOverlay(){
   }
   try{
     expenseCameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 4096 },
+        height: { ideal: 2160 }
+      },
       audio: false
     });
+    // 近接文字（レシート）はオートフォーカス必須。対応端末では連続AFを明示する
+    try{
+      const track = expenseCameraStream.getVideoTracks()[0];
+      if(track && track.applyConstraints) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    }catch(e){}
     video.srcObject = expenseCameraStream;
     overlay.style.display = 'flex';
     try{ await video.play(); }catch(e){}
@@ -2583,13 +2592,26 @@ function closeExpenseCameraOverlay(){
 async function captureExpensePhotoFromOverlay(){
   const video = $('expenseCameraVideo');
   if(!video || !video.videoWidth){ alert('カメラ映像を取得できませんでした'); return; }
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  const ctx = canvas.getContext('2d');
-  if(!ctx){ alert('画像の生成に失敗しました'); return; }
-  ctx.drawImage(video, 0, 0);
-  const blob = await canvasToJpegBlob(canvas, 0.9);
+  let blob = null;
+  // ImageCapture.takePhoto() はAF・露出調整済みのフル解像度写真を返すため優先する
+  try{
+    const track = expenseCameraStream ? expenseCameraStream.getVideoTracks()[0] : null;
+    if(track && typeof window.ImageCapture === 'function'){
+      blob = await new ImageCapture(track).takePhoto();
+    }
+  }catch(e){
+    console.warn('takePhoto failed; falling back to canvas grab', e);
+    blob = null;
+  }
+  if(!blob){
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if(!ctx){ alert('画像の生成に失敗しました'); return; }
+    ctx.drawImage(video, 0, 0);
+    blob = await canvasToJpegBlob(canvas, 0.9);
+  }
   closeExpenseCameraOverlay();
   if(!blob){ alert('撮影に失敗しました'); return; }
   expenseCapturedBlob = blob;
