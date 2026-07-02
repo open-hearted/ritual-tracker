@@ -55,7 +55,11 @@ let pendingExpenseAnalysis = null; // { dataUrl, mimeType }
 // カメラアプリへの切替中にOSがページを破棄する端末があるため、
 // レシート撮影はページ内カメラ(getUserMedia)で行い、失敗時のみ capture input にフォールバックする
 let expenseCapturedBlob = null;
-let expenseCameraStream = null;
+let mealImageCapturedBlob = null;
+let otherImageCapturedBlob = null;
+let cameraStream = null;
+let currentCameraTarget = null;
+
 
 function getPageMode(){
   try{ return (document.body && document.body.getAttribute('data-page')) || ''; }catch(e){ return ''; }
@@ -1549,20 +1553,22 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
   const mealImageFileEl = $('mealImageFile'); if(mealImageFileEl) mealImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'picker'));
+  const mealImageCameraBtn = $('mealImageCameraBtn'); if(mealImageCameraBtn) mealImageCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openCameraOverlay('mealImage'); });
   const mealImageCameraFileEl = $('mealImageCameraFile'); if(mealImageCameraFileEl) mealImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('mealImage', 'camera'));
   updateMealImageFileLabel();
   const otherImageBtn = $('otherImageAdd'); if(otherImageBtn) otherImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addOtherImageRecord(); });
   const otherImageFileEl = $('otherImageFile'); if(otherImageFileEl) otherImageFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'picker'));
+  const otherImageCameraBtn = $('otherImageCameraBtn'); if(otherImageCameraBtn) otherImageCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openCameraOverlay('otherImage'); });
   const otherImageCameraFileEl = $('otherImageCameraFile'); if(otherImageCameraFileEl) otherImageCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('otherImage', 'camera'));
   updateOtherImageFileLabel();
   const expenseAnalyzeBtn = $('expenseAnalyze'); if(expenseAnalyzeBtn) expenseAnalyzeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); analyzeExpenseReceipt(); });
   const expenseSaveBtn = $('expenseSave'); if(expenseSaveBtn) expenseSaveBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); saveExpenseRecord(); });
   const expenseFileEl = $('expenseFile'); if(expenseFileEl) expenseFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'picker'));
   const expenseCameraFileEl = $('expenseCameraFile'); if(expenseCameraFileEl) expenseCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'camera'));
-  const expenseCameraBtn = $('expenseCameraBtn'); if(expenseCameraBtn) expenseCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openExpenseCameraOverlay(); });
-  const expenseCameraShutter = $('expenseCameraShutter'); if(expenseCameraShutter) expenseCameraShutter.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); captureExpensePhotoFromOverlay(); });
-  const expenseCameraCancel = $('expenseCameraCancel'); if(expenseCameraCancel) expenseCameraCancel.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeExpenseCameraOverlay(); });
-  const expenseCameraVideo = $('expenseCameraVideo'); if(expenseCameraVideo) expenseCameraVideo.addEventListener('click', (ev)=>{ tapToFocusExpenseCamera(ev); });
+  const expenseCameraBtn = $('expenseCameraBtn'); if(expenseCameraBtn) expenseCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openCameraOverlay('expense'); });
+  const expenseCameraShutter = $('expenseCameraShutter'); if(expenseCameraShutter) expenseCameraShutter.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); capturePhotoFromOverlay(); });
+  const expenseCameraCancel = $('expenseCameraCancel'); if(expenseCameraCancel) expenseCameraCancel.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); closeCameraOverlay(); });
+  const expenseCameraVideo = $('expenseCameraVideo'); if(expenseCameraVideo) expenseCameraVideo.addEventListener('click', (ev)=>{ tapToFocusCamera(ev); });
   updateExpenseFileLabel();
   const tongueBtn = $('tongueAdd'); if(tongueBtn) tongueBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addTongueRecord(); });
   const rohtoBtn = $('rohtoAdd'); if(rohtoBtn) rohtoBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addRohtoRecord(); });
@@ -2235,6 +2241,13 @@ function getImageInputFile(cfg){
   const cameraEl = cfg.cameraFileId ? $(cfg.cameraFileId) : null;
   const pickerFile = pickerEl && pickerEl.files ? pickerEl.files[0] : null;
   const cameraFile = cameraEl && cameraEl.files ? cameraEl.files[0] : null;
+  
+  if (cfg.kind === 'mealImage' && mealImageCapturedBlob) {
+    return new File([mealImageCapturedBlob], "captured.jpg", { type: "image/jpeg" });
+  } else if (cfg.kind === 'otherImage' && otherImageCapturedBlob) {
+    return new File([otherImageCapturedBlob], "captured.jpg", { type: "image/jpeg" });
+  }
+
   return cameraFile || pickerFile || null;
 }
 
@@ -2244,6 +2257,10 @@ function clearImageInputs(cfg){
   const cameraEl = cfg.cameraFileId ? $(cfg.cameraFileId) : null;
   if(pickerEl) pickerEl.value = '';
   if(cameraEl) cameraEl.value = '';
+  
+  if (cfg.kind === 'expense') expenseCapturedBlob = null;
+  if (cfg.kind === 'mealImage') mealImageCapturedBlob = null;
+  if (cfg.kind === 'otherImage') otherImageCapturedBlob = null;
 }
 
 function handleImageFileInputChange(kind, source){
@@ -2256,10 +2273,17 @@ function handleImageFileInputChange(kind, source){
     const pickerEl = $(cfg.fileId);
     if(pickerEl) pickerEl.value = '';
   }
-  if(kind === 'expense' && getImageInputFile(cfg)){
-    expenseCapturedBlob = null;
-    pendingExpenseAnalysis = null;
+  
+  // Clear captured blobs if file is picked manually
+  if (kind === 'expense') {
+      expenseCapturedBlob = null;
+      pendingExpenseAnalysis = null;
+  } else if (kind === 'mealImage') {
+      mealImageCapturedBlob = null;
+  } else if (kind === 'otherImage') {
+      otherImageCapturedBlob = null;
   }
+  
   updateImageFileLabel(kind);
 }
 
@@ -2310,6 +2334,8 @@ function updateImageFileLabel(kind){
   const label = $(cfg.fileNameId);
   if(!label) return;
   if(kind === 'expense' && expenseCapturedBlob){ label.textContent = '撮影済みの写真'; return; }
+  if(kind === 'mealImage' && mealImageCapturedBlob){ label.textContent = '撮影済みの写真'; return; }
+  if(kind === 'otherImage' && otherImageCapturedBlob){ label.textContent = '撮影済みの写真'; return; }
   const file = getImageInputFile(cfg);
   label.textContent = file && file.name ? file.name : (kind === 'expense' ? 'レシート画像を選択' : '画像を選択');
 }
@@ -2515,16 +2541,16 @@ async function getSupabaseAccessToken(){
   }catch(e){ return null; }
 }
 
-async function openExpenseCameraOverlay(){
+async function openCameraOverlay(targetKind){
   const overlay = $('expenseCameraOverlay');
   const video = $('expenseCameraVideo');
   if(!overlay || !video || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    const fallback = $('expenseCameraFile');
-    if(fallback) fallback.click();
+    alert('カメラ映像を取得できませんでした（非対応環境）');
     return;
   }
+  currentCameraTarget = targetKind;
   try{
-    expenseCameraStream = await navigator.mediaDevices.getUserMedia({
+    cameraStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: { ideal: 'environment' },
         width: { ideal: 4096 },
@@ -2534,25 +2560,23 @@ async function openExpenseCameraOverlay(){
     });
     // 近接文字（レシート）はオートフォーカス必須。対応端末では連続AFを明示する
     try{
-      const track = expenseCameraStream.getVideoTracks()[0];
+      const track = cameraStream.getVideoTracks()[0];
       if(track && track.applyConstraints) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
     }catch(e){}
-    video.srcObject = expenseCameraStream;
+    video.srcObject = cameraStream;
     overlay.style.display = 'flex';
     try{ await video.play(); }catch(e){}
   }catch(e){
-    // 非同期処理後の input.click() はユーザー操作扱いにならずブロックされることが
-    // あるため、ここではフォールバック起動せず理由を明示する
     console.warn('getUserMedia failed', e);
-    closeExpenseCameraOverlay();
+    closeCameraOverlay();
     const reason = e && e.name === 'NotAllowedError'
       ? 'カメラの使用が許可されていません。Chromeのサイト設定でカメラを「許可」にしてください。'
       : `カメラを起動できませんでした（${e && e.name ? e.name : 'エラー'}）。`;
-    alert(`${reason}\n「レシート画像を選択」から画像を選ぶこともできます。`);
+    alert(`${reason}\n「画像を選択」から画像を選ぶこともできます。`);
   }
 }
 
-function showExpenseFocusRing(clientX, clientY){
+function showFocusRing(clientX, clientY){
   const overlay = $('expenseCameraOverlay');
   if(!overlay) return;
   let ring = $('expenseFocusRing');
@@ -2575,13 +2599,13 @@ function showExpenseFocusRing(clientX, clientY){
   setTimeout(()=>{ try{ ring.style.opacity = '0'; }catch(e){} }, 700);
 }
 
-async function tapToFocusExpenseCamera(ev){
+async function tapToFocusCamera(ev){
   const video = $('expenseCameraVideo');
-  const track = expenseCameraStream ? expenseCameraStream.getVideoTracks()[0] : null;
+  const track = cameraStream ? cameraStream.getVideoTracks()[0] : null;
   if(!video || !track || !video.videoWidth) return;
   const rect = video.getBoundingClientRect();
   if(!rect.width || !rect.height) return;
-  showExpenseFocusRing(ev.clientX, ev.clientY);
+  showFocusRing(ev.clientX, ev.clientY);
 
   // object-fit:cover による切り抜きを補正して、映像フレーム内の正規化座標(0..1)へ変換
   const scale = Math.max(rect.width / video.videoWidth, rect.height / video.videoHeight);
@@ -2611,24 +2635,25 @@ async function tapToFocusExpenseCamera(ev){
   }
 }
 
-function closeExpenseCameraOverlay(){
+function closeCameraOverlay(){
   const overlay = $('expenseCameraOverlay');
   const video = $('expenseCameraVideo');
   if(video) video.srcObject = null;
-  if(expenseCameraStream){
-    try{ expenseCameraStream.getTracks().forEach(t=> t.stop()); }catch(e){}
-    expenseCameraStream = null;
+  if(cameraStream){
+    try{ cameraStream.getTracks().forEach(t=> t.stop()); }catch(e){}
+    cameraStream = null;
   }
   if(overlay) overlay.style.display = 'none';
+  currentCameraTarget = null;
 }
 
-async function captureExpensePhotoFromOverlay(){
+async function capturePhotoFromOverlay(){
   const video = $('expenseCameraVideo');
   if(!video || !video.videoWidth){ alert('カメラ映像を取得できませんでした'); return; }
   let blob = null;
   // ImageCapture.takePhoto() はAF・露出調整済みのフル解像度写真を返すため優先する
   try{
-    const track = expenseCameraStream ? expenseCameraStream.getVideoTracks()[0] : null;
+    const track = cameraStream ? cameraStream.getVideoTracks()[0] : null;
     if(track && typeof window.ImageCapture === 'function'){
       blob = await new ImageCapture(track).takePhoto();
     }
@@ -2645,13 +2670,27 @@ async function captureExpensePhotoFromOverlay(){
     ctx.drawImage(video, 0, 0);
     blob = await canvasToJpegBlob(canvas, 0.9);
   }
-  closeExpenseCameraOverlay();
+  const target = currentCameraTarget;
+  closeCameraOverlay();
   if(!blob){ alert('撮影に失敗しました'); return; }
-  expenseCapturedBlob = blob;
-  pendingExpenseAnalysis = null;
-  clearImageInputs(getImageRecordConfig('expense'));
-  updateExpenseFileLabel();
-  setMsg('撮影しました。「AIで解析」を押してください');
+  
+  if(target === 'expense'){
+      expenseCapturedBlob = blob;
+      pendingExpenseAnalysis = null;
+      clearImageInputs(getImageRecordConfig('expense'));
+      updateExpenseFileLabel();
+      setMsg('撮影しました。「AIで解析」を押してください');
+  } else if (target === 'mealImage'){
+      mealImageCapturedBlob = blob;
+      clearImageInputs(getImageRecordConfig('mealImage'));
+      updateImageFileLabel('mealImage');
+      setMsg('撮影しました。「保存」を押してください');
+  } else if (target === 'otherImage'){
+      otherImageCapturedBlob = blob;
+      clearImageInputs(getImageRecordConfig('otherImage'));
+      updateImageFileLabel('otherImage');
+      setMsg('撮影しました。「保存」を押してください');
+  }
 }
 
 function resetExpenseForm(){
