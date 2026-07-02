@@ -343,8 +343,16 @@ function openEditorFor(dateKey, opts){
     renderExerciseList();
     renderExpenseList();
     renderAllRecordsTimeline();
-    resetExpenseForm();
-    const expenseDateEl = $('expenseDate'); if(expenseDateEl) expenseDateEl.value = dateKey;
+    // Repaint can fire when returning from the camera app (Supabase re-emits
+    // SIGNED_IN on refocus) — never clear an in-progress receipt selection here.
+    try{
+      const hasPendingReceipt = !!pendingExpenseAnalysis || !!getImageInputFile(getImageRecordConfig('expense'));
+      if(!hasPendingReceipt){
+        const expenseDateEl = $('expenseDate');
+        if(expenseDateEl) expenseDateEl.value = dateKey;
+      }
+      updateExpenseFileLabel();
+    }catch(e){}
     if(ed) ed.style.display='block';
   };
 
