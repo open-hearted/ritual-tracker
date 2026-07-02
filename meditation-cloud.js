@@ -2558,10 +2558,14 @@ async function openExpenseCameraOverlay(){
     overlay.style.display = 'flex';
     try{ await video.play(); }catch(e){}
   }catch(e){
-    console.warn('getUserMedia failed; falling back to capture input', e);
+    // 非同期処理後の input.click() はユーザー操作扱いにならずブロックされることが
+    // あるため、ここではフォールバック起動せず理由を明示する
+    console.warn('getUserMedia failed', e);
     closeExpenseCameraOverlay();
-    const fallback = $('expenseCameraFile');
-    if(fallback) fallback.click();
+    const reason = e && e.name === 'NotAllowedError'
+      ? 'カメラの使用が許可されていません。Chromeのサイト設定でカメラを「許可」にしてください。'
+      : `カメラを起動できませんでした（${e && e.name ? e.name : 'エラー'}）。`;
+    alert(`${reason}\n「レシート画像を選択」から画像を選ぶこともできます。`);
   }
 }
 

@@ -186,7 +186,8 @@
   </script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js');
+      navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+      if (window.caches && caches.keys) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
     }
   </script>
 </body>
