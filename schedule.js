@@ -31,6 +31,7 @@ window.RITUAL_SCHEDULE = {
     { date: "2026-06-25", time: "19:45", label: "ACG2 4-5", short: "ACG2 4-5", icon: "", calendarTime: false },
     { date: "2026-07-09", time: "19:45", label: "ACG2 4-6", short: "ACG2 4-6", icon: "", calendarTime: false },
     { date: "2026-07-23", time: "19:45", label: "ACG2 4-7", short: "ACG2 4-7", icon: "", calendarTime: false },
+    { date: "2026-07-13", time: "13:00", end: "19:00", label: "エアコン工事業者の下見（入室無し）", short: "エアコン下見", icon: "🏠", remindDays: 3, note: "入室無しPM1~7" },
     { date: "2026-01-26", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" },
     { date: "2026-05-18", time: "18:30", label: "鍼", short: "鍼", icon: "🪡" },
     { date: "2026-05-29", time: "19:00", label: "鍼", short: "鍼", icon: "🪡" },
