@@ -329,6 +329,8 @@ function getShiftForDateKey(dateKey){
   const dow = date.getDay();
   for(const s of shifts){
     if(!s || typeof s !== 'object') continue;
+    const exceptDates = Array.isArray(s.exceptDates) ? s.exceptDates.map(d=>String(d)) : [];
+    if(exceptDates.includes(String(dateKey))) continue;
     const weekdays = Array.isArray(s.weekdays) ? s.weekdays.map(n=>Number(n)) : [];
     if(!weekdays.includes(dow)) continue;
     return {
