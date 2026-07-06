@@ -162,7 +162,7 @@
   #freeRecordRow button#freeAdd{ flex:0 0 auto; min-width:44px; }
   /* Generic one-line free record row */
   #freeTextRecordRow, #accomplishedRecordRow, #mealImageRecordRow, #otherImageRecordRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
+  #freeTextRecordRow input[type="text"], #accomplishedRecordRow input[type="text"], #mealImageRecordRow .meal-image-file-wrap, #mealImageRecordRow input[type="text"], #otherImageRecordRow .other-image-file-wrap, #otherImageRecordRow input[type="text"] { flex:1 1 220px; min-width:0; }
   #freeTextRecordRow button, #accomplishedRecordRow button, #mealImageRecordRow button, #otherImageRecordRow button { flex:0 0 auto; min-width:44px; }
 
   /* Expense (receipt) record */
@@ -313,6 +313,7 @@
           <input id="mealImageCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
           撮影
         </label>
+        <input id="mealImageNote" name="meal_image_note" type="text" placeholder="食事メモ（写真なしでも可）" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
         <label style="display:flex;align-items:center;gap:6px;user-select:none;white-space:nowrap;opacity:0.9" title="タイムスタンプを付ける">
           <input id="mealImageUseTime" type="checkbox" checked />
           <span aria-label="時計" style="font-size:18px;line-height:1">🕒</span>
@@ -347,7 +348,6 @@
           </label>
           <button id="expenseCameraBtn" type="button" style="flex:0 0 auto;min-width:44px;padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#14224e;color:#fff">撮影</button>
           <input id="expenseCameraFile" type="file" accept="image/*" capture="environment" style="display:none" />
-          <button id="expenseAnalyze">AIで解析</button>
         </div>
         <div id="expenseFormRow" style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
           <input id="expenseStore" name="expense_store" type="text" placeholder="店名" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1 1 140px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
@@ -363,6 +363,7 @@
             <option value="その他">その他</option>
           </select>
           <button id="expenseSave">保存</button>
+          <button id="expenseEditCancel" type="button" style="display:none">キャンセル</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">

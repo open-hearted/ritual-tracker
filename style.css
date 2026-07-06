@@ -398,6 +398,7 @@ input::placeholder{color:#9fb0ff99}
 	#freeRecordRow input#freeKorean,
 	#freeTextRecordRow input#freeText,
 	#accomplishedRecordRow input#accomplished,
+	#mealImageRecordRow input#mealImageNote,
 	#otherImageRecordRow input#otherImageNote{
 		grid-column:1 / -1;
 		width:100% !important;

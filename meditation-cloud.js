@@ -22,7 +22,7 @@ const IMAGE_RECORD_CONFIGS = {
     cameraFileId: 'mealImageCameraFile',
     fileNameId: 'mealImageFileName',
     useTimeId: 'mealImageUseTime',
-    noteId: null,
+    noteId: 'mealImageNote',
     successMessage: '食事画像を記録しました'
   },
   otherImage: {
@@ -51,7 +51,11 @@ const IMAGE_RECORD_CONFIGS = {
 // ▲-------------------------------------------------------▲
 
 const EXPENSE_CATEGORIES = ['食費', '日用品', '交通費', '娯楽', 'その他'];
+let mealImageCameraSaving = false;
 let pendingExpenseAnalysis = null; // { dataUrl, mimeType }
+let expenseAnalysisRunId = 0;
+let expenseAnalyzing = false;
+let expenseEditing = null; // { dateKey, id, index }
 // カメラアプリへの切替中にOSがページを破棄する端末があるため、
 // レシート撮影はページ内カメラ(getUserMedia)で行い、失敗時のみ capture input にフォールバックする
 let expenseCapturedBlob = null;
@@ -1117,6 +1121,7 @@ function formatExerciseRecordLabel(session){
     const cfg = getImageRecordConfig(imageKind);
     const note = (session?.note || '').toString().trim();
     if(imageKind === 'otherImage') return note ? `${cfg.type} ${note}` : (imageName ? `${cfg.type} ${imageName}` : cfg.type);
+    if(imageKind === 'mealImage' && note) return `${cfg.type} ${note}`;
     return imageName ? `${cfg.type} ${imageName}` : cfg.type;
   }
   if(Number.isFinite(periodDay) && periodDay > 0 && (jp === '生理' || jp.includes('生理') || !jp)) return `生理 ${periodDay}日目`;
@@ -1150,7 +1155,14 @@ function formatExerciseDurationPart(session){
 }
 
 function formatImageTimelineLabel(session){
-  return (session?.note || '').toString().trim();
+  const note = (session?.note || '').toString().trim();
+  if(note) return note;
+  const imageKind = getImageRecordKind(session);
+  if(imageKind && !getImageStoragePath(session) && !toSafeImageDataUrl(session?.imageDataUrl)){
+    const cfg = getImageRecordConfig(imageKind);
+    return cfg ? cfg.type : '';
+  }
+  return '';
 }
 
 function editExerciseSessionTimeAt(idx){
@@ -1324,6 +1336,7 @@ function renderAllRecordsTimeline(){
       </div>`;
     } else if(record.type === 'expenseRecord' && record.data){
       buttons = `<div style="display:flex;gap:8px">
+        <button data-expense-edit="${record.data.index}">✏</button>
         <button data-expense-del="${record.data.index}">✕</button>
       </div>`;
     }
@@ -1454,6 +1467,14 @@ function renderAllRecordsTimeline(){
       try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
       const idx = parseInt(b.getAttribute('data-ex-del'), 10);
       await deleteExerciseSessionAt(idx);
+    });
+  });
+
+  wrap.querySelectorAll('button[data-expense-edit]').forEach(b => {
+    b.addEventListener('click', (ev) => {
+      try{ ev.preventDefault(); ev.stopPropagation(); }catch(e){}
+      const idx = parseInt(b.getAttribute('data-expense-edit'), 10);
+      beginExpenseEditAt(idx);
     });
   });
 
@@ -1597,6 +1618,7 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   updateOtherImageFileLabel();
   const expenseAnalyzeBtn = $('expenseAnalyze'); if(expenseAnalyzeBtn) expenseAnalyzeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); analyzeExpenseReceipt(); });
   const expenseSaveBtn = $('expenseSave'); if(expenseSaveBtn) expenseSaveBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); saveExpenseRecord(); });
+  const expenseEditCancelBtn = $('expenseEditCancel'); if(expenseEditCancelBtn) expenseEditCancelBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); cancelExpenseEdit(); });
   const expenseFileEl = $('expenseFile'); if(expenseFileEl) expenseFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'picker'));
   const expenseCameraFileEl = $('expenseCameraFile'); if(expenseCameraFileEl) expenseCameraFileEl.addEventListener('change', ()=> handleImageFileInputChange('expense', 'camera'));
   const expenseCameraBtn = $('expenseCameraBtn'); if(expenseCameraBtn) expenseCameraBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); openExpenseCameraOverlay(); });
@@ -1648,11 +1670,13 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeUseTime = $('freeUseTime');
   const freeTextUseTime = $('freeTextUseTime');
   const accomplished = $('accomplished');
+  const mealImageNote = $('mealImageNote');
   const otherImageNote = $('otherImageNote');
   const expenseStore = $('expenseStore');
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
+  attachNoCredentialBehavior(mealImageNote);
   attachNoCredentialBehavior(otherImageNote);
   attachNoCredentialBehavior(expenseStore);
 }); }catch(e){}
@@ -2269,6 +2293,110 @@ function restoreExpenseRecordAt(dateKey, item, idx){
   STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
 }
 
+function clonePayloadDataSnapshot(){
+  const data = STATE.payload && STATE.payload.data ? STATE.payload.data : {};
+  try{
+    if(typeof structuredClone === 'function') return structuredClone(data);
+  }catch(e){}
+  return JSON.parse(JSON.stringify(data));
+}
+
+function restorePayloadDataSnapshot(snapshot){
+  STATE.payload.data = snapshot || {};
+}
+
+function getExpenseEditTarget(ref){
+  if(!ref || !isValidDateKey(ref.dateKey)) return null;
+  const rec = getDayRecordByDateKey(ref.dateKey);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  let idx = -1;
+  if(ref.id) idx = arr.findIndex(it => it && it.id === ref.id);
+  if(idx < 0 && Number.isInteger(ref.index) && ref.index >= 0 && ref.index < arr.length) idx = ref.index;
+  if(idx < 0) return null;
+  return { rec, arr, item: arr[idx], index: idx };
+}
+
+function applyExpenseRecordEdit(ref, targetDateKey, updatedRecord){
+  const target = getExpenseEditTarget(ref);
+  if(!target || !isValidDateKey(targetDateKey) || !updatedRecord) return false;
+
+  if(ref.dateKey === targetDateKey){
+    const arr = target.arr.slice();
+    arr[target.index] = updatedRecord;
+    target.rec.expenses = arr;
+    STATE.payload.data[monthKeyFromDateKey(ref.dateKey)][ref.dateKey] = target.rec;
+    return true;
+  }
+
+  const oldArr = target.arr.slice();
+  oldArr.splice(target.index, 1);
+  target.rec.expenses = oldArr;
+  STATE.payload.data[monthKeyFromDateKey(ref.dateKey)][ref.dateKey] = target.rec;
+  addExpenseRecordToPayload(targetDateKey, updatedRecord);
+  return true;
+}
+
+function readExpenseFormValues(fallbackDateKey){
+  const storeEl = $('expenseStore');
+  const dateEl = $('expenseDate');
+  const timeEl = $('expenseTime');
+  const totalEl = $('expenseTotal');
+  const categoryEl = $('expenseCategory');
+  const store = storeEl ? (storeEl.value || '').trim() : '';
+  const dateVal = dateEl ? (dateEl.value || '').trim() : '';
+  const timeVal = timeEl ? (timeEl.value || '').trim() : '';
+  const totalVal = totalEl ? (totalEl.value || '').trim() : '';
+  const category = categoryEl ? (categoryEl.value || '').trim() : '';
+  const targetDateKey = isValidDateKey(dateVal) ? dateVal : fallbackDateKey;
+
+  if(!isValidDateKey(targetDateKey)){
+    alert('記録する日付を選択してください');
+    return null;
+  }
+  if(totalVal !== '' && !Number.isFinite(Number(totalVal))){
+    alert('金額は数値で入力してください');
+    return null;
+  }
+  if(timeVal && !parseDateKeyAndHHMMToISO(targetDateKey, timeVal)){
+    alert('時刻を HH:MM の形式で入力してください');
+    return null;
+  }
+
+  return {
+    store,
+    dateVal,
+    timeVal,
+    total: totalVal !== '' ? Number(totalVal) : null,
+    category,
+    targetDateKey
+  };
+}
+
+function setExpenseImageControlsDisabled(disabled){
+  const shouldDisable = !!disabled || expenseAnalyzing;
+  ['expenseFile', 'expenseCameraFile', 'expenseCameraBtn', 'expenseAnalyze'].forEach(id=>{
+    const el = $(id);
+    if(el) el.disabled = shouldDisable;
+  });
+  const wrap = document.querySelector ? document.querySelector('.expense-file-wrap') : null;
+  if(wrap) wrap.style.opacity = shouldDisable ? '0.55' : '';
+}
+
+function setExpenseAnalysisBusy(active){
+  expenseAnalyzing = !!active;
+  const saveBtn = $('expenseSave');
+  if(saveBtn) saveBtn.disabled = expenseAnalyzing;
+  setExpenseImageControlsDisabled(!!expenseEditing);
+}
+
+function setExpenseEditUi(active){
+  const saveBtn = $('expenseSave');
+  if(saveBtn) saveBtn.textContent = active ? '更新' : '保存';
+  const cancelBtn = $('expenseEditCancel');
+  if(cancelBtn) cancelBtn.style.display = active ? 'inline-flex' : 'none';
+  setExpenseImageControlsDisabled(active);
+}
+
 function getImageInputFile(cfg){
   if(!cfg) return null;
   const pickerEl = $(cfg.fileId);
@@ -2286,7 +2414,7 @@ function clearImageInputs(cfg){
   if(cameraEl) cameraEl.value = '';
 }
 
-function handleImageFileInputChange(kind, source){
+async function handleImageFileInputChange(kind, source){
   const cfg = getImageRecordConfig(kind);
   if(!cfg) return;
   if(source === 'picker' && cfg.cameraFileId){
@@ -2301,6 +2429,24 @@ function handleImageFileInputChange(kind, source){
     pendingExpenseAnalysis = null;
   }
   updateImageFileLabel(kind);
+  if(kind === 'mealImage' && source === 'camera' && getImageInputFile(cfg)){
+    await saveMealImageCameraSelection();
+  }else if(kind === 'expense' && getImageInputFile(cfg)){
+    await analyzeExpenseReceipt();
+  }
+}
+
+async function saveMealImageCameraSelection(){
+  if(mealImageCameraSaving) return;
+  mealImageCameraSaving = true;
+  const btn = $('mealImageAdd');
+  if(btn) btn.disabled = true;
+  try{
+    await addMealImageRecord();
+  }finally{
+    mealImageCameraSaving = false;
+    if(btn) btn.disabled = false;
+  }
 }
 
 async function deleteExerciseSessionAt(idx){
@@ -2368,10 +2514,12 @@ function createImageSession(kind, { createdAt, startedAt, storageInfo, imageName
     seconds: 0,
     startedAt: startedAt || null,
     createdAt,
-    completedAt: null,
-    storageBucket: storageInfo.storageBucket,
-    storagePath: storageInfo.storagePath
+    completedAt: null
   };
+  if(storageInfo && storageInfo.storagePath){
+    item.storageBucket = storageInfo.storageBucket || IMAGE_STORAGE_BUCKET;
+    item.storagePath = storageInfo.storagePath;
+  }
   const trimmedName = (imageName || '').toString().trim();
   if(trimmedName) item.imageName = trimmedName.slice(0, 80);
   const trimmedNote = (note || '').toString().trim();
@@ -2461,29 +2609,41 @@ async function addImageRecord(kind){
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
     const useTimeEl = $(cfg.useTimeId);
     const noteEl = cfg.noteId ? $(cfg.noteId) : null;
+    const note = noteEl ? (noteEl.value || '').trim() : '';
     const file = getImageInputFile(cfg);
-    if(!file){ alert('画像を選択してください'); return; }
-    if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
-
-    setMsg('画像を圧縮中...');
-    const imageBlob = await compressImageBlobForRecord(file);
-    if(!imageBlob){
-      setMsg('');
-      alert('画像サイズが大きすぎます。別の画像を選択してください');
+    const allowTextOnly = kind === 'mealImage';
+    if(!file && (!allowTextOnly || !note)){
+      alert(allowTextOnly ? '画像を選択するか、食事メモを入力してください' : '画像を選択してください');
       return;
     }
+    if(file && file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
 
     const createdAt = nowISO();
-    setMsg('画像をアップロード中...');
-    const storageInfo = await uploadImageBlob(imageBlob, kind, targetDateKey, createdAt);
+    let storageInfo = null;
+    let imageName = '';
+    if(file){
+      setMsg('画像を圧縮中...');
+      const imageBlob = await compressImageBlobForRecord(file);
+      if(!imageBlob){
+        setMsg('');
+        alert('画像サイズが大きすぎます。別の画像を選択してください');
+        return;
+      }
+
+      setMsg('画像をアップロード中...');
+      storageInfo = await uploadImageBlob(imageBlob, kind, targetDateKey, createdAt);
+      imageName = file.name || '';
+    }else{
+      setMsg('記録を保存中...');
+    }
 
     const useTime = !useTimeEl || !!useTimeEl.checked;
     uploadedSession = createImageSession(kind, {
       createdAt,
       startedAt: useTime ? createdAt : null,
       storageInfo,
-      imageName: file.name || '',
-      note: noteEl ? noteEl.value : ''
+      imageName,
+      note
     });
 
     addExerciseSessionToPayload(targetDateKey, uploadedSession);
@@ -2493,44 +2653,50 @@ async function addImageRecord(kind){
     if(!saved){
       removeExerciseSessionById(targetDateKey, uploadedSession.id);
       renderExerciseViews();
-      try{
-        await removeImageStorageObject(uploadedSession);
-        alert('画像の記録保存に失敗したため、アップロード済み画像を削除しました');
-      }catch(cleanupErr){
-        console.warn('Image cleanup failed after payload save failure', {
-          storagePath: uploadedSession.storagePath,
-          error: cleanupErr
-        });
-        alert('画像の記録保存に失敗し、Storage上の孤立画像削除にも失敗しました。storagePathをconsoleに残しました。');
+      if(getImageStoragePath(uploadedSession)){
+        try{
+          await removeImageStorageObject(uploadedSession);
+          alert('画像の記録保存に失敗したため、アップロード済み画像を削除しました');
+        }catch(cleanupErr){
+          console.warn('Image cleanup failed after payload save failure', {
+            storagePath: uploadedSession.storagePath,
+            error: cleanupErr
+          });
+          alert('画像の記録保存に失敗し、Storage上の孤立画像削除にも失敗しました。storagePathをconsoleに残しました。');
+        }
+      }else{
+        alert('記録の保存に失敗しました');
       }
-      setMsg('画像の記録保存に失敗しました');
+      setMsg('記録の保存に失敗しました');
       return;
     }
 
     clearImageInputs(cfg);
     updateImageFileLabel(kind);
     if(noteEl) noteEl.value = '';
-    setMsg(cfg.successMessage);
+    setMsg(file ? cfg.successMessage : '食事を記録しました');
   }catch(e){
     console.warn('addImageRecord failed', { kind, error: e });
     setMsg('');
-    if(uploadedSession && uploadedSession.storagePath){
+    if(uploadedSession){
       try{
         removeExerciseSessionById(targetDateKey, uploadedSession.id);
         renderExerciseViews();
       }catch(localErr){
         console.warn('Image local rollback failed after unexpected add failure', localErr);
       }
-      try{
-        await removeImageStorageObject(uploadedSession);
-      }catch(cleanupErr){
-        console.warn('Image cleanup failed after unexpected add failure', {
-          storagePath: uploadedSession.storagePath,
-          error: cleanupErr
-        });
+      if(getImageStoragePath(uploadedSession)){
+        try{
+          await removeImageStorageObject(uploadedSession);
+        }catch(cleanupErr){
+          console.warn('Image cleanup failed after unexpected add failure', {
+            storagePath: uploadedSession.storagePath,
+            error: cleanupErr
+          });
+        }
       }
     }
-    alert('画像アップロードまたは記録に失敗しました。payloadは変更していません。');
+    alert(kind === 'mealImage' ? '食事の記録に失敗しました。payloadは変更していません。' : '画像アップロードまたは記録に失敗しました。payloadは変更していません。');
   }
 }
 
@@ -2691,11 +2857,16 @@ async function captureExpensePhotoFromOverlay(){
   pendingExpenseAnalysis = null;
   clearImageInputs(getImageRecordConfig('expense'));
   updateExpenseFileLabel();
-  setMsg('撮影しました。「AIで解析」を押してください');
+  setMsg('撮影しました。AIで解析中...');
+  await analyzeExpenseReceipt();
 }
 
 function resetExpenseForm(){
   const cfg = getImageRecordConfig('expense');
+  expenseAnalysisRunId += 1;
+  setExpenseAnalysisBusy(false);
+  expenseEditing = null;
+  setExpenseEditUi(false);
   clearImageInputs(cfg);
   expenseCapturedBlob = null;
   updateExpenseFileLabel();
@@ -2709,29 +2880,34 @@ function resetExpenseForm(){
 
 async function analyzeExpenseReceipt(){
   const cfg = getImageRecordConfig('expense');
+  const runId = ++expenseAnalysisRunId;
+  let busy = false;
   try{
-    if(!ensureAuthOrSignOut()) return;
+    if(!ensureAuthOrSignOut()) return false;
     const targetDateKey = STATE.selected;
-    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
+    if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return false; }
     const file = expenseCapturedBlob || getImageInputFile(cfg);
-    if(!file){ alert('レシートを撮影するか、画像を選択してください'); return; }
-    if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return; }
+    if(!file){ alert('レシートを撮影するか、画像を選択してください'); return false; }
+    if(file.type && !/^image\//i.test(file.type)){ alert('画像ファイルを選択してください'); return false; }
 
+    setExpenseAnalysisBusy(true);
+    busy = true;
     setMsg('画像を圧縮中...');
     const dataUrl = await compressImageForRecord(file);
     if(!dataUrl){
       setMsg('');
       alert('画像サイズが大きすぎます。別の画像を選択してください');
-      return;
+      return false;
     }
     const mimeMatch = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
-    if(!mimeMatch){ setMsg(''); alert('画像の読み込みに失敗しました'); return; }
+    if(!mimeMatch){ setMsg(''); alert('画像の読み込みに失敗しました'); return false; }
+    if(runId !== expenseAnalysisRunId) return false;
     const mimeType = mimeMatch[1];
     const imageBase64 = mimeMatch[2];
     pendingExpenseAnalysis = { dataUrl, mimeType };
 
     const accessToken = await getSupabaseAccessToken();
-    if(!accessToken){ setMsg(''); alert('ログインし直してください'); return; }
+    if(!accessToken){ setMsg(''); alert('ログインし直してください'); return false; }
 
     setMsg('AIで解析中...');
     const res = await fetch('/api/receipt-analyze', {
@@ -2740,10 +2916,11 @@ async function analyzeExpenseReceipt(){
       body: JSON.stringify({ imageBase64, mimeType })
     });
     const json = await res.json().catch(()=>null);
+    if(runId !== expenseAnalysisRunId) return false;
     if(!res.ok || !json || !json.ok){
       setMsg('');
-      alert('AI解析に失敗しました。フォームに手動で入力してください');
-      return;
+      alert('AI解析に失敗しました。再撮影または再選択してください。フォームに手動で入力して保存することもできます');
+      return false;
     }
 
     const data = json.data || {};
@@ -2753,15 +2930,23 @@ async function analyzeExpenseReceipt(){
     const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (data.total !== null && data.total !== undefined) ? data.total : '';
     const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(data.category) ? data.category : '';
     setMsg('解析結果を確認して保存してください');
+    return true;
   }catch(e){
     console.warn('analyzeExpenseReceipt failed', e);
-    setMsg('');
-    alert('AI解析でエラーが発生しました');
+    if(runId === expenseAnalysisRunId){
+      setMsg('');
+      alert('AI解析でエラーが発生しました。再撮影または再選択してください');
+    }
+    return false;
+  }finally{
+    if(busy && runId === expenseAnalysisRunId) setExpenseAnalysisBusy(false);
   }
 }
 
 async function saveExpenseRecord(){
   const cfg = getImageRecordConfig('expense');
+  if(expenseAnalyzing){ alert('AI解析中です。解析結果が反映されてから保存してください'); return false; }
+  if(expenseEditing) return saveExpenseEditRecord();
   let uploadedRecord = null;
   let targetDateKey = null;
   try{
@@ -2862,6 +3047,96 @@ async function saveExpenseRecord(){
       }
     }
     alert('支出の保存に失敗しました。payloadは変更していません。');
+  }
+}
+
+function beginExpenseEditAt(idx){
+  const dk = STATE.selected;
+  if(!dk) return;
+  const rec = getDayRecordByDateKey(dk);
+  const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  const item = arr[idx];
+  if(!item) return;
+
+  expenseAnalysisRunId += 1;
+  clearImageInputs(getImageRecordConfig('expense'));
+  expenseCapturedBlob = null;
+  pendingExpenseAnalysis = null;
+  updateExpenseFileLabel();
+
+  expenseEditing = { dateKey: dk, id: item.id || null, index: idx };
+  const storeEl = $('expenseStore'); if(storeEl) storeEl.value = item.store || '';
+  const dateEl = $('expenseDate'); if(dateEl) dateEl.value = isValidDateKey(item.date) ? item.date : dk;
+  const timeEl = $('expenseTime'); if(timeEl) timeEl.value = item.time || '';
+  const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (item.total !== null && item.total !== undefined) ? item.total : '';
+  const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(item.category) ? item.category : '';
+  setExpenseEditUi(true);
+  setMsg('レシートを編集中です。更新またはキャンセルしてください');
+}
+
+function cancelExpenseEdit(){
+  resetExpenseForm();
+  setMsg('レシート編集をキャンセルしました');
+}
+
+async function saveExpenseEditRecord(){
+  let snapshot = null;
+  try{
+    if(!ensureAuthOrSignOut()) return false;
+    const ref = expenseEditing ? { ...expenseEditing } : null;
+    const target = getExpenseEditTarget(ref);
+    if(!target){
+      alert('編集対象のレシートが見つかりませんでした');
+      resetExpenseForm();
+      return false;
+    }
+
+    const values = readExpenseFormValues(ref.dateKey);
+    if(!values) return false;
+
+    const updatedAt = nowISO();
+    const updatedRecord = {
+      ...target.item,
+      id: target.item.id || createRecordId('exp'),
+      store: values.store || null,
+      date: values.dateVal || null,
+      time: values.timeVal || null,
+      occurredAt: values.timeVal ? parseDateKeyAndHHMMToISO(values.targetDateKey, values.timeVal) : null,
+      total: values.total,
+      category: EXPENSE_CATEGORIES.includes(values.category) ? values.category : null,
+      updatedAt
+    };
+
+    snapshot = clonePayloadDataSnapshot();
+    if(!applyExpenseRecordEdit(ref, values.targetDateKey, updatedRecord)){
+      alert('レシートの更新に失敗しました');
+      return false;
+    }
+
+    renderAllRecordsTimeline();
+    setMsg('支出記録を保存中...');
+    const saved = await med_saveAll();
+    if(!saved){
+      restorePayloadDataSnapshot(snapshot);
+      renderAllRecordsTimeline();
+      alert('レシート更新の保存に失敗したため、変更を取り消しました');
+      setMsg('支出記録の更新に失敗しました');
+      return false;
+    }
+
+    resetExpenseForm();
+    renderAllRecordsTimeline();
+    setMsg(values.targetDateKey === STATE.selected ? 'レシートを更新しました' : `レシートを ${values.targetDateKey} に移動して更新しました`);
+    return true;
+  }catch(e){
+    console.warn('saveExpenseEditRecord failed', e);
+    if(snapshot){
+      restorePayloadDataSnapshot(snapshot);
+      renderAllRecordsTimeline();
+    }
+    alert('レシートの更新に失敗しました。payloadは変更していません。');
+    setMsg('支出記録の更新に失敗しました');
+    return false;
   }
 }
 
