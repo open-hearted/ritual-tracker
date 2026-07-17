@@ -313,11 +313,48 @@ function getAppointmentScheduleMarks(dateKey){
     .map(it => ({
       icon: (it.icon || '📌').toString(),
       time: (it.time || '').toString(),
+      end: (it.end || '').toString(),
       label: (it.label || '').toString(),
       short: (it.short || it.label || '').toString(),
       url: safeHttpUrl(it.url),
-      calendarTime: (it.calendarTime !== false)
+      calendarTime: (it.calendarTime !== false),
+      note: (it.note || '').toString()
     }));
+}
+
+function getRemindersForDateKey(dateKey) {
+  const schedule = getRitualSchedule();
+  const list = schedule && Array.isArray(schedule.appointments) ? schedule.appointments : [];
+  if(!list.length) return [];
+  
+  const targetDate = parseDateKeyLocal(dateKey);
+  if(!targetDate) return [];
+  targetDate.setHours(0,0,0,0);
+  
+  const reminders = [];
+  for(const appt of list) {
+    if(!appt || typeof appt !== 'object' || !appt.date) continue;
+    const apptDate = parseDateKeyLocal(appt.date);
+    if(!apptDate) continue;
+    apptDate.setHours(0,0,0,0);
+
+    const labelText = `${appt.label || ''} ${appt.short || ''}`;
+    const isAcg = /ACG/i.test(labelText);
+    
+    // remindDaysの取得（デフォルト3日）
+    const remindDays = typeof appt.remindDays === 'number' ? appt.remindDays : 3;
+    
+    const diffTime = apptDate.getTime() - targetDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+    if(diffDays >= 0 && (isAcg || diffDays <= remindDays)) {
+      reminders.push({
+        ...appt,
+        diffDays
+      });
+    }
+  }
+  return reminders.sort((a, b) => a.diffDays - b.diffDays);
 }
 
 function getShiftForDateKey(dateKey){
@@ -362,6 +399,7 @@ function openEditorFor(dateKey, opts){
     renderWakeSleep();
     renderExerciseList();
     renderAllRecordsTimeline();
+    renderReminders(dateKey);
     
     // シフト時間中はタイムラインと生理記録を非表示にする
     try {
@@ -448,6 +486,59 @@ function insertCurrentTimeIntoTextarea(ta){
   const newPos = start + timeStr.length;
   ta.selectionStart = ta.selectionEnd = newPos;
   ta.focus();
+}
+
+function renderReminders(dateKey) {
+  const container = $('reminderSection');
+  if(!container) return;
+  const reminders = getRemindersForDateKey(dateKey);
+  container.innerHTML = '';
+  
+  if(reminders.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+  
+  container.style.display = 'block';
+  
+  reminders.forEach(r => {
+    let daysText = '';
+    if(r.diffDays === 0) daysText = 'は今日';
+    else if(r.diffDays === 1) daysText = 'は明日';
+    else daysText = `まで後${r.diffDays}日`;
+    
+    // カスタムフォーマット要件に合致する「エアコン下見（入室無しPM1~7）まで後3日」のような文言
+    let displayText = '';
+    if(r.short && r.note) {
+        displayText = `${r.short}（${r.note}）${daysText}`;
+    } else {
+        displayText = `${r.label || r.short}${daysText}`;
+    }
+
+    const d = document.createElement('div');
+    d.style.marginBottom = '6px';
+    d.style.padding = '8px';
+    d.style.background = 'rgba(251, 146, 60, 0.15)'; // オレンジ系の目立つ背景
+    d.style.borderLeft = '4px solid #fb923c';
+    d.style.borderRadius = '4px';
+    d.style.display = 'flex';
+    d.style.alignItems = 'center';
+    d.style.gap = '8px';
+    
+    const iconSpan = document.createElement('span');
+    iconSpan.style.fontSize = '1.2em';
+    iconSpan.textContent = r.icon || '📌';
+    d.appendChild(iconSpan);
+    
+    const textDiv = document.createElement('div');
+    textDiv.style.flex = '1';
+    textDiv.style.fontWeight = 'bold';
+    textDiv.style.color = '#fff';
+    textDiv.textContent = displayText;
+    
+    d.appendChild(textDiv);
+    container.appendChild(d);
+  });
 }
 
 function autoSaveEditor(){
