@@ -175,9 +175,11 @@ async function initSupabaseAuth() {
     idToken = null;
     updateUiForAuth(true);
     setMsg('Google認証済みです');
+    try{ await loadNecessaryItems(); }catch(e){}
     try{ maybeOpenInitialDate(); }catch(e){}
   } else {
     updateUiForAuth(false);
+    renderNecessaryItemsList([]);
   }
 
   supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -186,8 +188,10 @@ async function initSupabaseAuth() {
       idToken = null;
       updateUiForAuth(true);
       setMsg('Google認証済みです');
+      try{ loadNecessaryItems(); }catch(e){}
       try{ maybeOpenInitialDate(); }catch(e){}
     } else if (event === 'SIGNED_OUT') {
+      renderNecessaryItemsList([]);
       forceSignOut('サインアウトしました');
     }
   });
@@ -231,6 +235,62 @@ function setNecessaryItemStatus(msg, kind){
   el.textContent = msg;
 }
 
+function renderNecessaryItemsList(items){
+  const listEl = $('necessaryItemsList');
+  if(!listEl) return;
+  listEl.innerHTML = '';
+  const rows = Array.isArray(items) ? items : [];
+  for(const row of rows){
+    const text = (row && row.content ? String(row.content) : '').trim();
+    if(!text) continue;
+    const li = document.createElement('li');
+    li.textContent = text;
+    listEl.appendChild(li);
+  }
+}
+
+async function loadNecessaryItems(){
+  try{
+    const listEl = $('necessaryItemsList');
+    if(!listEl) return;
+    if(!ensureAuthOrSignOut()){
+      renderNecessaryItemsList([]);
+      return;
+    }
+    if(!supabaseClient) throw new Error('Supabase SDK の初期化に失敗しました');
+
+    const userId = currentUser && currentUser.id ? currentUser.id : null;
+    if(!userId){
+      renderNecessaryItemsList([]);
+      return;
+    }
+
+    let rows = [];
+    const { data, error } = await supabaseClient
+      .from('necessary_items')
+      .select('content')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if(error){
+      const { data: fallbackData, error: fallbackError } = await supabaseClient
+        .from('necessary_items')
+        .select('content')
+        .eq('user_id', userId)
+        .order('id', { ascending: false });
+      if(fallbackError) throw fallbackError;
+      rows = Array.isArray(fallbackData) ? fallbackData : [];
+    } else {
+      rows = Array.isArray(data) ? data : [];
+    }
+
+    renderNecessaryItemsList(rows);
+  }catch(e){
+    console.error('loadNecessaryItems failed', e);
+    setNecessaryItemStatus('一覧の取得に失敗しました', 'error');
+  }
+}
+
 async function addNecessaryItem(){
   try{
     if(!ensureAuthOrSignOut()) return;
@@ -265,6 +325,7 @@ async function addNecessaryItem(){
     inputEl.value = '';
     setNecessaryItemStatus('必要なものを保存しました', 'success');
     setMsg('必要なものを保存しました');
+    await loadNecessaryItems();
   }catch(e){
     console.error('addNecessaryItem failed', e);
     const reason = e && e.message ? e.message : '不明なエラー';
@@ -1763,6 +1824,7 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
     addNecessaryItem();
   });
   setNecessaryItemStatus('');
+  try{ loadNecessaryItems(); }catch(e){}
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
