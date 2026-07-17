@@ -337,14 +337,17 @@ function getRemindersForDateKey(dateKey) {
     const apptDate = parseDateKeyLocal(appt.date);
     if(!apptDate) continue;
     apptDate.setHours(0,0,0,0);
+
+    const labelText = `${appt.label || ''} ${appt.short || ''}`;
+    const isAcg2 = /ACG2/i.test(labelText);
     
     // remindDaysの取得（デフォルト3日）
     const remindDays = typeof appt.remindDays === 'number' ? appt.remindDays : 3;
     
     const diffTime = apptDate.getTime() - targetDate.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
-    
-    if(diffDays >= 0 && diffDays <= remindDays) {
+
+    if(diffDays >= 0 && (isAcg2 || diffDays <= remindDays)) {
       reminders.push({
         ...appt,
         diffDays
