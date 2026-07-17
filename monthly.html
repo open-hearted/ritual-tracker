@@ -115,13 +115,20 @@
 
     <div id="allRecordsTimeline" style="margin-bottom:8px;"></div>
 
-    <div class="med-timer" id="medTimerBox" style="margin-bottom:8px;display:flex;gap:8px;align-items:center;font-size:13px;padding:4px 0">
-      <strong style="width:56px">瞑想</strong>
-      <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:84px" />
-      <span id="medTimerDisplay" style="min-width:56px;text-align:center">--:--</span>
-      <button id="medTimerStart">開始</button>
-      <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);">クリア</button>
+    <div class="med-timer" id="medTimerBox" style="margin-bottom:6px;display:flex;gap:6px;align-items:center;flex-wrap:nowrap;font-size:12px;padding:2px 0">
+      <strong style="width:48px;opacity:0.9;white-space:nowrap">瞑想</strong>
+      <input id="medTimerMin" type="number" min="0.01" step="0.01" value="30" style="width:68px;padding:4px 6px" />
+      <span id="medTimerDisplay" style="min-width:48px;text-align:center;white-space:nowrap">--:--</span>
+      <button id="medTimerStart" style="padding:6px 10px;white-space:nowrap">開始</button>
+      <button id="medTimerClear" style="display:none;padding:6px 8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);white-space:nowrap;">クリア</button>
     </div>
+
+    <div id="necessaryItemsRow" style="display:flex;gap:8px;align-items:center;flex-wrap:nowrap;margin-bottom:8px">
+      <strong style="width:56px;opacity:0.9;white-space:nowrap">必要なもの</strong>
+      <input id="necessaryItemInput" name="necessary_item_input" type="text" placeholder="必要なものを入力" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
+      <button id="necessaryItemAdd" style="white-space:nowrap">追加</button>
+    </div>
+    <div id="necessaryItemStatus" style="display:none;margin-bottom:8px;font-size:12px;line-height:1.4;"></div>
 
     <div class="med-sessions" id="medSessions" style="display:none;margin-bottom:4px"></div>
     <div id="exerciseList" style="display:none;margin-bottom:4px"></div>

@@ -218,6 +218,61 @@ function updateUiForAuth(isAuth){
 
 function setMsg(s){ const m=$('msg'); if(m) m.textContent = s||''; }
 
+function setNecessaryItemStatus(msg, kind){
+  const el = $('necessaryItemStatus');
+  if(!el) return;
+  if(!msg){
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+  el.style.display = 'block';
+  el.style.color = kind === 'error' ? '#f87171' : '#4ade80';
+  el.textContent = msg;
+}
+
+async function addNecessaryItem(){
+  try{
+    if(!ensureAuthOrSignOut()) return;
+    if(!supabaseClient) throw new Error('Supabase SDK の初期化に失敗しました');
+
+    const inputEl = $('necessaryItemInput');
+    if(!inputEl) return;
+    const content = (inputEl.value || '').trim();
+    if(!content){
+      setNecessaryItemStatus('必要なものを入力してください', 'error');
+      inputEl.focus();
+      return;
+    }
+
+    setNecessaryItemStatus('保存中...', 'success');
+
+    const { data: { session }, error: sessionErr } = await supabaseClient.auth.getSession();
+    if(sessionErr) throw sessionErr;
+    const userId = (session && session.user && session.user.id) || (currentUser && currentUser.id) || null;
+    if(!userId) throw new Error('ログインセッションが見つかりません。再ログインしてください。');
+
+    const { error: insertErr } = await supabaseClient
+      .from('necessary_items')
+      .insert({
+        user_id: userId,
+        content,
+        status: 'pending',
+        source: 'online_planner'
+      });
+    if(insertErr) throw insertErr;
+
+    inputEl.value = '';
+    setNecessaryItemStatus('必要なものを保存しました', 'success');
+    setMsg('必要なものを保存しました');
+  }catch(e){
+    console.error('addNecessaryItem failed', e);
+    const reason = e && e.message ? e.message : '不明なエラー';
+    setNecessaryItemStatus('保存に失敗しました: ' + reason, 'error');
+    setMsg('必要なものの保存に失敗しました');
+  }
+}
+
 function renderDOW(){
   const row = $('dowRow');
   if(!row) return;
@@ -1699,6 +1754,15 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   renderExerciseList();
   // wire free add button
   const freeBtn = $('freeAdd'); if(freeBtn) freeBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeRecord(); });
+  const necessaryItemAddBtn = $('necessaryItemAdd'); if(necessaryItemAddBtn) necessaryItemAddBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addNecessaryItem(); });
+  const necessaryItemInput = $('necessaryItemInput');
+  if(necessaryItemInput) necessaryItemInput.addEventListener('keydown', (ev)=>{
+    if(ev.key !== 'Enter') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    addNecessaryItem();
+  });
+  setNecessaryItemStatus('');
   const freeTextBtn = $('freeTextAdd'); if(freeTextBtn) freeTextBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addFreeTextRecord(); });
   const accomplishedBtn = $('accomplishedAdd'); if(accomplishedBtn) accomplishedBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addAccomplishedRecord(); });
   const mealImageBtn = $('mealImageAdd'); if(mealImageBtn) mealImageBtn.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); addMealImageRecord(); });
@@ -1763,9 +1827,11 @@ try{ document.addEventListener('DOMContentLoaded', ()=>{
   const freeUseTime = $('freeUseTime');
   const freeTextUseTime = $('freeTextUseTime');
   const accomplished = $('accomplished');
+  const necessaryItemEl = $('necessaryItemInput');
   const mealImageNote = $('mealImageNote');
   const otherImageNote = $('otherImageNote');
   const expenseStore = $('expenseStore');
+  attachNoCredentialBehavior(necessaryItemEl);
   attachNoCredentialBehavior(freeKorean);
   attachNoCredentialBehavior(freeText);
   attachNoCredentialBehavior(accomplished);
