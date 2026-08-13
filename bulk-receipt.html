@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="バルク処理">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>レシートバルク処理</title>
+  <link rel="icon" sizes="192x192" href="/icon-192.png" type="image/png">
+  <meta name="theme-color" content="#0b1330">
+
+  <style>
+    :root {
+      --bg:     #0b1330;
+      --card:   #14224e;
+      --muted:  rgba(255,255,255,0.45);
+      --text:   #e8eaf6;
+      --accent: #5c8aff;
+      --ok:     #4ade80;
+      --warn:   #facc15;
+      --danger: #f87171;
+      --border: rgba(255,255,255,0.10);
+      --input-bg: rgba(255,255,255,0.05);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0 0 env(safe-area-inset-bottom, 16px) 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      min-height: 100dvh;
+    }
+    a { color: var(--accent); }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .header a.back {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+    .header a.back:hover { color: var(--text); }
+    .header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    /* ── Login ── */
+    #login-section {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 24px;
+      gap: 16px;
+      min-height: 60vh;
+      text-align: center;
+    }
+    #login-section p { color: var(--muted); }
+
+    #main-section {
+      display: none;
+      flex-direction: column;
+      padding: 16px;
+      gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .btn-login {
+      background: #4285F4;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* ── File pick area ── */
+    .pick-area {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      background: var(--input-bg);
+    }
+    .pick-area:hover, .pick-area.drag-over {
+      border-color: var(--accent);
+      background: rgba(92,138,255,0.06);
+    }
+    .pick-area input { display: none; }
+    .pick-area .pick-icon { font-size: 2.2rem; line-height: 1; margin-bottom: 6px; }
+    .pick-area .pick-label { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .pick-area .pick-label strong { color: var(--accent); }
+
+    /* ── Status ── */
+    #status {
+      min-height: 1.5em;
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    #status.ok   { color: var(--ok); }
+    #status.err  { color: var(--danger); }
+    #status.info { color: var(--accent); }
+
+    /* ── Save button ── */
+    .btn-save {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn-save:disabled { opacity: 0.35; cursor: default; }
+
+    /* ── Results area ── */
+    #results-wrap { display: none; flex-direction: column; gap: 12px; }
+
+    .results-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .summary-text { font-size: 0.82rem; color: var(--muted); }
+
+    /* ── Table ── */
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+    }
+    th, td {
+      padding: 7px 9px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    th {
+      background: var(--card);
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tr.status-error { background: rgba(248,113,113,0.06); }
+    tr.status-done  { background: rgba(74,222,128,0.03); }
+    tr.status-saved { background: rgba(74,222,128,0.08); opacity: 0.6; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.74rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .badge.pending    { background: rgba(255,255,255,0.07); color: var(--muted); }
+    .badge.processing { background: rgba(92,138,255,0.18); color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+    .badge.done       { background: rgba(74,222,128,0.15); color: var(--ok); }
+    .badge.error      { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .badge.saved      { background: rgba(74,222,128,0.25); color: var(--ok); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+
+    /* ── Thumbnail ── */
+    .thumb {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      display: block;
+    }
+
+    /* ── Filename cell ── */
+    .td-filename {
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    /* ── Error message ── */
+    .td-errmsg {
+      font-size: 0.75rem;
+      color: var(--danger);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Editable inputs ── */
+    table input[type="text"],
+    table input[type="date"],
+    table input[type="time"],
+    table input[type="number"],
+    table select {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      padding: 5px 6px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      min-width: 0;
+    }
+    table input:disabled, table select:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    table input:not(:disabled):focus,
+    table select:not(:disabled):focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(92,138,255,0.07);
+    }
+    table select option { background: #1a2a5e; }
+
+    .td-store input  { min-width: 110px; }
+    .td-date  input  { min-width: 128px; }
+    .td-time  input  { min-width: 86px; }
+    .td-total input  { min-width: 76px; }
+    .td-cat   select { min-width: 86px; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-section">
+  <p>レシートバルク処理を使うにはログインが必要です</p>
+  <button class="btn-login" onclick="signIn()">Googleでログイン</button>
+</div>
+
+<!-- Main -->
+<div id="main-section">
+
+  <div class="header">
+    <a class="back" href="index.html">← 戻る</a>
+    <h1>📋 レシートバルク処理</h1>
+  </div>
+
+  <!-- File picker -->
+  <label class="pick-area" id="pick-area">
+    <input type="file" id="file-input" multiple accept="image/*">
+    <div class="pick-icon">🗂️</div>
+    <p class="pick-label">
+      <strong>クリックして画像を選択</strong><br>
+      複数のレシート画像をまとめて選べます（JPEG / PNG / WebP）
+    </p>
+  </label>
+
+  <div id="status"></div>
+
+  <!-- Results -->
+  <div id="results-wrap">
+    <div class="results-meta">
+      <span class="summary-text" id="summary-text"></span>
+      <button class="btn-save" id="btn-save" disabled onclick="saveAll()">まとめて登録</button>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:56px">画像</th>
+            <th style="width:90px">状態</th>
+            <th class="td-filename">ファイル名</th>
+            <th class="td-store">店名</th>
+            <th class="td-date">日付</th>
+            <th class="td-time">時刻</th>
+            <th class="td-total">金額(円)</th>
+            <th class="td-cat">カテゴリ</th>
+            <th class="td-errmsg">エラー</th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main-section -->
+
+<script>
+// ────────────────────────────────────────────────
+// Constants & globals
+// ────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://jlkfvijgfrvoesazegnc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
+const CATEGORIES        = ['食費', '日用品', '交通費', '娯楽', 'その他'];
+const MAX_SIDE_PX       = 1200;   // mirror meditation-cloud.js
+const JPEG_QUALITY      = 0.85;
+
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let currentUser   = null;
+let userPayload   = {};
+let userDataRowId = null;  // Supabase user_data.id for update vs insert
+let items         = [];    // { file, thumbUrl, status, result, errorMsg }
+let isSaving      = false;
+
+const dom = {
+  login:   document.getElementById('login-section'),
+  main:    document.getElementById('main-section'),
+  status:  document.getElementById('status'),
+  wrap:    document.getElementById('results-wrap'),
+  tbody:   document.getElementById('results-tbody'),
+  summary: document.getElementById('summary-text'),
+  btnSave: document.getElementById('btn-save'),
+};
+
+// ────────────────────────────────────────────────
+// Auth
+// ────────────────────────────────────────────────
+async function checkAuth() {
+  if (!supabaseClient) { showLogin(); return; }
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session && session.user) { currentUser = session.user; showMain(); await loadPayload(); }
+  else { showLogin(); }
+}
+
+function showMain()  { dom.login.style.display = 'none';  dom.main.style.display  = 'flex'; }
+function showLogin() { dom.login.style.display = 'flex';  dom.main.style.display  = 'none'; }
+
+async function signIn() {
+  await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  });
+}
+
+supabaseClient && supabaseClient.auth.onAuthStateChange(async (_, session) => {
+  if (session && session.user) {
+    currentUser = session.user;
+    showMain();
+    await loadPayload();
+  } else {
+    currentUser = null;
+    showLogin();
+  }
+});
+
+// ────────────────────────────────────────────────
+// Supabase payload load / save
+// (mirrors syncPending in quick-log.html / med_saveAll in meditation-cloud.js)
+// ────────────────────────────────────────────────
+async function loadPayload() {
+  if (!currentUser) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('user_data')
+      .select('id, payload')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) {
+      userDataRowId = data.id;
+      userPayload   = (data.payload && typeof data.payload === 'object') ? data.payload : {};
+    } else {
+      userDataRowId = null;
+      userPayload   = {};
+    }
+    userPayload.data   = userPayload.data   || {};
+    userPayload.__meta = userPayload.__meta || { version: 0, updatedAt: new Date().toISOString() };
+  } catch (e) {
+    console.warn('[bulk-receipt] loadPayload error', e);
+    setStatus('データの読み込みに失敗しました。再読み込みしてください。', 'err');
+  }
+}
+
+async function savePayload(payload) {
+  payload.__meta.version   = (payload.__meta.version || 0) + 1;
+  payload.__meta.updatedAt  = new Date().toISOString();
+  let upsertErr;
+  if (userDataRowId) {
+    const { error } = await supabaseClient
+      .from('user_data').update({ payload }).eq('id', userDataRowId);
+    upsertErr = error;
+  } else {
+    const { data, error } = await supabaseClient
+      .from('user_data')
+      .insert({ user_id: currentUser.id, payload })
+      .select('id')
+      .maybeSingle();
+    upsertErr = error;
+    if (!error && data) userDataRowId = data.id;
+  }
+  if (upsertErr) throw upsertErr;
+}
+
+// ────────────────────────────────────────────────
+// File picker & drag-drop
+// ────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  handleFiles(e.target.files);
+  e.target.value = '';
+});
+
+const pickArea = document.getElementById('pick-area');
+pickArea.addEventListener('dragover', e => { e.preventDefault(); pickArea.classList.add('drag-over'); });
+pickArea.addEventListener('dragleave', () => pickArea.classList.remove('drag-over'));
+pickArea.addEventListener('drop', e => {
+  e.preventDefault();
+  pickArea.classList.remove('drag-over');
+  if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(fileList) {
+  const accepted = Array.from(fileList).filter(f => /^image\//i.test(f.type));
+  if (!accepted.length) {
+    setStatus('画像ファイルを選択してください（JPEG / PNG / WebP）', 'err');
+    return;
+  }
+  setStatus('', '');
+  // Each call resets the table with the newly selected files
+  // (revoke old objectURLs first)
+  items.forEach(it => { if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl); });
+  items = accepted.map(file => ({
+    file,
+    thumbUrl: URL.createObjectURL(file),
+    status:   'pending',
+    result:   { store: '', date: '', time: '', total: '', category: '' },
+    errorMsg: ''
+  }));
+  dom.wrap.style.display = 'flex';
+  rebuildTable();
+  updateSummary();
+  processAll();
+}
+
+window.addEventListener('beforeunload', () => {
+  items.forEach(it => { if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl); });
+});
+
+// ────────────────────────────────────────────────
+// Image compression
+// (mirrors compressImageForRecord in meditation-cloud.js)
+// ────────────────────────────────────────────────
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) { reject(new Error('invalid image dimensions')); return; }
+      if (w > MAX_SIDE_PX || h > MAX_SIDE_PX) {
+        if (w >= h) { h = Math.round(h * MAX_SIDE_PX / w); w = MAX_SIDE_PX; }
+        else        { w = Math.round(w * MAX_SIDE_PX / h); h = MAX_SIDE_PX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('canvas toBlob failed')); return; }
+        const fr = new FileReader();
+        fr.onload  = () => resolve({ base64: fr.result.split(',')[1], mimeType: 'image/jpeg' });
+        fr.onerror = () => reject(new Error('FileReader failed'));
+        fr.readAsDataURL(blob);
+      }, 'image/jpeg', JPEG_QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+// ────────────────────────────────────────────────
+// AI analysis (calls existing /api/receipt-analyze per image in parallel)
+// ────────────────────────────────────────────────
+async function analyzeOne(idx) {
+  const item = items[idx];
+  item.status = 'processing';
+  updateRowStatus(idx);
+  updateSummary();
+
+  try {
+    const { base64, mimeType } = await compressImage(item.file);
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) throw new Error('セッション期限切れ。再ログインしてください');
+
+    const res = await fetch('/api/receipt-analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ imageBase64: base64, mimeType })
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json || !json.ok) {
+      const msg = (json && json.error) ? json.error : `HTTP ${res.status}`;
+      throw new Error(`AI解析失敗: ${msg}`);
+    }
+
+    const d = json.data || {};
+    item.result = {
+      store:    d.store    || '',
+      date:     d.date     || '',
+      time:     d.time     || '',
+      total:    (d.total !== null && d.total !== undefined) ? String(d.total) : '',
+      category: CATEGORIES.includes(d.category) ? d.category : ''
+    };
+    item.status   = 'done';
+    item.errorMsg = '';
+  } catch (e) {
+    item.status   = 'error';
+    item.errorMsg = e.message || 'エラー';
+  }
+
+  updateRowStatus(idx);
+  updateSummary();
+  updateSaveButton();
+}
+
+async function processAll() {
+  if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
+  setStatus('AIで解析中...', 'info');
+  await Promise.all(items.map((_, i) => analyzeOne(i)));
+  const done = items.filter(it => it.status === 'done').length;
+  const err  = items.filter(it => it.status === 'error').length;
+  if (err === 0) {
+    setStatus(`${done}件の解析が完了しました。内容を確認して「まとめて登録」してください`, 'ok');
+  } else {
+    setStatus(`${done}件完了 / ${err}件エラー。エラー行は登録されません。`, done ? 'ok' : 'err');
+  }
+}
+
+// ────────────────────────────────────────────────
+// Table rendering
+// ────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function categoryOptions(selected) {
+  return ['', ...CATEGORIES].map(c => {
+    const sel = c === selected ? ' selected' : '';
+    return `<option value="${c}"${sel}>${c || 'カテゴリ'}</option>`;
+  }).join('');
+}
+
+function badgeHtml(status) {
+  const map = {
+    pending:    '<span class="badge pending">⏳ 待機中</span>',
+    processing: '<span class="badge processing">⚙️ 解析中</span>',
+    done:       '<span class="badge done">✅ 完了</span>',
+    error:      '<span class="badge error">❌ エラー</span>',
+    saved:      '<span class="badge saved">💾 登録済</span>'
+  };
+  return map[status] || '';
+}
+
+function todayDateKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+/** Full table rebuild – called once on file selection. Preserves nothing. */
+function rebuildTable() {
+  const today = todayDateKey();
+  dom.tbody.innerHTML = items.map((item, idx) => `
+    <tr data-idx="${idx}" class="status-${item.status}">
+      <td><img class="thumb" src="${escHtml(item.thumbUrl)}" alt="preview"></td>
+      <td class="td-status">${badgeHtml(item.status)}</td>
+      <td class="td-filename" title="${escHtml(item.file.name)}">${escHtml(item.file.name)}</td>
+      <td class="td-store">
+        <input type="text" data-field="store" placeholder="店名"
+               value="${escHtml(item.result.store)}"
+               autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+               disabled>
+      </td>
+      <td class="td-date">
+        <input type="date" data-field="date" value="${escHtml(item.result.date || today)}" disabled>
+      </td>
+      <td class="td-time">
+        <input type="time" data-field="time" value="${escHtml(item.result.time)}" disabled>
+      </td>
+      <td class="td-total">
+        <input type="number" data-field="total" min="0" step="1"
+               placeholder="金額" value="${escHtml(item.result.total)}" disabled>
+      </td>
+      <td class="td-cat">
+        <select data-field="category" disabled>
+          ${categoryOptions(item.result.category)}
+        </select>
+      </td>
+      <td class="td-errmsg">${escHtml(item.errorMsg)}</td>
+    </tr>
+  `).join('');
+}
+
+/**
+ * In-place status update for a single row.
+ * Updates: row class, badge cell, error cell, enables inputs, fills result values.
+ * Does NOT touch inputs the user may have already edited (checks activeElement).
+ */
+function updateRowStatus(idx) {
+  const item = items[idx];
+  const tr   = dom.tbody.querySelector(`tr[data-idx="${idx}"]`);
+  if (!tr) return;
+
+  tr.className = `status-${item.status}`;
+
+  // Badge
+  const badgeTd = tr.querySelector('.td-status');
+  if (badgeTd) badgeTd.innerHTML = badgeHtml(item.status);
+
+  // Error message
+  const errTd = tr.querySelector('.td-errmsg');
+  if (errTd) errTd.textContent = item.errorMsg || '';
+
+  // Enable inputs once processing is finished (done or error)
+  if (item.status === 'done' || item.status === 'error') {
+    tr.querySelectorAll('input, select').forEach(el => el.removeAttribute('disabled'));
+  }
+  // Disable inputs on saved rows
+  if (item.status === 'saved') {
+    tr.querySelectorAll('input, select').forEach(el => { el.disabled = true; });
+  }
+
+  // Fill result values when just completed (don't overwrite what user is typing)
+  if (item.status === 'done') {
+    fillInput(tr, 'store',    item.result.store);
+    fillInput(tr, 'date',     item.result.date);
+    fillInput(tr, 'time',     item.result.time);
+    fillInput(tr, 'total',    item.result.total);
+    const sel = tr.querySelector('select[data-field="category"]');
+    if (sel && sel !== document.activeElement) sel.value = item.result.category || '';
+  }
+}
+
+function fillInput(tr, field, value) {
+  const el = tr.querySelector(`[data-field="${field}"]`);
+  if (el && el !== document.activeElement) el.value = value || '';
+}
+
+function updateSummary() {
+  const total = items.length;
+  const done  = items.filter(it => it.status === 'done').length;
+  const proc  = items.filter(it => it.status === 'processing' || it.status === 'pending').length;
+  const err   = items.filter(it => it.status === 'error').length;
+  const saved = items.filter(it => it.status === 'saved').length;
+  const parts = [`全${total}件`];
+  if (proc)  parts.push(`解析中:${proc}`);
+  if (done)  parts.push(`完了:${done}`);
+  if (err)   parts.push(`エラー:${err}`);
+  if (saved) parts.push(`登録済:${saved}`);
+  dom.summary.textContent = parts.join(' / ');
+}
+
+function updateSaveButton() {
+  const doneCount = items.filter(it => it.status === 'done').length;
+  dom.btnSave.disabled = isSaving || doneCount === 0;
+}
+
+// ────────────────────────────────────────────────
+// Read current form values from a table row
+// ────────────────────────────────────────────────
+function getRowValues(idx) {
+  const tr = dom.tbody.querySelector(`tr[data-idx="${idx}"]`);
+  if (!tr) return null;
+  return {
+    store:    (tr.querySelector('[data-field="store"]')?.value    || '').trim(),
+    date:     (tr.querySelector('[data-field="date"]')?.value     || '').trim(),
+    time:     (tr.querySelector('[data-field="time"]')?.value     || '').trim(),
+    total:    (tr.querySelector('[data-field="total"]')?.value    || '').trim(),
+    category: (tr.querySelector('[data-field="category"]')?.value || '').trim()
+  };
+}
+
+// ────────────────────────────────────────────────
+// Expense record builder – NO image upload
+// (mirrors saveExpenseRecord in meditation-cloud.js, storagePath left null)
+// ────────────────────────────────────────────────
+function makeRecord(vals) {
+  const now  = new Date().toISOString();
+  const date = vals.date || null;
+  const time = vals.time || null;
+  let occurredAt = null;
+  if (date && time) {
+    try { occurredAt = new Date(`${date}T${time}:00`).toISOString(); } catch (_) {}
+  }
+  const totalNum = (vals.total !== '' && vals.total != null && !isNaN(Number(vals.total)))
+    ? Number(vals.total) : null;
+  return {
+    id:           'exp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    kind:         'expense',
+    source:       'receipt',
+    store:        vals.store || null,
+    date,
+    time,
+    occurredAt,
+    total:        totalNum,
+    category:     CATEGORIES.includes(vals.category) ? vals.category : null,
+    items:        [],
+    storageBucket: null,   // bulk mode: no image stored in Supabase Storage
+    storagePath:   null,
+    createdAt:    now,
+    updatedAt:    now
+  };
+}
+
+// ────────────────────────────────────────────────
+// Merge a record into the payload
+// (mirrors addExpenseRecordToPayload in meditation-cloud.js)
+// ────────────────────────────────────────────────
+function addToPayload(payload, dateKey, record) {
+  const mk = dateKey.slice(0, 7);   // 'YYYY-MM'
+  payload.data        = payload.data        || {};
+  payload.data[mk]    = payload.data[mk]    || {};
+  const rec           = payload.data[mk][dateKey] || {};
+  rec.expenses        = Array.isArray(rec.expenses) ? rec.expenses : [];
+  rec.expenses.push(record);
+  payload.data[mk][dateKey] = rec;
+}
+
+// ────────────────────────────────────────────────
+// Save all done rows to Supabase
+// ────────────────────────────────────────────────
+async function saveAll() {
+  if (isSaving) return;
+  if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
+
+  // Collect done-row indices + their current form values
+  const doneIndices = items
+    .map((it, i) => (it.status === 'done' ? i : -1))
+    .filter(i => i >= 0);
+
+  if (!doneIndices.length) {
+    setStatus('登録できる行がありません', 'err');
+    return;
+  }
+
+  isSaving = true;
+  dom.btnSave.disabled = true;
+  setStatus('登録中...', 'info');
+
+  try {
+    // Reload latest payload to avoid overwriting concurrent changes
+    await loadPayload();
+
+    const today = todayDateKey();
+    for (const idx of doneIndices) {
+      const vals    = getRowValues(idx);
+      if (!vals) continue;
+      const record  = makeRecord(vals);
+      // Use the receipt's date field; fall back to today if blank/invalid
+      const isValid = s => s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+      const dateKey = isValid(vals.date) ? vals.date : today;
+      addToPayload(userPayload, dateKey, record);
+    }
+
+    await savePayload(userPayload);
+
+    setStatus(`✅ ${doneIndices.length}件を登録しました`, 'ok');
+    // Mark saved rows
+    doneIndices.forEach(i => {
+      items[i].status = 'saved';
+      updateRowStatus(i);
+    });
+    updateSummary();
+  } catch (e) {
+    console.error('[bulk-receipt] saveAll error', e);
+    setStatus('登録に失敗しました: ' + (e.message || String(e)), 'err');
+  } finally {
+    isSaving = false;
+    updateSaveButton();
+  }
+}
+
+// ────────────────────────────────────────────────
+// Utilities
+// ────────────────────────────────────────────────
+function setStatus(msg, type) {
+  dom.status.textContent = msg;
+  dom.status.className   = type || '';
+}
+
+// ────────────────────────────────────────────────
+// Boot
+// ────────────────────────────────────────────────
+checkAuth();
+</script>
+
+<script>
+  // Unregister service workers so stale caches don't break this page
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  }
+</script>
+</body>
+</html>
