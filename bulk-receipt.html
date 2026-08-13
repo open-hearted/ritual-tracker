@@ -370,6 +370,15 @@
     .ov-field input:disabled, .ov-field select:disabled { opacity: 0.4; cursor: not-allowed; }
     .ov-field select option { background: #1a2a5e; }
 
+    /* 日付・時刻を横並びに。パネル幅が確保できるPCのみ。 */
+    .ov-field-row {
+      display: flex;
+      gap: 8px;
+    }
+    .ov-field-row .ov-field { flex: 1 1 0; min-width: 0; }
+    .ov-field-row input[type="date"] { min-width: 0; }
+    .ov-field-row input[type="time"] { min-width: 0; }
+
     .ov-check {
       display: flex;
       align-items: center;
@@ -429,6 +438,11 @@
       .ov-image-pane { flex: 0 0 auto; }
       .ov-image-pane img { max-height: 40vh; }
       .ov-form-pane { flex: 0 0 auto; max-height: none; width: 100%; }
+    }
+
+    /* ごく狭い画面では日付・時刻も縦積みに戻す */
+    @media (max-width: 380px) {
+      .ov-field-row { flex-direction: column; }
     }
 
     /* ── Filename cell ── */
@@ -639,12 +653,14 @@
         <input type="text" data-ov="store" placeholder="店名"
                autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
       </label>
-      <label class="ov-field">日付
-        <input type="date" data-ov="date">
-      </label>
-      <label class="ov-field">時刻
-        <input type="time" data-ov="time">
-      </label>
+      <div class="ov-field-row">
+        <label class="ov-field">日付
+          <input type="date" data-ov="date">
+        </label>
+        <label class="ov-field">時刻
+          <input type="time" data-ov="time">
+        </label>
+      </div>
       <label class="ov-field">カテゴリ
         <select data-ov="category"></select>
       </label>
