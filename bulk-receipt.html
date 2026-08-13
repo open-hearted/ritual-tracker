@@ -204,36 +204,150 @@
     }
     .thumb:hover { border-color: var(--accent); }
 
-    /* ── Image preview overlay ── */
+    /* ── Preview overlay: image + editable analysis side by side ── */
     #img-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.92);
+      background: rgba(0,0,0,0.88);
       z-index: 5000;
-      cursor: zoom-out;
-      padding: 24px;
-      flex-direction: column;
+      cursor: zoom-out;          /* backdrop closes */
+      padding: 20px;
       align-items: center;
       justify-content: center;
-      gap: 12px;
     }
-    #img-overlay img {
+    .ov-panel {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      width: 100%;
+      max-width: 1000px;
+      max-height: 100%;
+      cursor: default;           /* panel itself does not close */
+    }
+    .ov-image-pane {
+      flex: 1 1 55%;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ov-image-pane img {
       max-width: 100%;
-      max-height: calc(100% - 60px);
+      max-height: 82vh;
       object-fit: contain;
       border-radius: 6px;
+      background: #000;
     }
-    #img-overlay .ov-caption {
-      color: rgba(255,255,255,0.75);
-      font-size: 0.85rem;
-      text-align: center;
-      max-width: 90%;
+    .ov-form-pane {
+      flex: 0 0 300px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      max-height: 82vh;
+    }
+    .ov-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ov-title { font-size: 0.95rem; font-weight: 700; }
+    .ov-file {
+      font-size: 0.72rem;
+      color: var(--muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      max-width: 210px;
     }
-    #img-overlay .ov-hint { color: rgba(255,255,255,0.4); font-size: 0.75rem; }
+    .ov-x {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.05rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+    .ov-x:hover { color: var(--text); }
+
+    .ov-badge-row { min-height: 22px; }
+
+    .ov-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .ov-field input, .ov-field select {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 8px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      width: 100%;
+    }
+    .ov-field input:focus, .ov-field select:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(92,138,255,0.07);
+    }
+    .ov-field input:disabled, .ov-field select:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ov-field select option { background: #1a2a5e; }
+
+    .ov-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 6px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 2px;
+    }
+    .ov-check input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+    .ov-check input:disabled { cursor: not-allowed; opacity: 0.35; }
+
+    .ov-err { font-size: 0.76rem; color: var(--danger); }
+
+    .ov-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .ov-nav button {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .ov-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .ov-nav button:disabled { opacity: 0.3; cursor: default; }
+    .ov-count { font-size: 0.78rem; color: var(--muted); }
+
+    /* Stack the panes on narrow screens */
+    @media (max-width: 760px) {
+      .ov-panel { flex-direction: column; overflow-y: auto; }
+      .ov-image-pane { flex: 0 0 auto; }
+      .ov-image-pane img { max-height: 40vh; }
+      .ov-form-pane { flex: 0 0 auto; max-height: none; width: 100%; }
+    }
 
     /* ── Filename cell ── */
     .td-filename {
@@ -379,11 +493,58 @@
 
 </div><!-- /main-section -->
 
-<!-- Full-screen image preview (click anywhere or press Esc to close) -->
+<!-- Full-screen preview: receipt on the left, editable analysis on the right.
+     Click the backdrop or press Esc to close. -->
 <div id="img-overlay">
-  <img id="img-overlay-img" alt="レシート拡大表示">
-  <div class="ov-caption" id="img-overlay-caption"></div>
-  <div class="ov-hint">クリック / Esc で閉じる</div>
+  <div class="ov-panel">
+
+    <div class="ov-image-pane">
+      <img id="img-overlay-img" alt="レシート拡大表示">
+    </div>
+
+    <div class="ov-form-pane">
+      <div class="ov-head">
+        <div>
+          <div class="ov-title">解析結果</div>
+          <div class="ov-file" id="ov-file"></div>
+        </div>
+        <button type="button" class="ov-x" id="ov-close" title="閉じる (Esc)">✕</button>
+      </div>
+
+      <div class="ov-badge-row"><span id="ov-badge"></span></div>
+
+      <label class="ov-field">店名
+        <input type="text" data-ov="store" placeholder="店名"
+               autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <label class="ov-field">日付
+        <input type="date" data-ov="date">
+      </label>
+      <label class="ov-field">時刻
+        <input type="time" data-ov="time">
+      </label>
+      <label class="ov-field">金額(円)
+        <input type="number" data-ov="total" min="0" step="1" placeholder="金額">
+      </label>
+      <label class="ov-field">カテゴリ
+        <select data-ov="category"></select>
+      </label>
+
+      <label class="ov-check">
+        <input type="checkbox" id="ov-check">
+        <span>登録対象にする</span>
+      </label>
+
+      <div class="ov-err" id="ov-err"></div>
+
+      <div class="ov-nav">
+        <button type="button" id="ov-prev" title="前のレシート">←</button>
+        <span class="ov-count" id="ov-count"></span>
+        <button type="button" id="ov-next" title="次のレシート">→</button>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <script>
@@ -519,6 +680,7 @@ function handleFiles(fileList) {
     return;
   }
   setStatus('', '');
+  closeImagePreview();   // a preview of the previous batch would be stale
   // Each call resets the table with the newly selected files
   // (revoke old objectURLs first)
   items.forEach(it => { if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl); });
@@ -748,6 +910,10 @@ function updateRowStatus(idx) {
   if (item.status === 'saved') item.checked = false;
   syncCheckAll();
 
+  // Keep an open preview showing this row in step with it (e.g. analysis
+  // finishing, or the row becoming read-only after a save).
+  if (ovIdx === idx && isOverlayOpen()) ovLoad();
+
   // Fill result values when just completed (don't overwrite what user is typing)
   if (item.status === 'done') {
     fillInput(tr, 'store',    item.result.store);
@@ -776,6 +942,7 @@ dom.tbody.addEventListener('change', e => {
   syncCheckAll();
   updateSummary();
   updateSaveButton();
+  if (ovIdx === idx && isOverlayOpen()) overlay.check.checked = cb.checked;
 });
 
 // Header "select all" toggles every selectable (enabled) row.
@@ -814,23 +981,117 @@ function getCheckedIndices() {
 // overlay shows it at full resolution rather than the downscaled copy
 // that gets sent to the AI.
 const overlay = {
-  root:    document.getElementById('img-overlay'),
-  img:     document.getElementById('img-overlay-img'),
-  caption: document.getElementById('img-overlay-caption'),
+  root:  document.getElementById('img-overlay'),
+  img:   document.getElementById('img-overlay-img'),
+  file:  document.getElementById('ov-file'),
+  badge: document.getElementById('ov-badge'),
+  err:   document.getElementById('ov-err'),
+  check: document.getElementById('ov-check'),
+  count: document.getElementById('ov-count'),
+  prev:  document.getElementById('ov-prev'),
+  next:  document.getElementById('ov-next'),
 };
+let ovIdx = null;   // index of the row currently shown, or null when closed
+
+const ovFields = () => overlay.root.querySelectorAll('[data-ov]');
+
+// Category dropdown mirrors the table's options
+document.querySelector('[data-ov="category"]').innerHTML = categoryOptions('');
+
+/** The table row is the single source of truth; the overlay reads from it. */
+function ovRow(idx) {
+  return dom.tbody.querySelector(`tr[data-idx="${idx}"]`);
+}
+
+function isOverlayOpen() {
+  return overlay.root.style.display === 'flex';
+}
 
 function openImagePreview(idx) {
   const item = items[idx];
   if (!item) return;
-  overlay.img.src         = item.thumbUrl;
-  overlay.caption.textContent = item.file.name;
-  overlay.root.style.display  = 'flex';
+  ovIdx = idx;
+  overlay.img.src        = item.thumbUrl;
+  overlay.file.textContent = item.file.name;
+  overlay.root.style.display = 'flex';
+  ovLoad();
 }
+
+/** Pull the row's current values into the overlay fields. */
+function ovLoad() {
+  if (ovIdx === null) return;
+  const item = items[ovIdx];
+  const tr   = ovRow(ovIdx);
+  if (!item || !tr) return;
+
+  overlay.badge.innerHTML  = badgeHtml(item.status);
+  overlay.err.textContent  = item.errorMsg || '';
+
+  ovFields().forEach(el => {
+    const src = tr.querySelector(`[data-field="${el.dataset.ov}"]`);
+    el.value    = src ? src.value : '';
+    el.disabled = !src || src.disabled;      // saved / still-analysing rows are read-only
+  });
+
+  const rowCheck = tr.querySelector('.row-check');
+  overlay.check.checked  = !!(rowCheck && rowCheck.checked);
+  overlay.check.disabled = !rowCheck || rowCheck.disabled;
+
+  // Navigation follows the *displayed* order, so it matches what the user sees
+  const order = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos   = order.indexOf(ovIdx);
+  overlay.count.textContent = `${pos + 1} / ${order.length}`;
+  overlay.prev.disabled = pos <= 0;
+  overlay.next.disabled = pos < 0 || pos >= order.length - 1;
+}
+
+/** Write an overlay edit straight back into the table row. */
+function ovWriteThrough(el) {
+  if (ovIdx === null) return;
+  const tr  = ovRow(ovIdx);
+  const dst = tr && tr.querySelector(`[data-field="${el.dataset.ov}"]`);
+  if (!dst || dst.disabled) return;
+  dst.value = el.value;
+}
+
+overlay.root.addEventListener('input',  e => {
+  if (e.target.dataset && e.target.dataset.ov) ovWriteThrough(e.target);
+});
+overlay.root.addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.ov) ovWriteThrough(e.target);
+});
+
+// Mirror the approval checkbox both ways
+overlay.check.addEventListener('change', () => {
+  if (ovIdx === null) return;
+  const tr = ovRow(ovIdx);
+  const cb = tr && tr.querySelector('.row-check');
+  if (!cb || cb.disabled) return;
+  cb.checked = overlay.check.checked;
+  cb.dispatchEvent(new Event('change', { bubbles: true }));   // reuses the row handler
+});
+
+function ovStep(delta) {
+  const order = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos   = order.indexOf(ovIdx);
+  const next  = pos + delta;
+  if (pos < 0 || next < 0 || next >= order.length) return;
+  openImagePreview(order[next]);
+}
+overlay.prev.addEventListener('click', () => ovStep(-1));
+overlay.next.addEventListener('click', () => ovStep(1));
 
 function closeImagePreview() {
   overlay.root.style.display = 'none';
   overlay.img.removeAttribute('src');   // let the decoded bitmap go
+  ovIdx = null;
 }
+document.getElementById('ov-close').addEventListener('click', closeImagePreview);
+
+// Only the backdrop closes — clicks inside the panel must not dismiss it
+overlay.root.addEventListener('click', e => {
+  if (e.target === overlay.root) closeImagePreview();
+});
 
 // Thumbnails are re-created by rebuildTable(), so delegate from the tbody.
 dom.tbody.addEventListener('click', e => {
@@ -840,9 +1101,13 @@ dom.tbody.addEventListener('click', e => {
   if (Number.isInteger(idx)) openImagePreview(idx);
 });
 
-overlay.root.addEventListener('click', closeImagePreview);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && overlay.root.style.display === 'flex') closeImagePreview();
+  if (!isOverlayOpen()) return;
+  if (e.key === 'Escape')     { closeImagePreview(); return; }
+  // Arrow keys navigate, unless the user is typing in a field
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
+  if (e.key === 'ArrowLeft')  ovStep(-1);
+  if (e.key === 'ArrowRight') ovStep(1);
 });
 
 // ────────────────────────────────────────────────
