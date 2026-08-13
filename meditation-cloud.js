@@ -139,9 +139,30 @@ function maybeOpenInitialDate(){
       const t = q ? q : todayDateKey();
       setStateMonthFromDateKey(t);
       updateMonthlyLink(t);
-      openEditorFor(t);
+      // 支出編集はサーバーからのロード完了後でないと対象レコードが見つからない
+      Promise.resolve(openEditorFor(t)).then(()=>{ maybeBeginExpenseEditFromQuery(t); });
       return;
     }
+  }catch(e){}
+}
+
+// 月間ページの✏から expenseEdit=<record id> 付きで遷移してきた場合に、
+// 該当レシートの編集モードを開く（リロードで再突入しないよう即パラメータを消す）
+function maybeBeginExpenseEditFromQuery(dateKey){
+  try{
+    const sp = new URLSearchParams(location.search || '');
+    const id = sp.get('expenseEdit');
+    if(!id) return;
+    sp.delete('expenseEdit');
+    const qs = sp.toString();
+    history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : ''));
+    const rec = getDayRecordByDateKey(dateKey);
+    const arr = Array.isArray(rec?.expenses) ? rec.expenses : [];
+    const idx = arr.findIndex(it => it && it.id === id);
+    if(idx < 0){ setMsg('編集対象のレシートが見つかりませんでした'); return; }
+    beginExpenseEditAt(idx);
+    const row = $('expenseFormRow');
+    if(row) setTimeout(()=>{ try{ row.scrollIntoView({ block:'center', behavior:'smooth' }); }catch(e){} }, 80);
   }catch(e){}
 }
 
@@ -455,11 +476,12 @@ function openEditorFor(dateKey, opts){
 
   if(opts && opts.skipLoad){
     paint();
-    return;
+    return Promise.resolve();
   }
 
   // fetch latest payload from server before opening editor
-  med_loadAll().then((ok)=>{
+  // (呼び出し側がロード完了を待てるよう Promise を返す)
+  return med_loadAll().then((ok)=>{
     if(ok === false) return; // auth ensures message if fail
     paint();
   }).catch(()=>{
@@ -3150,6 +3172,14 @@ function beginExpenseEditAt(idx){
   const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
   const item = arr[idx];
   if(!item) return;
+
+  // 月間ページなど支出フォームが無いページでは、編集モードに入っても操作でき
+  // なくなるため、日別ページへ移動してそこで編集を開く
+  if(!$('expenseFormRow')){
+    const idPart = item.id ? `&expenseEdit=${encodeURIComponent(item.id)}` : '';
+    location.href = `index.html?date=${encodeURIComponent(dk)}${idPart}`;
+    return;
+  }
 
   expenseAnalysisRunId += 1;
   clearImageInputs(getImageRecordConfig('expense'));
