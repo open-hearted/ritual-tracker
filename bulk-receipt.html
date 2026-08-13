@@ -416,22 +416,6 @@
     .ov-nav button:disabled { opacity: 0.3; cursor: default; }
     .ov-count { font-size: 0.78rem; color: var(--muted); }
 
-    /* The → button on the last receipt: reviewing the batch hands off into
-       registration instead of dead-ending, so it reads as a clear finish. */
-    .ov-nav button.ov-next-finish {
-      background: var(--ok);
-      border-color: var(--ok);
-      color: #06240f;
-      font-weight: 700;
-      flex: 0 0 auto;
-      white-space: nowrap;
-    }
-    .ov-nav button.ov-next-finish:hover:not(:disabled) {
-      border-color: var(--ok);
-      color: #06240f;
-      filter: brightness(1.08);
-    }
-
     /* Stack the panes on narrow screens */
     @media (max-width: 760px) {
       .ov-panel { flex-direction: column; overflow-y: auto; }
@@ -1176,19 +1160,11 @@ function ovLoad() {
   overlay.check.disabled = !rowCheck || rowCheck.disabled;
 
   // Navigation follows the *displayed* order, so it matches what the user sees
-  const order  = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
-  const pos    = order.indexOf(ovIdx);
-  const isLast = pos >= 0 && pos === order.length - 1;
+  const order = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos   = order.indexOf(ovIdx);
   overlay.count.textContent = `${pos + 1} / ${order.length}`;
   overlay.prev.disabled = pos <= 0;
-
-  // On the last receipt, "→" becomes the hand-off into the save flow instead
-  // of a disabled dead end — reviewing the whole batch ends by moving forward
-  // into registration, not by hitting a wall and having to reach for ✕.
-  overlay.next.disabled = pos < 0;
-  overlay.next.classList.toggle('ov-next-finish', isLast);
-  overlay.next.textContent = isLast ? '✔ 登録へ進む' : '→';
-  overlay.next.title       = isLast ? '確認を終えて登録に進む' : '次のレシート';
+  overlay.next.disabled = pos < 0 || pos >= order.length - 1;
 }
 
 /** Write an overlay edit straight back into the table row. */
@@ -1208,8 +1184,14 @@ overlay.root.addEventListener('change', e => {
 });
 
 // Mirror the approval checkbox both ways. Ticking it also means "I'm done
-// reviewing this one" — so unless it's the last receipt in the batch, move
-// on to the next automatically instead of making the user reach for →.
+// reviewing this one":
+//   - not the last receipt  -> move on to the next automatically
+//   - the last receipt      -> nothing left to review, so close the overlay
+//                              and go straight into the save flow (which
+//                              opens the cleanup checklist before writing
+//                              anything, same as the まとめて登録 button)
+// Unchecking never triggers any of this — only a deliberate "yes, include
+// this one" tick counts as "done reviewing".
 overlay.check.addEventListener('change', () => {
   if (ovIdx === null) return;
   const tr = ovRow(ovIdx);
@@ -1217,15 +1199,20 @@ overlay.check.addEventListener('change', () => {
   if (!cb || cb.disabled) return;
   cb.checked = overlay.check.checked;
   cb.dispatchEvent(new Event('change', { bubbles: true }));   // reuses the row handler
-  if (overlay.check.checked) ovStep(1);
+  if (!overlay.check.checked) return;
+
+  const order  = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos    = order.indexOf(ovIdx);
+  const isLast = pos >= 0 && pos === order.length - 1;
+  if (isLast) {
+    closeImagePreview();
+    saveAll();
+  } else {
+    ovStep(1);
+  }
 });
 
-/**
- * Move to the next/previous receipt in displayed order.
- * Stepping past either end is simply a no-op — landing on the last receipt
- * is where ovLoad() turns the → button into the finish action, so there is
- * nowhere further to go and nothing more to do here.
- */
+/** Move to the next/previous receipt in displayed order; a no-op past either end. */
 function ovStep(delta) {
   const order = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
   const pos   = order.indexOf(ovIdx);
@@ -1235,14 +1222,7 @@ function ovStep(delta) {
 }
 
 overlay.prev.addEventListener('click', () => ovStep(-1));
-overlay.next.addEventListener('click', () => {
-  if (overlay.next.classList.contains('ov-next-finish')) {
-    closeImagePreview();
-    saveAll();
-    return;
-  }
-  ovStep(1);
-});
+overlay.next.addEventListener('click', () => ovStep(1));
 
 function closeImagePreview() {
   overlay.root.style.display = 'none';
