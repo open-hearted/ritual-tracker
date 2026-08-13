@@ -204,6 +204,72 @@
     }
     .thumb:hover { border-color: var(--accent); }
 
+    /* ── Pre-save checklist modal ── */
+    #confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 6000;          /* above the image preview */
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .cf-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .cf-title { font-size: 1rem; font-weight: 700; }
+    .cf-sub   { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+    .cf-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      background: var(--input-bg);
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .cf-item:hover { border-color: var(--accent); }
+    .cf-item:has(input:checked) {
+      border-color: var(--ok);
+      background: rgba(74,222,128,0.08);
+    }
+    .cf-item input {
+      width: 18px; height: 18px;
+      accent-color: var(--ok);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .cf-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+    .cf-actions button {
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    #cf-cancel { background: transparent; color: var(--muted); }
+    #cf-cancel:hover { color: var(--text); border-color: var(--muted); }
+    #cf-ok { background: var(--accent); color: #fff; border-color: transparent; }
+    #cf-ok:disabled { opacity: 0.3; cursor: not-allowed; }
+
     /* ── Preview overlay: image + editable analysis side by side ── */
     #img-overlay {
       display: none;
@@ -492,6 +558,32 @@
   </div>
 
 </div><!-- /main-section -->
+
+<!-- Pre-save checklist: every item must be ticked before the save can run -->
+<div id="confirm-overlay">
+  <div class="cf-panel">
+    <div class="cf-title">登録前の確認</div>
+    <div class="cf-sub">すべてチェックすると登録できます</div>
+
+    <label class="cf-item">
+      <input type="checkbox" data-cf>
+      <span>要らないレシートは捨てましたか？</span>
+    </label>
+    <label class="cf-item">
+      <input type="checkbox" data-cf>
+      <span>Google フォトの写真は消しましたか？</span>
+    </label>
+    <label class="cf-item">
+      <input type="checkbox" data-cf>
+      <span>ローカルの写真は消しましたか？</span>
+    </label>
+
+    <div class="cf-actions">
+      <button type="button" id="cf-cancel">キャンセル</button>
+      <button type="button" id="cf-ok" disabled>登録する</button>
+    </div>
+  </div>
+</div>
 
 <!-- Full-screen preview: receipt on the left, editable analysis on the right.
      Click the backdrop or press Esc to close. -->
@@ -1245,27 +1337,57 @@ function addToPayload(payload, dateKey, record) {
 }
 
 // ────────────────────────────────────────────────
-// Pre-save reminder — asked 3 times so it actually registers.
-// Cancelling at any point aborts the save entirely.
+// Pre-save checklist — the cleanup items must all be ticked before saving.
+// Resolves true when confirmed, false when cancelled/dismissed.
 // ────────────────────────────────────────────────
-const DISCARD_CONFIRM_ROUNDS = 3;
+const cf = {
+  root:   document.getElementById('confirm-overlay'),
+  ok:     document.getElementById('cf-ok'),
+  cancel: document.getElementById('cf-cancel'),
+};
+const cfBoxes = () => cf.root.querySelectorAll('[data-cf]');
+let cfResolve = null;
 
-function confirmReceiptsDiscarded(count) {
-  for (let i = 1; i <= DISCARD_CONFIRM_ROUNDS; i++) {
-    const msg =
-      `要らないレシートはもう捨てましたか？（${i}/${DISCARD_CONFIRM_ROUNDS}）\n\n` +
-      `OK を押すと ${count}件 を登録します。\n` +
-      `キャンセルすると登録を中止します。`;
-    if (!window.confirm(msg)) return false;
-  }
-  return true;
+function cfIsOpen() { return cf.root.style.display === 'flex'; }
+
+/** Enable the confirm button only once every box is ticked. */
+function cfSync() {
+  const boxes = [...cfBoxes()];
+  cf.ok.disabled = !boxes.every(b => b.checked);
 }
+
+function cfSettle(result) {
+  if (!cfIsOpen()) return;
+  cf.root.style.display = 'none';
+  const done = cfResolve;
+  cfResolve = null;
+  if (done) done(result);
+}
+
+function confirmBeforeSave(count) {
+  return new Promise(resolve => {
+    cfResolve = resolve;
+    // Always start unticked so each save is confirmed afresh
+    cfBoxes().forEach(b => { b.checked = false; });
+    cfSync();
+    cf.ok.textContent   = `${count}件を登録する`;
+    cf.root.style.display = 'flex';
+  });
+}
+
+cf.root.addEventListener('change', e => { if (e.target.dataset.cf !== undefined) cfSync(); });
+cf.ok.addEventListener('click', () => { if (!cf.ok.disabled) cfSettle(true); });
+cf.cancel.addEventListener('click', () => cfSettle(false));
+cf.root.addEventListener('click', e => { if (e.target === cf.root) cfSettle(false); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && cfIsOpen()) cfSettle(false);
+});
 
 // ────────────────────────────────────────────────
 // Save checked rows to Supabase
 // ────────────────────────────────────────────────
 async function saveAll() {
-  if (isSaving) return;
+  if (isSaving || cfIsOpen()) return;   // a second call would orphan the pending checklist
   if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
 
   // Only rows the user has ticked get submitted
@@ -1276,8 +1398,8 @@ async function saveAll() {
     return;
   }
 
-  // Reminder before committing: make sure the paper receipts are dealt with.
-  if (!confirmReceiptsDiscarded(checkedIndices.length)) {
+  // Cleanup checklist before committing anything
+  if (!await confirmBeforeSave(checkedIndices.length)) {
     setStatus('登録をキャンセルしました', '');
     return;
   }
