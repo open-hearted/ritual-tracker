@@ -255,6 +255,21 @@
     .td-total input  { min-width: 76px; }
     .td-cat   select { min-width: 86px; }
 
+    /* ── Sortable header ── */
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    th.sortable:hover { color: var(--text); }
+    th.sortable .sort-ind {
+      opacity: 0.45;
+      font-size: 0.72rem;
+      margin-left: 2px;
+    }
+    th.sortable.active { color: var(--accent); }
+    th.sortable.active .sort-ind { opacity: 1; color: var(--accent); }
+
     /* ── Row checkbox ── */
     .td-check { text-align: center; width: 38px; }
     input[type="checkbox"].row-check,
@@ -314,7 +329,9 @@
             <th style="width:90px">状態</th>
             <th class="td-filename">ファイル名</th>
             <th class="td-store">店名</th>
-            <th class="td-date">日付</th>
+            <th class="td-date sortable" id="sort-date" title="クリックで日付ソート">
+              日付 <span class="sort-ind" id="sort-ind">⇅</span>
+            </th>
             <th class="td-time">時刻</th>
             <th class="td-total">金額(円)</th>
             <th class="td-cat">カテゴリ</th>
@@ -569,6 +586,7 @@ async function processAll() {
   if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
   setStatus('AIで解析中...', 'info');
   await Promise.all(items.map((_, i) => analyzeOne(i)));
+  applySort();   // dates only exist now, so re-order if a sort is active
   const done = items.filter(it => it.status === 'done').length;
   const err  = items.filter(it => it.status === 'error').length;
   if (err === 0) {
@@ -751,6 +769,55 @@ function getCheckedIndices() {
     .map((it, i) => (it.checked && it.status !== 'saved' ? i : -1))
     .filter(i => i >= 0);
 }
+
+// ────────────────────────────────────────────────
+// Date sorting
+// ────────────────────────────────────────────────
+// Only the <tr> nodes are reordered — data-idx stays bound to its original
+// items[] entry, so in-flight analysis callbacks and getRowValues() keep
+// addressing the right row no matter what order things are displayed in.
+let sortDir = null;   // null (file order) | 'asc' | 'desc'
+
+/** Sort key from the row's *current* input values, so manual edits are honoured. */
+function rowSortKey(tr) {
+  const d = tr.querySelector('[data-field="date"]')?.value || '';
+  const t = tr.querySelector('[data-field="time"]')?.value || '';
+  if (!d) return '';                    // blank date -> always last
+  return `${d} ${t || '99:99'}`;        // undated time sorts to end of its day
+}
+
+function applySort() {
+  if (!sortDir) return;
+  const rows = [...dom.tbody.querySelectorAll('tr[data-idx]')];
+  rows.sort((a, b) => {
+    const ka = rowSortKey(a), kb = rowSortKey(b);
+    if (!ka && !kb) return 0;
+    if (!ka) return 1;                  // blanks stay at the bottom in both
+    if (!kb) return -1;                 // directions
+    if (ka === kb) return 0;
+    return sortDir === 'asc' ? (ka < kb ? -1 : 1) : (ka > kb ? -1 : 1);
+  });
+  const frag = document.createDocumentFragment();
+  rows.forEach(r => frag.appendChild(r));   // moving nodes preserves input state
+  dom.tbody.appendChild(frag);
+}
+
+function updateSortIndicator() {
+  const th  = document.getElementById('sort-date');
+  const ind = document.getElementById('sort-ind');
+  if (!th || !ind) return;
+  th.classList.toggle('active', !!sortDir);
+  ind.textContent = sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅';
+  th.title = sortDir === 'asc' ? '日付：古い順（クリックで新しい順）'
+           : sortDir === 'desc' ? '日付：新しい順（クリックで古い順）'
+           : 'クリックで日付ソート';
+}
+
+document.getElementById('sort-date').addEventListener('click', () => {
+  sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  updateSortIndicator();
+  applySort();
+});
 
 function updateSummary() {
   const total = items.length;
