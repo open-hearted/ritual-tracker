@@ -480,10 +480,25 @@
     table select option { background: #1a2a5e; }
 
     .td-store input  { min-width: 110px; }
-    .td-date  input  { min-width: 128px; }
-    .td-time  input  { min-width: 86px; }
     .td-total input  { min-width: 76px; }
     .td-cat   select { min-width: 86px; }
+
+    /* Date + time side by side in one cell — on PC there's room for both on
+       the same line, so they no longer eat two separate table columns. */
+    .datetime-pair {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .datetime-pair input[type="date"] { flex: 1 1 128px; min-width: 118px; width: auto; }
+    .datetime-pair input[type="time"] { flex: 1 1 86px;  min-width: 78px;  width: auto; }
+
+    /* Narrow viewports: stack date above time so neither gets crushed */
+    @media (max-width: 600px) {
+      .datetime-pair { flex-direction: column; align-items: stretch; gap: 4px; }
+      .datetime-pair input[type="date"],
+      .datetime-pair input[type="time"] { width: 100%; }
+    }
 
     /* ── Sortable header ── */
     th.sortable {
@@ -558,10 +573,9 @@
             <th style="width:90px">状態</th>
             <th class="td-filename">ファイル名</th>
             <th class="td-store">店名</th>
-            <th class="td-date sortable" id="sort-date" title="クリックで日付ソート">
-              日付 <span class="sort-ind" id="sort-ind">⇅</span>
+            <th class="td-datetime sortable" id="sort-date" title="クリックで日付ソート">
+              日付・時刻 <span class="sort-ind" id="sort-ind">⇅</span>
             </th>
-            <th class="td-time">時刻</th>
             <th class="td-total">金額(円)</th>
             <th class="td-cat">カテゴリ</th>
             <th class="td-errmsg">エラー</th>
@@ -956,11 +970,11 @@ function rebuildTable() {
                autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
                disabled>
       </td>
-      <td class="td-date">
-        <input type="date" data-field="date" value="${escHtml(item.result.date || today)}" disabled>
-      </td>
-      <td class="td-time">
-        <input type="time" data-field="time" value="${escHtml(item.result.time)}" disabled>
+      <td class="td-datetime">
+        <div class="datetime-pair">
+          <input type="date" data-field="date" value="${escHtml(item.result.date || today)}" disabled>
+          <input type="time" data-field="time" value="${escHtml(item.result.time)}" disabled>
+        </div>
       </td>
       <td class="td-total">
         <input type="number" data-field="total" min="0" step="1"
