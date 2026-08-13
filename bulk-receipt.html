@@ -254,6 +254,18 @@
     .td-time  input  { min-width: 86px; }
     .td-total input  { min-width: 76px; }
     .td-cat   select { min-width: 86px; }
+
+    /* ── Row checkbox ── */
+    .td-check { text-align: center; width: 38px; }
+    input[type="checkbox"].row-check,
+    input[type="checkbox"]#check-all {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      margin: 0;
+    }
+    input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.3; }
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -297,6 +309,7 @@
       <table>
         <thead>
           <tr>
+            <th class="td-check"><input type="checkbox" id="check-all" title="すべて選択 / 解除"></th>
             <th style="width:56px">画像</th>
             <th style="width:90px">状態</th>
             <th class="td-filename">ファイル名</th>
@@ -332,7 +345,7 @@ const supabaseClient = window.supabase
 let currentUser   = null;
 let userPayload   = {};
 let userDataRowId = null;  // Supabase user_data.id for update vs insert
-let items         = [];    // { file, thumbUrl, status, result, errorMsg }
+let items         = [];    // { file, thumbUrl, status, checked, result, errorMsg }
 let isSaving      = false;
 
 const dom = {
@@ -455,12 +468,15 @@ function handleFiles(fileList) {
     file,
     thumbUrl: URL.createObjectURL(file),
     status:   'pending',
+    checked:  false,   // auto-checked once analysis succeeds
     result:   { store: '', date: '', time: '', total: '', category: '' },
     errorMsg: ''
   }));
   dom.wrap.style.display = 'flex';
   rebuildTable();
+  syncCheckAll();
   updateSummary();
+  updateSaveButton();
   processAll();
 }
 
@@ -556,9 +572,9 @@ async function processAll() {
   const done = items.filter(it => it.status === 'done').length;
   const err  = items.filter(it => it.status === 'error').length;
   if (err === 0) {
-    setStatus(`${done}件の解析が完了しました。内容を確認して「まとめて登録」してください`, 'ok');
+    setStatus(`${done}件の解析が完了しました。内容を確認し、チェックを入れた行を「まとめて登録」してください`, 'ok');
   } else {
-    setStatus(`${done}件完了 / ${err}件エラー。エラー行は登録されません。`, done ? 'ok' : 'err');
+    setStatus(`${done}件完了 / ${err}件エラー。エラー行は未チェックです（手入力後にチェックすれば登録できます）`, done ? 'ok' : 'err');
   }
 }
 
@@ -599,6 +615,10 @@ function rebuildTable() {
   const today = todayDateKey();
   dom.tbody.innerHTML = items.map((item, idx) => `
     <tr data-idx="${idx}" class="status-${item.status}">
+      <td class="td-check">
+        <input type="checkbox" class="row-check" data-idx="${idx}"
+               ${item.checked ? 'checked' : ''} disabled>
+      </td>
       <td><img class="thumb" src="${escHtml(item.thumbUrl)}" alt="preview"></td>
       <td class="td-status">${badgeHtml(item.status)}</td>
       <td class="td-filename" title="${escHtml(item.file.name)}">${escHtml(item.file.name)}</td>
@@ -648,14 +668,30 @@ function updateRowStatus(idx) {
   const errTd = tr.querySelector('.td-errmsg');
   if (errTd) errTd.textContent = item.errorMsg || '';
 
+  const fields   = tr.querySelectorAll('[data-field]');
+  const checkbox = tr.querySelector('.row-check');
+
   // Enable inputs once processing is finished (done or error)
   if (item.status === 'done' || item.status === 'error') {
-    tr.querySelectorAll('input, select').forEach(el => el.removeAttribute('disabled'));
+    fields.forEach(el => { el.disabled = false; });
+    if (checkbox) checkbox.disabled = false;
   }
-  // Disable inputs on saved rows
+  // Lock saved rows so they can't be submitted twice
   if (item.status === 'saved') {
-    tr.querySelectorAll('input, select').forEach(el => { el.disabled = true; });
+    fields.forEach(el => { el.disabled = true; });
+    if (checkbox) { checkbox.checked = false; checkbox.disabled = true; }
   }
+
+  // Auto-check rows whose analysis succeeded; error rows stay unchecked
+  // (the user can still tick them after filling the fields by hand).
+  if (item.status === 'done') {
+    item.checked = true;
+    if (checkbox) checkbox.checked = true;
+  }
+  if (item.status === 'error' || item.status === 'saved') {
+    item.checked = false;
+  }
+  syncCheckAll();
 
   // Fill result values when just completed (don't overwrite what user is typing)
   if (item.status === 'done') {
@@ -673,23 +709,71 @@ function fillInput(tr, field, value) {
   if (el && el !== document.activeElement) el.value = value || '';
 }
 
+// ────────────────────────────────────────────────
+// Checkbox handling
+// ────────────────────────────────────────────────
+// Row checkboxes are re-created by rebuildTable(), so listen on the tbody.
+dom.tbody.addEventListener('change', e => {
+  const cb = e.target.closest('.row-check');
+  if (!cb) return;
+  const idx = Number(cb.dataset.idx);
+  if (Number.isInteger(idx) && items[idx]) items[idx].checked = cb.checked;
+  syncCheckAll();
+  updateSummary();
+  updateSaveButton();
+});
+
+// Header "select all" toggles every selectable (enabled) row.
+document.getElementById('check-all').addEventListener('change', function () {
+  dom.tbody.querySelectorAll('.row-check:not(:disabled)').forEach(cb => {
+    cb.checked = this.checked;
+    const idx = Number(cb.dataset.idx);
+    if (Number.isInteger(idx) && items[idx]) items[idx].checked = cb.checked;
+  });
+  updateSummary();
+  updateSaveButton();
+});
+
+/** Reflect row state in the header checkbox (checked / unchecked / indeterminate). */
+function syncCheckAll() {
+  const all     = [...dom.tbody.querySelectorAll('.row-check:not(:disabled)')];
+  const checked = all.filter(cb => cb.checked);
+  const master  = document.getElementById('check-all');
+  if (!master) return;
+  master.disabled      = all.length === 0;
+  master.checked       = all.length > 0 && checked.length === all.length;
+  master.indeterminate = checked.length > 0 && checked.length < all.length;
+}
+
+/** Indices of rows the user has ticked and that are still submittable. */
+function getCheckedIndices() {
+  return items
+    .map((it, i) => (it.checked && it.status !== 'saved' ? i : -1))
+    .filter(i => i >= 0);
+}
+
 function updateSummary() {
   const total = items.length;
   const done  = items.filter(it => it.status === 'done').length;
   const proc  = items.filter(it => it.status === 'processing' || it.status === 'pending').length;
   const err   = items.filter(it => it.status === 'error').length;
   const saved = items.filter(it => it.status === 'saved').length;
+  const checked = getCheckedIndices().length;
   const parts = [`全${total}件`];
   if (proc)  parts.push(`解析中:${proc}`);
   if (done)  parts.push(`完了:${done}`);
   if (err)   parts.push(`エラー:${err}`);
   if (saved) parts.push(`登録済:${saved}`);
+  parts.push(`✔選択中:${checked}`);
   dom.summary.textContent = parts.join(' / ');
 }
 
 function updateSaveButton() {
-  const doneCount = items.filter(it => it.status === 'done').length;
-  dom.btnSave.disabled = isSaving || doneCount === 0;
+  const checked = getCheckedIndices().length;
+  dom.btnSave.disabled = isSaving || checked === 0;
+  dom.btnSave.textContent = checked > 0
+    ? `まとめて登録 (${checked}件)`
+    : 'まとめて登録';
 }
 
 // ────────────────────────────────────────────────
@@ -754,19 +838,40 @@ function addToPayload(payload, dateKey, record) {
 }
 
 // ────────────────────────────────────────────────
-// Save all done rows to Supabase
+// Pre-save reminder — asked 3 times so it actually registers.
+// Cancelling at any point aborts the save entirely.
+// ────────────────────────────────────────────────
+const DISCARD_CONFIRM_ROUNDS = 3;
+
+function confirmReceiptsDiscarded(count) {
+  for (let i = 1; i <= DISCARD_CONFIRM_ROUNDS; i++) {
+    const msg =
+      `要らないレシートはもう捨てましたか？（${i}/${DISCARD_CONFIRM_ROUNDS}）\n\n` +
+      `OK を押すと ${count}件 を登録します。\n` +
+      `キャンセルすると登録を中止します。`;
+    if (!window.confirm(msg)) return false;
+  }
+  return true;
+}
+
+// ────────────────────────────────────────────────
+// Save checked rows to Supabase
 // ────────────────────────────────────────────────
 async function saveAll() {
   if (isSaving) return;
   if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
 
-  // Collect done-row indices + their current form values
-  const doneIndices = items
-    .map((it, i) => (it.status === 'done' ? i : -1))
-    .filter(i => i >= 0);
+  // Only rows the user has ticked get submitted
+  const checkedIndices = getCheckedIndices();
 
-  if (!doneIndices.length) {
-    setStatus('登録できる行がありません', 'err');
+  if (!checkedIndices.length) {
+    setStatus('登録する行にチェックを入れてください', 'err');
+    return;
+  }
+
+  // Reminder before committing: make sure the paper receipts are dealt with.
+  if (!confirmReceiptsDiscarded(checkedIndices.length)) {
+    setStatus('登録をキャンセルしました', '');
     return;
   }
 
@@ -779,7 +884,7 @@ async function saveAll() {
     await loadPayload();
 
     const today = todayDateKey();
-    for (const idx of doneIndices) {
+    for (const idx of checkedIndices) {
       const vals    = getRowValues(idx);
       if (!vals) continue;
       const record  = makeRecord(vals);
@@ -791,9 +896,9 @@ async function saveAll() {
 
     await savePayload(userPayload);
 
-    setStatus(`✅ ${doneIndices.length}件を登録しました`, 'ok');
+    setStatus(`✅ ${checkedIndices.length}件を登録しました`, 'ok');
     // Mark saved rows
-    doneIndices.forEach(i => {
+    checkedIndices.forEach(i => {
       items[i].status = 'saved';
       updateRowStatus(i);
     });
