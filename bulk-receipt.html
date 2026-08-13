@@ -199,7 +199,41 @@
       border-radius: 5px;
       border: 1px solid var(--border);
       display: block;
+      cursor: zoom-in;
+      transition: border-color 0.12s;
     }
+    .thumb:hover { border-color: var(--accent); }
+
+    /* ── Image preview overlay ── */
+    #img-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 5000;
+      cursor: zoom-out;
+      padding: 24px;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    #img-overlay img {
+      max-width: 100%;
+      max-height: calc(100% - 60px);
+      object-fit: contain;
+      border-radius: 6px;
+    }
+    #img-overlay .ov-caption {
+      color: rgba(255,255,255,0.75);
+      font-size: 0.85rem;
+      text-align: center;
+      max-width: 90%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #img-overlay .ov-hint { color: rgba(255,255,255,0.4); font-size: 0.75rem; }
 
     /* ── Filename cell ── */
     .td-filename {
@@ -211,8 +245,8 @@
       color: var(--muted);
     }
 
-    /* ── Error message ── */
-    .td-errmsg {
+    /* ── Error message (cell only — the header keeps the normal th colour) ── */
+    td.td-errmsg {
       font-size: 0.75rem;
       color: var(--danger);
       max-width: 160px;
@@ -324,7 +358,6 @@
       <table>
         <thead>
           <tr>
-            <th class="td-check"><input type="checkbox" id="check-all" title="すべて選択 / 解除"></th>
             <th style="width:56px">画像</th>
             <th style="width:90px">状態</th>
             <th class="td-filename">ファイル名</th>
@@ -336,6 +369,7 @@
             <th class="td-total">金額(円)</th>
             <th class="td-cat">カテゴリ</th>
             <th class="td-errmsg">エラー</th>
+            <th class="td-check"><input type="checkbox" id="check-all" title="すべて選択 / 解除"></th>
           </tr>
         </thead>
         <tbody id="results-tbody"></tbody>
@@ -344,6 +378,13 @@
   </div>
 
 </div><!-- /main-section -->
+
+<!-- Full-screen image preview (click anywhere or press Esc to close) -->
+<div id="img-overlay">
+  <img id="img-overlay-img" alt="レシート拡大表示">
+  <div class="ov-caption" id="img-overlay-caption"></div>
+  <div class="ov-hint">クリック / Esc で閉じる</div>
+</div>
 
 <script>
 // ────────────────────────────────────────────────
@@ -590,9 +631,9 @@ async function processAll() {
   const done = items.filter(it => it.status === 'done').length;
   const err  = items.filter(it => it.status === 'error').length;
   if (err === 0) {
-    setStatus(`${done}件の解析が完了しました。内容を確認し、チェックを入れた行を「まとめて登録」してください`, 'ok');
+    setStatus(`${done}件の解析が完了しました。登録したい行に右端のチェックを入れて「まとめて登録」してください`, 'ok');
   } else {
-    setStatus(`${done}件完了 / ${err}件エラー。エラー行は未チェックです（手入力後にチェックすれば登録できます）`, done ? 'ok' : 'err');
+    setStatus(`${done}件完了 / ${err}件エラー（エラー行も手入力すれば登録できます）。右端のチェックで登録対象を選んでください`, done ? 'ok' : 'err');
   }
 }
 
@@ -633,11 +674,10 @@ function rebuildTable() {
   const today = todayDateKey();
   dom.tbody.innerHTML = items.map((item, idx) => `
     <tr data-idx="${idx}" class="status-${item.status}">
-      <td class="td-check">
-        <input type="checkbox" class="row-check" data-idx="${idx}"
-               ${item.checked ? 'checked' : ''} disabled>
+      <td>
+        <img class="thumb" src="${escHtml(item.thumbUrl)}" data-idx="${idx}"
+             alt="レシート画像" title="クリックで拡大">
       </td>
-      <td><img class="thumb" src="${escHtml(item.thumbUrl)}" alt="preview"></td>
       <td class="td-status">${badgeHtml(item.status)}</td>
       <td class="td-filename" title="${escHtml(item.file.name)}">${escHtml(item.file.name)}</td>
       <td class="td-store">
@@ -662,6 +702,10 @@ function rebuildTable() {
         </select>
       </td>
       <td class="td-errmsg">${escHtml(item.errorMsg)}</td>
+      <td class="td-check">
+        <input type="checkbox" class="row-check" data-idx="${idx}"
+               ${item.checked ? 'checked' : ''} disabled>
+      </td>
     </tr>
   `).join('');
 }
@@ -700,15 +744,8 @@ function updateRowStatus(idx) {
     if (checkbox) { checkbox.checked = false; checkbox.disabled = true; }
   }
 
-  // Auto-check rows whose analysis succeeded; error rows stay unchecked
-  // (the user can still tick them after filling the fields by hand).
-  if (item.status === 'done') {
-    item.checked = true;
-    if (checkbox) checkbox.checked = true;
-  }
-  if (item.status === 'error' || item.status === 'saved') {
-    item.checked = false;
-  }
+  // Rows always start unchecked — the user ticks what they actually want saved.
+  if (item.status === 'saved') item.checked = false;
   syncCheckAll();
 
   // Fill result values when just completed (don't overwrite what user is typing)
@@ -769,6 +806,44 @@ function getCheckedIndices() {
     .map((it, i) => (it.checked && it.status !== 'saved' ? i : -1))
     .filter(i => i >= 0);
 }
+
+// ────────────────────────────────────────────────
+// Image preview overlay
+// ────────────────────────────────────────────────
+// The thumbnail's objectURL points at the original picked File, so the
+// overlay shows it at full resolution rather than the downscaled copy
+// that gets sent to the AI.
+const overlay = {
+  root:    document.getElementById('img-overlay'),
+  img:     document.getElementById('img-overlay-img'),
+  caption: document.getElementById('img-overlay-caption'),
+};
+
+function openImagePreview(idx) {
+  const item = items[idx];
+  if (!item) return;
+  overlay.img.src         = item.thumbUrl;
+  overlay.caption.textContent = item.file.name;
+  overlay.root.style.display  = 'flex';
+}
+
+function closeImagePreview() {
+  overlay.root.style.display = 'none';
+  overlay.img.removeAttribute('src');   // let the decoded bitmap go
+}
+
+// Thumbnails are re-created by rebuildTable(), so delegate from the tbody.
+dom.tbody.addEventListener('click', e => {
+  const thumb = e.target.closest('.thumb');
+  if (!thumb) return;
+  const idx = Number(thumb.dataset.idx);
+  if (Number.isInteger(idx)) openImagePreview(idx);
+});
+
+overlay.root.addEventListener('click', closeImagePreview);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && overlay.root.style.display === 'flex') closeImagePreview();
+});
 
 // ────────────────────────────────────────────────
 // Date sorting
