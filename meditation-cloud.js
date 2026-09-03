@@ -3068,7 +3068,6 @@ async function saveExpenseRecord(){
     if(!ensureAuthOrSignOut()) return;
 
     const file = expenseCapturedBlob || getImageInputFile(cfg);
-    if(!file && !pendingExpenseAnalysis){ alert('レシートを撮影するか、画像を選択してください'); return; }
 
     const storeEl = $('expenseStore');
     const dateEl = $('expenseDate');
@@ -3081,6 +3080,17 @@ async function saveExpenseRecord(){
     const totalVal = totalEl ? (totalEl.value || '').trim() : '';
     const category = categoryEl ? (categoryEl.value || '').trim() : '';
 
+    // レシート画像なしでも保存可能。ただし画像も入力値も無い空レコードは防ぐ
+    const hasReceiptImage = !!(file || (pendingExpenseAnalysis && pendingExpenseAnalysis.dataUrl));
+    if(!hasReceiptImage && !store && totalVal === '' && !category){
+      alert('レシート画像がない場合は、店名・金額・カテゴリのいずれかを入力してください');
+      return;
+    }
+    if(totalVal !== '' && !Number.isFinite(Number(totalVal))){
+      alert('金額は数値で入力してください');
+      return;
+    }
+
     // レシートの日付の日に記録する（未入力なら表示中の日）
     targetDateKey = isValidDateKey(dateVal) ? dateVal : STATE.selected;
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
@@ -3091,16 +3101,19 @@ async function saveExpenseRecord(){
     if(!imageBlob && file){
       setMsg('画像を圧縮中...');
       imageBlob = await compressImageBlobForRecord(file);
-    }
-    if(!imageBlob){
-      setMsg('');
-      alert('画像サイズが大きすぎます。別の画像を選択してください');
-      return;
+      if(!imageBlob){
+        setMsg('');
+        alert('画像サイズが大きすぎます。別の画像を選択してください');
+        return;
+      }
     }
 
     const createdAt = nowISO();
-    setMsg('画像をアップロード中...');
-    const storageInfo = await uploadImageBlob(imageBlob, 'expense', targetDateKey, createdAt);
+    let storageInfo = null;
+    if(imageBlob){
+      setMsg('画像をアップロード中...');
+      storageInfo = await uploadImageBlob(imageBlob, 'expense', targetDateKey, createdAt);
+    }
 
     uploadedRecord = {
       id: createRecordId('exp'),
@@ -3113,8 +3126,8 @@ async function saveExpenseRecord(){
       total: totalVal !== '' && Number.isFinite(Number(totalVal)) ? Number(totalVal) : null,
       category: EXPENSE_CATEGORIES.includes(category) ? category : null,
       items: [],
-      storageBucket: storageInfo.storageBucket,
-      storagePath: storageInfo.storagePath,
+      storageBucket: storageInfo ? storageInfo.storageBucket : null,
+      storagePath: storageInfo ? storageInfo.storagePath : null,
       createdAt,
       updatedAt: createdAt
     };
