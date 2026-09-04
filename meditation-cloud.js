@@ -469,6 +469,7 @@ function getRemindersForDateKey(dateKey) {
   targetDate.setHours(0,0,0,0);
   
   const reminders = [];
+  const acgReminders = [];
   for(const appt of list) {
     if(!appt || typeof appt !== 'object' || !appt.date) continue;
     const apptDate = parseDateKeyLocal(appt.date);
@@ -484,13 +485,22 @@ function getRemindersForDateKey(dateKey) {
     const diffTime = apptDate.getTime() - targetDate.getTime();
     const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-    if(diffDays >= 0 && (isAcg || diffDays <= remindDays)) {
-      reminders.push({
+    if(diffDays < 0) continue;
+
+    const reminder = {
         ...appt,
         diffDays
-      });
+    };
+    if(isAcg) {
+      acgReminders.push(reminder);
+    } else if(diffDays <= remindDays) {
+      reminders.push(reminder);
     }
   }
+
+  acgReminders.sort((a, b) => a.diffDays - b.diffDays);
+  if(acgReminders.length) reminders.push(acgReminders[0]);
+  if(acgReminders.length > 1) reminders.push(acgReminders[acgReminders.length - 1]);
   return reminders.sort((a, b) => a.diffDays - b.diffDays);
 }
 
