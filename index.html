@@ -361,7 +361,6 @@
           <input id="expenseStore" name="expense_store" type="text" placeholder="店名" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="text" style="flex:1 1 140px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
           <input id="expenseDate" type="date" style="flex:1 1 140px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
           <input id="expenseTime" type="time" style="flex:1 1 100px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
-          <input id="expenseTotal" type="number" min="0" step="1" placeholder="金額" style="flex:1 1 100px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
           <select id="expenseCategory" style="flex:1 1 100px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:#0b1330;color:#fff">
             <option value="">カテゴリ</option>
             <option value="食費">食費</option>
@@ -370,11 +369,13 @@
             <option value="娯楽">娯楽</option>
             <option value="その他">その他</option>
           </select>
+          <input id="expenseTotal" type="number" min="0" step="1" placeholder="金額" style="flex:1 1 100px;min-width:0;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff" />
           <button id="expenseSave">保存</button>
           <button id="expenseEditCancel" type="button" style="display:none">キャンセル</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
+        <a href="bulk-receipt.html" style="padding:6px 12px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:#14224e;color:#e8eaf6;text-decoration:none;font-size:0.82rem;display:inline-flex;align-items:center;gap:5px">📋 バルク処理</a>
       </div>
 
       <!-- 追加 / 日クリア ボタンは不要のため削除 -->

@@ -139,9 +139,30 @@ function maybeOpenInitialDate(){
       const t = q ? q : todayDateKey();
       setStateMonthFromDateKey(t);
       updateMonthlyLink(t);
-      openEditorFor(t);
+      // 支出編集はサーバーからのロード完了後でないと対象レコードが見つからない
+      Promise.resolve(openEditorFor(t)).then(()=>{ maybeBeginExpenseEditFromQuery(t); });
       return;
     }
+  }catch(e){}
+}
+
+// 月間ページの✏から expenseEdit=<record id> 付きで遷移してきた場合に、
+// 該当レシートの編集モードを開く（リロードで再突入しないよう即パラメータを消す）
+function maybeBeginExpenseEditFromQuery(dateKey){
+  try{
+    const sp = new URLSearchParams(location.search || '');
+    const id = sp.get('expenseEdit');
+    if(!id) return;
+    sp.delete('expenseEdit');
+    const qs = sp.toString();
+    history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : ''));
+    const rec = getDayRecordByDateKey(dateKey);
+    const arr = Array.isArray(rec?.expenses) ? rec.expenses : [];
+    const idx = arr.findIndex(it => it && it.id === id);
+    if(idx < 0){ setMsg('編集対象のレシートが見つかりませんでした'); return; }
+    beginExpenseEditAt(idx);
+    const row = $('expenseFormRow');
+    if(row) setTimeout(()=>{ try{ row.scrollIntoView({ block:'center', behavior:'smooth' }); }catch(e){} }, 80);
   }catch(e){}
 }
 
@@ -571,11 +592,12 @@ function openEditorFor(dateKey, opts){
 
   if(opts && opts.skipLoad){
     paint();
-    return;
+    return Promise.resolve();
   }
 
   // fetch latest payload from server before opening editor
-  med_loadAll().then((ok)=>{
+  // (呼び出し側がロード完了を待てるよう Promise を返す)
+  return med_loadAll().then((ok)=>{
     if(ok === false) return; // auth ensures message if fail
     paint();
   }).catch(()=>{
@@ -3174,7 +3196,6 @@ async function saveExpenseRecord(){
     if(!ensureAuthOrSignOut()) return;
 
     const file = expenseCapturedBlob || getImageInputFile(cfg);
-    if(!file && !pendingExpenseAnalysis){ alert('レシートを撮影するか、画像を選択してください'); return; }
 
     const storeEl = $('expenseStore');
     const dateEl = $('expenseDate');
@@ -3187,6 +3208,17 @@ async function saveExpenseRecord(){
     const totalVal = totalEl ? (totalEl.value || '').trim() : '';
     const category = categoryEl ? (categoryEl.value || '').trim() : '';
 
+    // レシート画像なしでも保存可能。ただし画像も入力値も無い空レコードは防ぐ
+    const hasReceiptImage = !!(file || (pendingExpenseAnalysis && pendingExpenseAnalysis.dataUrl));
+    if(!hasReceiptImage && !store && totalVal === '' && !category){
+      alert('レシート画像がない場合は、店名・金額・カテゴリのいずれかを入力してください');
+      return;
+    }
+    if(totalVal !== '' && !Number.isFinite(Number(totalVal))){
+      alert('金額は数値で入力してください');
+      return;
+    }
+
     // レシートの日付の日に記録する（未入力なら表示中の日）
     targetDateKey = isValidDateKey(dateVal) ? dateVal : STATE.selected;
     if(!isValidDateKey(targetDateKey)){ alert('記録する日付を選択してください'); return; }
@@ -3197,16 +3229,19 @@ async function saveExpenseRecord(){
     if(!imageBlob && file){
       setMsg('画像を圧縮中...');
       imageBlob = await compressImageBlobForRecord(file);
-    }
-    if(!imageBlob){
-      setMsg('');
-      alert('画像サイズが大きすぎます。別の画像を選択してください');
-      return;
+      if(!imageBlob){
+        setMsg('');
+        alert('画像サイズが大きすぎます。別の画像を選択してください');
+        return;
+      }
     }
 
     const createdAt = nowISO();
-    setMsg('画像をアップロード中...');
-    const storageInfo = await uploadImageBlob(imageBlob, 'expense', targetDateKey, createdAt);
+    let storageInfo = null;
+    if(imageBlob){
+      setMsg('画像をアップロード中...');
+      storageInfo = await uploadImageBlob(imageBlob, 'expense', targetDateKey, createdAt);
+    }
 
     uploadedRecord = {
       id: createRecordId('exp'),
@@ -3219,8 +3254,8 @@ async function saveExpenseRecord(){
       total: totalVal !== '' && Number.isFinite(Number(totalVal)) ? Number(totalVal) : null,
       category: EXPENSE_CATEGORIES.includes(category) ? category : null,
       items: [],
-      storageBucket: storageInfo.storageBucket,
-      storagePath: storageInfo.storagePath,
+      storageBucket: storageInfo ? storageInfo.storageBucket : null,
+      storagePath: storageInfo ? storageInfo.storagePath : null,
       createdAt,
       updatedAt: createdAt
     };
@@ -3278,6 +3313,14 @@ function beginExpenseEditAt(idx){
   const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
   const item = arr[idx];
   if(!item) return;
+
+  // 月間ページなど支出フォームが無いページでは、編集モードに入っても操作でき
+  // なくなるため、日別ページへ移動してそこで編集を開く
+  if(!$('expenseFormRow')){
+    const idPart = item.id ? `&expenseEdit=${encodeURIComponent(item.id)}` : '';
+    location.href = `index.html?date=${encodeURIComponent(dk)}${idPart}`;
+    return;
+  }
 
   expenseAnalysisRunId += 1;
   clearImageInputs(getImageRecordConfig('expense'));

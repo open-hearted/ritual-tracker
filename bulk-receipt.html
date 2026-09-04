@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="バルク処理">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>レシートバルク処理</title>
+  <link rel="icon" sizes="192x192" href="/icon-192.png" type="image/png">
+  <meta name="theme-color" content="#0b1330">
+
+  <style>
+    :root {
+      --bg:     #0b1330;
+      --card:   #14224e;
+      --muted:  rgba(255,255,255,0.45);
+      --text:   #e8eaf6;
+      --accent: #5c8aff;
+      --ok:     #4ade80;
+      --warn:   #facc15;
+      --danger: #f87171;
+      --border: rgba(255,255,255,0.10);
+      --input-bg: rgba(255,255,255,0.05);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 0 0 env(safe-area-inset-bottom, 16px) 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      min-height: 100dvh;
+    }
+    a { color: var(--accent); }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .header a.back {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+    .header a.back:hover { color: var(--text); }
+    .header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    /* ── Login ── */
+    #login-section {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 64px 24px;
+      gap: 16px;
+      min-height: 60vh;
+      text-align: center;
+    }
+    #login-section p { color: var(--muted); }
+
+    #main-section {
+      display: none;
+      flex-direction: column;
+      padding: 16px;
+      gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .btn-login {
+      background: #4285F4;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* ── File pick area ── */
+    .pick-area {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      background: var(--input-bg);
+    }
+    .pick-area:hover, .pick-area.drag-over {
+      border-color: var(--accent);
+      background: rgba(92,138,255,0.06);
+    }
+    .pick-area input { display: none; }
+    .pick-area .pick-icon { font-size: 2.2rem; line-height: 1; margin-bottom: 6px; }
+    .pick-area .pick-label { margin: 0; color: var(--muted); font-size: 0.9rem; }
+    .pick-area .pick-label strong { color: var(--accent); }
+
+    /* ── Status ── */
+    #status {
+      min-height: 1.5em;
+      font-size: 0.88rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    #status.ok   { color: var(--ok); }
+    #status.err  { color: var(--danger); }
+    #status.info { color: var(--accent); }
+
+    /* ── Save button ── */
+    .btn-save {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .btn-save:disabled { opacity: 0.35; cursor: default; }
+
+    /* ── Results area ── */
+    #results-wrap { display: none; flex-direction: column; gap: 12px; }
+
+    .results-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .summary-text { font-size: 0.82rem; color: var(--muted); }
+
+    /* ── Table ── */
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+    }
+    th, td {
+      padding: 7px 9px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    th {
+      background: var(--card);
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tr.status-error { background: rgba(248,113,113,0.06); }
+    tr.status-done  { background: rgba(74,222,128,0.03); }
+    tr.status-saved { background: rgba(74,222,128,0.08); opacity: 0.6; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.74rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .badge.pending    { background: rgba(255,255,255,0.07); color: var(--muted); }
+    .badge.processing { background: rgba(92,138,255,0.18); color: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+    .badge.done       { background: rgba(74,222,128,0.15); color: var(--ok); }
+    .badge.error      { background: rgba(248,113,113,0.15); color: var(--danger); }
+    .badge.saved      { background: rgba(74,222,128,0.25); color: var(--ok); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+
+    /* ── Thumbnail ── */
+    .thumb {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      display: block;
+      cursor: zoom-in;
+      transition: border-color 0.12s;
+    }
+    .thumb:hover { border-color: var(--accent); }
+
+    /* ── Pre-save checklist modal ── */
+    #confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 6000;          /* above the image preview */
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .cf-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .cf-title { font-size: 1rem; font-weight: 700; }
+    .cf-sub   { font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+    .cf-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.88rem;
+      background: var(--input-bg);
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .cf-item:hover { border-color: var(--accent); }
+    .cf-item:has(input:checked) {
+      border-color: var(--ok);
+      background: rgba(74,222,128,0.08);
+    }
+    .cf-item input {
+      width: 18px; height: 18px;
+      accent-color: var(--ok);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .cf-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 6px;
+    }
+    .cf-actions button {
+      border-radius: 8px;
+      padding: 9px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+    #cf-cancel { background: transparent; color: var(--muted); }
+    #cf-cancel:hover { color: var(--text); border-color: var(--muted); }
+    #cf-ok { background: var(--accent); color: #fff; border-color: transparent; }
+    #cf-ok:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* ── Preview overlay: image + editable analysis side by side ── */
+    #img-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 5000;
+      cursor: zoom-out;          /* backdrop closes */
+      padding: 20px;
+      align-items: center;
+      justify-content: center;
+    }
+    .ov-panel {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      width: 100%;
+      max-width: 1000px;
+      max-height: 100%;
+      cursor: default;           /* panel itself does not close */
+    }
+    .ov-image-pane {
+      flex: 1 1 55%;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ov-image-pane img {
+      max-width: 100%;
+      max-height: 82vh;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #000;
+    }
+    .ov-form-pane {
+      flex: 0 0 300px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      max-height: 82vh;
+    }
+    .ov-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .ov-title { font-size: 0.95rem; font-weight: 700; }
+    .ov-file {
+      font-size: 0.72rem;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 210px;
+    }
+    .ov-x {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 1.05rem;
+      cursor: pointer;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+    .ov-x:hover { color: var(--text); }
+
+    .ov-badge-row { min-height: 22px; }
+
+    .ov-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .ov-field input, .ov-field select {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 8px;
+      font-size: 0.92rem;
+      font-family: inherit;
+      width: 100%;
+    }
+    .ov-field input:focus, .ov-field select:focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(92,138,255,0.07);
+    }
+    .ov-field input:disabled, .ov-field select:disabled { opacity: 0.4; cursor: not-allowed; }
+    .ov-field select option { background: #1a2a5e; }
+
+    /* 日付・時刻を横並びに。パネル幅が確保できるPCのみ。 */
+    .ov-field-row {
+      display: flex;
+      gap: 8px;
+    }
+    .ov-field-row .ov-field { flex: 1 1 0; min-width: 0; }
+    .ov-field-row input[type="date"] { min-width: 0; }
+    .ov-field-row input[type="time"] { min-width: 0; }
+
+    .ov-check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 6px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 2px;
+    }
+    .ov-check input { width: 17px; height: 17px; accent-color: var(--accent); cursor: pointer; }
+    .ov-check input:disabled { cursor: not-allowed; opacity: 0.35; }
+
+    .ov-err { font-size: 0.76rem; color: var(--danger); }
+
+    .ov-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .ov-nav button {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .ov-nav button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .ov-nav button:disabled { opacity: 0.3; cursor: default; }
+    .ov-count { font-size: 0.78rem; color: var(--muted); }
+
+    /* Stack the panes on narrow screens */
+    @media (max-width: 760px) {
+      .ov-panel { flex-direction: column; overflow-y: auto; }
+      .ov-image-pane { flex: 0 0 auto; }
+      .ov-image-pane img { max-height: 40vh; }
+      .ov-form-pane { flex: 0 0 auto; max-height: none; width: 100%; }
+    }
+
+    /* ごく狭い画面では日付・時刻も縦積みに戻す */
+    @media (max-width: 380px) {
+      .ov-field-row { flex-direction: column; }
+    }
+
+    /* ── Filename cell ── */
+    .td-filename {
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    /* ── Error message (cell only — the header keeps the normal th colour) ── */
+    td.td-errmsg {
+      font-size: 0.75rem;
+      color: var(--danger);
+      max-width: 160px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Editable inputs ── */
+    table input[type="text"],
+    table input[type="date"],
+    table input[type="time"],
+    table input[type="number"],
+    table select {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      padding: 5px 6px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      min-width: 0;
+    }
+    table input:disabled, table select:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    table input:not(:disabled):focus,
+    table select:not(:disabled):focus {
+      outline: none;
+      border-color: var(--accent);
+      background: rgba(92,138,255,0.07);
+    }
+    table select option { background: #1a2a5e; }
+
+    .td-store input  { min-width: 110px; }
+    .td-total input  { min-width: 76px; }
+    .td-cat   select { min-width: 86px; }
+
+    /* Date + time side by side in one cell — on PC there's room for both on
+       the same line, so they no longer eat two separate table columns. */
+    .datetime-pair {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+    .datetime-pair input[type="date"] { flex: 1 1 128px; min-width: 118px; width: auto; }
+    .datetime-pair input[type="time"] { flex: 1 1 86px;  min-width: 78px;  width: auto; }
+
+    /* Narrow viewports: stack date above time so neither gets crushed */
+    @media (max-width: 600px) {
+      .datetime-pair { flex-direction: column; align-items: stretch; gap: 4px; }
+      .datetime-pair input[type="date"],
+      .datetime-pair input[type="time"] { width: 100%; }
+    }
+
+    /* ── Sortable header ── */
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    th.sortable:hover { color: var(--text); }
+    th.sortable .sort-ind {
+      opacity: 0.45;
+      font-size: 0.72rem;
+      margin-left: 2px;
+    }
+    th.sortable.active { color: var(--accent); }
+    th.sortable.active .sort-ind { opacity: 1; color: var(--accent); }
+
+    /* ── Row checkbox ── */
+    .td-check { text-align: center; width: 38px; }
+    input[type="checkbox"].row-check,
+    input[type="checkbox"]#check-all {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      margin: 0;
+    }
+    input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.3; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-section">
+  <p>レシートバルク処理を使うにはログインが必要です</p>
+  <button class="btn-login" onclick="signIn()">Googleでログイン</button>
+</div>
+
+<!-- Main -->
+<div id="main-section">
+
+  <div class="header">
+    <a class="back" href="index.html">← 戻る</a>
+    <h1>📋 レシートバルク処理</h1>
+  </div>
+
+  <!-- File picker -->
+  <label class="pick-area" id="pick-area">
+    <input type="file" id="file-input" multiple accept="image/*">
+    <div class="pick-icon">🗂️</div>
+    <p class="pick-label">
+      <strong>クリックして画像を選択</strong><br>
+      複数のレシート画像をまとめて選べます（JPEG / PNG / WebP）
+    </p>
+  </label>
+
+  <div id="status"></div>
+
+  <!-- Results -->
+  <div id="results-wrap">
+    <div class="results-meta">
+      <span class="summary-text" id="summary-text"></span>
+      <button class="btn-save" id="btn-save" disabled onclick="saveAll()">まとめて登録</button>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:56px">画像</th>
+            <th style="width:90px">状態</th>
+            <th class="td-filename">ファイル名</th>
+            <th class="td-store">店名</th>
+            <th class="td-datetime sortable" id="sort-date" title="クリックで日付ソート">
+              日付・時刻 <span class="sort-ind" id="sort-ind">⇅</span>
+            </th>
+            <th class="td-total">金額(円)</th>
+            <th class="td-cat">カテゴリ</th>
+            <th class="td-errmsg">エラー</th>
+            <th class="td-check"><input type="checkbox" id="check-all" title="すべて選択 / 解除"></th>
+          </tr>
+        </thead>
+        <tbody id="results-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main-section -->
+
+<!-- Pre-save checklist: every item must be ticked before the save can run -->
+<div id="confirm-overlay">
+  <div class="cf-panel">
+    <div class="cf-title">登録前の確認</div>
+    <div class="cf-sub">すべてチェックすると登録できます</div>
+
+    <label class="cf-item">
+      <input type="checkbox" data-cf>
+      <span>要らないレシートは捨てましたか？</span>
+    </label>
+    <label class="cf-item">
+      <input type="checkbox" data-cf>
+      <span>Google フォトの写真は消しましたか？</span>
+    </label>
+    <label class="cf-item">
+      <input type="checkbox" data-cf>
+      <span>ローカルの写真は消しましたか？</span>
+    </label>
+
+    <div class="cf-actions">
+      <button type="button" id="cf-cancel">キャンセル</button>
+      <button type="button" id="cf-ok" disabled>登録する</button>
+    </div>
+  </div>
+</div>
+
+<!-- Full-screen preview: receipt on the left, editable analysis on the right.
+     Click the backdrop or press Esc to close. -->
+<div id="img-overlay">
+  <div class="ov-panel">
+
+    <div class="ov-image-pane">
+      <img id="img-overlay-img" alt="レシート拡大表示">
+    </div>
+
+    <div class="ov-form-pane">
+      <div class="ov-head">
+        <div>
+          <div class="ov-title">解析結果</div>
+          <div class="ov-file" id="ov-file"></div>
+        </div>
+        <button type="button" class="ov-x" id="ov-close" title="閉じる (Esc)">✕</button>
+      </div>
+
+      <div class="ov-badge-row"><span id="ov-badge"></span></div>
+
+      <label class="ov-field">店名
+        <input type="text" data-ov="store" placeholder="店名"
+               autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
+      </label>
+      <div class="ov-field-row">
+        <label class="ov-field">日付
+          <input type="date" data-ov="date">
+        </label>
+        <label class="ov-field">時刻
+          <input type="time" data-ov="time">
+        </label>
+      </div>
+      <label class="ov-field">カテゴリ
+        <select data-ov="category"></select>
+      </label>
+      <label class="ov-field">金額(円)
+        <input type="number" data-ov="total" min="0" step="1" placeholder="金額">
+      </label>
+
+      <label class="ov-check">
+        <input type="checkbox" id="ov-check">
+        <span>登録対象にする</span>
+      </label>
+
+      <div class="ov-err" id="ov-err"></div>
+
+      <div class="ov-nav">
+        <button type="button" id="ov-prev" title="前のレシート">←</button>
+        <span class="ov-count" id="ov-count"></span>
+        <button type="button" id="ov-next" title="次のレシート">→</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ────────────────────────────────────────────────
+// Constants & globals
+// ────────────────────────────────────────────────
+const SUPABASE_URL      = 'https://jlkfvijgfrvoesazegnc.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_yfTwumo2INpAJIJRq7_WSA_ivenN96B';
+const CATEGORIES        = ['食費', '日用品', '交通費', '娯楽', 'その他'];
+const MAX_SIDE_PX       = 1200;   // mirror meditation-cloud.js
+const JPEG_QUALITY      = 0.85;
+
+const supabaseClient = window.supabase
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let currentUser   = null;
+let userPayload   = {};
+let userDataRowId = null;  // Supabase user_data.id for update vs insert
+let items         = [];    // { file, thumbUrl, status, checked, result, errorMsg }
+let isSaving      = false;
+
+const dom = {
+  login:   document.getElementById('login-section'),
+  main:    document.getElementById('main-section'),
+  status:  document.getElementById('status'),
+  wrap:    document.getElementById('results-wrap'),
+  tbody:   document.getElementById('results-tbody'),
+  summary: document.getElementById('summary-text'),
+  btnSave: document.getElementById('btn-save'),
+};
+
+// ────────────────────────────────────────────────
+// Auth
+// ────────────────────────────────────────────────
+async function checkAuth() {
+  if (!supabaseClient) { showLogin(); return; }
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session && session.user) { currentUser = session.user; showMain(); await loadPayload(); }
+  else { showLogin(); }
+}
+
+function showMain()  { dom.login.style.display = 'none';  dom.main.style.display  = 'flex'; }
+function showLogin() { dom.login.style.display = 'flex';  dom.main.style.display  = 'none'; }
+
+async function signIn() {
+  await supabaseClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname }
+  });
+}
+
+supabaseClient && supabaseClient.auth.onAuthStateChange(async (_, session) => {
+  if (session && session.user) {
+    currentUser = session.user;
+    showMain();
+    await loadPayload();
+  } else {
+    currentUser = null;
+    showLogin();
+  }
+});
+
+// ────────────────────────────────────────────────
+// Supabase payload load / save
+// (mirrors syncPending in quick-log.html / med_saveAll in meditation-cloud.js)
+// ────────────────────────────────────────────────
+async function loadPayload() {
+  if (!currentUser) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from('user_data')
+      .select('id, payload')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) {
+      userDataRowId = data.id;
+      userPayload   = (data.payload && typeof data.payload === 'object') ? data.payload : {};
+    } else {
+      userDataRowId = null;
+      userPayload   = {};
+    }
+    userPayload.data   = userPayload.data   || {};
+    userPayload.__meta = userPayload.__meta || { version: 0, updatedAt: new Date().toISOString() };
+  } catch (e) {
+    console.warn('[bulk-receipt] loadPayload error', e);
+    setStatus('データの読み込みに失敗しました。再読み込みしてください。', 'err');
+  }
+}
+
+async function savePayload(payload) {
+  payload.__meta.version   = (payload.__meta.version || 0) + 1;
+  payload.__meta.updatedAt  = new Date().toISOString();
+  let upsertErr;
+  if (userDataRowId) {
+    const { error } = await supabaseClient
+      .from('user_data').update({ payload }).eq('id', userDataRowId);
+    upsertErr = error;
+  } else {
+    const { data, error } = await supabaseClient
+      .from('user_data')
+      .insert({ user_id: currentUser.id, payload })
+      .select('id')
+      .maybeSingle();
+    upsertErr = error;
+    if (!error && data) userDataRowId = data.id;
+  }
+  if (upsertErr) throw upsertErr;
+}
+
+// ────────────────────────────────────────────────
+// File picker & drag-drop
+// ────────────────────────────────────────────────
+document.getElementById('file-input').addEventListener('change', e => {
+  handleFiles(e.target.files);
+  e.target.value = '';
+});
+
+const pickArea = document.getElementById('pick-area');
+pickArea.addEventListener('dragover', e => { e.preventDefault(); pickArea.classList.add('drag-over'); });
+pickArea.addEventListener('dragleave', () => pickArea.classList.remove('drag-over'));
+pickArea.addEventListener('drop', e => {
+  e.preventDefault();
+  pickArea.classList.remove('drag-over');
+  if (e.dataTransfer && e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(fileList) {
+  const accepted = Array.from(fileList).filter(f => /^image\//i.test(f.type));
+  if (!accepted.length) {
+    setStatus('画像ファイルを選択してください（JPEG / PNG / WebP）', 'err');
+    return;
+  }
+  setStatus('', '');
+  closeImagePreview();   // a preview of the previous batch would be stale
+  // Each call resets the table with the newly selected files
+  // (revoke old objectURLs first)
+  items.forEach(it => { if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl); });
+  items = accepted.map(file => ({
+    file,
+    thumbUrl: URL.createObjectURL(file),
+    status:   'pending',
+    checked:  false,   // auto-checked once analysis succeeds
+    result:   { store: '', date: '', time: '', total: '', category: '' },
+    errorMsg: ''
+  }));
+  dom.wrap.style.display = 'flex';
+  rebuildTable();
+  syncCheckAll();
+  updateSummary();
+  updateSaveButton();
+  processAll();
+}
+
+window.addEventListener('beforeunload', () => {
+  items.forEach(it => { if (it.thumbUrl) URL.revokeObjectURL(it.thumbUrl); });
+});
+
+// ────────────────────────────────────────────────
+// Image compression
+// (mirrors compressImageForRecord in meditation-cloud.js)
+// ────────────────────────────────────────────────
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h) { reject(new Error('invalid image dimensions')); return; }
+      if (w > MAX_SIDE_PX || h > MAX_SIDE_PX) {
+        if (w >= h) { h = Math.round(h * MAX_SIDE_PX / w); w = MAX_SIDE_PX; }
+        else        { w = Math.round(w * MAX_SIDE_PX / h); h = MAX_SIDE_PX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (!blob) { reject(new Error('canvas toBlob failed')); return; }
+        const fr = new FileReader();
+        fr.onload  = () => resolve({ base64: fr.result.split(',')[1], mimeType: 'image/jpeg' });
+        fr.onerror = () => reject(new Error('FileReader failed'));
+        fr.readAsDataURL(blob);
+      }, 'image/jpeg', JPEG_QUALITY);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')); };
+    img.src = url;
+  });
+}
+
+// ────────────────────────────────────────────────
+// AI analysis (calls existing /api/receipt-analyze per image in parallel)
+// ────────────────────────────────────────────────
+async function analyzeOne(idx) {
+  const item = items[idx];
+  item.status = 'processing';
+  updateRowStatus(idx);
+  updateSummary();
+
+  try {
+    const { base64, mimeType } = await compressImage(item.file);
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) throw new Error('セッション期限切れ。再ログインしてください');
+
+    const res = await fetch('/api/receipt-analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ imageBase64: base64, mimeType })
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json || !json.ok) {
+      const msg = (json && json.error) ? json.error : `HTTP ${res.status}`;
+      throw new Error(`AI解析失敗: ${msg}`);
+    }
+
+    const d = json.data || {};
+    item.result = {
+      store:    d.store    || '',
+      date:     d.date     || '',
+      time:     d.time     || '',
+      total:    (d.total !== null && d.total !== undefined) ? String(d.total) : '',
+      category: CATEGORIES.includes(d.category) ? d.category : ''
+    };
+    item.status   = 'done';
+    item.errorMsg = '';
+  } catch (e) {
+    item.status   = 'error';
+    item.errorMsg = e.message || 'エラー';
+  }
+
+  updateRowStatus(idx);
+  updateSummary();
+  updateSaveButton();
+}
+
+async function processAll() {
+  if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
+  setStatus('AIで解析中...', 'info');
+  await Promise.all(items.map((_, i) => analyzeOne(i)));
+  applySort();   // dates only exist now, so re-order if a sort is active
+  const done = items.filter(it => it.status === 'done').length;
+  const err  = items.filter(it => it.status === 'error').length;
+  if (err === 0) {
+    setStatus(`${done}件の解析が完了しました。登録したい行に右端のチェックを入れて「まとめて登録」してください`, 'ok');
+  } else {
+    setStatus(`${done}件完了 / ${err}件エラー（エラー行も手入力すれば登録できます）。右端のチェックで登録対象を選んでください`, done ? 'ok' : 'err');
+  }
+}
+
+// ────────────────────────────────────────────────
+// Table rendering
+// ────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function categoryOptions(selected) {
+  return ['', ...CATEGORIES].map(c => {
+    const sel = c === selected ? ' selected' : '';
+    return `<option value="${c}"${sel}>${c || 'カテゴリ'}</option>`;
+  }).join('');
+}
+
+function badgeHtml(status) {
+  const map = {
+    pending:    '<span class="badge pending">⏳ 待機中</span>',
+    processing: '<span class="badge processing">⚙️ 解析中</span>',
+    done:       '<span class="badge done">✅ 完了</span>',
+    error:      '<span class="badge error">❌ エラー</span>',
+    saved:      '<span class="badge saved">💾 登録済</span>'
+  };
+  return map[status] || '';
+}
+
+function todayDateKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+/** Full table rebuild – called once on file selection. Preserves nothing. */
+function rebuildTable() {
+  const today = todayDateKey();
+  dom.tbody.innerHTML = items.map((item, idx) => `
+    <tr data-idx="${idx}" class="status-${item.status}">
+      <td>
+        <img class="thumb" src="${escHtml(item.thumbUrl)}" data-idx="${idx}"
+             alt="レシート画像" title="クリックで拡大">
+      </td>
+      <td class="td-status">${badgeHtml(item.status)}</td>
+      <td class="td-filename" title="${escHtml(item.file.name)}">${escHtml(item.file.name)}</td>
+      <td class="td-store">
+        <input type="text" data-field="store" placeholder="店名"
+               value="${escHtml(item.result.store)}"
+               autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+               disabled>
+      </td>
+      <td class="td-datetime">
+        <div class="datetime-pair">
+          <input type="date" data-field="date" value="${escHtml(item.result.date || today)}" disabled>
+          <input type="time" data-field="time" value="${escHtml(item.result.time)}" disabled>
+        </div>
+      </td>
+      <td class="td-total">
+        <input type="number" data-field="total" min="0" step="1"
+               placeholder="金額" value="${escHtml(item.result.total)}" disabled>
+      </td>
+      <td class="td-cat">
+        <select data-field="category" disabled>
+          ${categoryOptions(item.result.category)}
+        </select>
+      </td>
+      <td class="td-errmsg">${escHtml(item.errorMsg)}</td>
+      <td class="td-check">
+        <input type="checkbox" class="row-check" data-idx="${idx}"
+               ${item.checked ? 'checked' : ''} disabled>
+      </td>
+    </tr>
+  `).join('');
+}
+
+/**
+ * In-place status update for a single row.
+ * Updates: row class, badge cell, error cell, enables inputs, fills result values.
+ * Does NOT touch inputs the user may have already edited (checks activeElement).
+ */
+function updateRowStatus(idx) {
+  const item = items[idx];
+  const tr   = dom.tbody.querySelector(`tr[data-idx="${idx}"]`);
+  if (!tr) return;
+
+  tr.className = `status-${item.status}`;
+
+  // Badge
+  const badgeTd = tr.querySelector('.td-status');
+  if (badgeTd) badgeTd.innerHTML = badgeHtml(item.status);
+
+  // Error message
+  const errTd = tr.querySelector('.td-errmsg');
+  if (errTd) errTd.textContent = item.errorMsg || '';
+
+  const fields   = tr.querySelectorAll('[data-field]');
+  const checkbox = tr.querySelector('.row-check');
+
+  // Enable inputs once processing is finished (done or error)
+  if (item.status === 'done' || item.status === 'error') {
+    fields.forEach(el => { el.disabled = false; });
+    if (checkbox) checkbox.disabled = false;
+  }
+  // Lock saved rows so they can't be submitted twice
+  if (item.status === 'saved') {
+    fields.forEach(el => { el.disabled = true; });
+    if (checkbox) { checkbox.checked = false; checkbox.disabled = true; }
+  }
+
+  // Rows always start unchecked — the user ticks what they actually want saved.
+  if (item.status === 'saved') item.checked = false;
+  syncCheckAll();
+
+  // Keep an open preview showing this row in step with it (e.g. analysis
+  // finishing, or the row becoming read-only after a save).
+  if (ovIdx === idx && isOverlayOpen()) ovLoad();
+
+  // Fill result values when just completed (don't overwrite what user is typing)
+  if (item.status === 'done') {
+    fillInput(tr, 'store',    item.result.store);
+    fillInput(tr, 'date',     item.result.date);
+    fillInput(tr, 'time',     item.result.time);
+    fillInput(tr, 'total',    item.result.total);
+    const sel = tr.querySelector('select[data-field="category"]');
+    if (sel && sel !== document.activeElement) sel.value = item.result.category || '';
+  }
+}
+
+function fillInput(tr, field, value) {
+  const el = tr.querySelector(`[data-field="${field}"]`);
+  if (el && el !== document.activeElement) el.value = value || '';
+}
+
+// ────────────────────────────────────────────────
+// Checkbox handling
+// ────────────────────────────────────────────────
+// Row checkboxes are re-created by rebuildTable(), so listen on the tbody.
+dom.tbody.addEventListener('change', e => {
+  const cb = e.target.closest('.row-check');
+  if (!cb) return;
+  const idx = Number(cb.dataset.idx);
+  if (Number.isInteger(idx) && items[idx]) items[idx].checked = cb.checked;
+  syncCheckAll();
+  updateSummary();
+  updateSaveButton();
+  if (ovIdx === idx && isOverlayOpen()) overlay.check.checked = cb.checked;
+});
+
+// Header "select all" toggles every selectable (enabled) row.
+document.getElementById('check-all').addEventListener('change', function () {
+  dom.tbody.querySelectorAll('.row-check:not(:disabled)').forEach(cb => {
+    cb.checked = this.checked;
+    const idx = Number(cb.dataset.idx);
+    if (Number.isInteger(idx) && items[idx]) items[idx].checked = cb.checked;
+  });
+  updateSummary();
+  updateSaveButton();
+});
+
+/** Reflect row state in the header checkbox (checked / unchecked / indeterminate). */
+function syncCheckAll() {
+  const all     = [...dom.tbody.querySelectorAll('.row-check:not(:disabled)')];
+  const checked = all.filter(cb => cb.checked);
+  const master  = document.getElementById('check-all');
+  if (!master) return;
+  master.disabled      = all.length === 0;
+  master.checked       = all.length > 0 && checked.length === all.length;
+  master.indeterminate = checked.length > 0 && checked.length < all.length;
+}
+
+/** Indices of rows the user has ticked and that are still submittable. */
+function getCheckedIndices() {
+  return items
+    .map((it, i) => (it.checked && it.status !== 'saved' ? i : -1))
+    .filter(i => i >= 0);
+}
+
+// ────────────────────────────────────────────────
+// Image preview overlay
+// ────────────────────────────────────────────────
+// The thumbnail's objectURL points at the original picked File, so the
+// overlay shows it at full resolution rather than the downscaled copy
+// that gets sent to the AI.
+const overlay = {
+  root:  document.getElementById('img-overlay'),
+  img:   document.getElementById('img-overlay-img'),
+  file:  document.getElementById('ov-file'),
+  badge: document.getElementById('ov-badge'),
+  err:   document.getElementById('ov-err'),
+  check: document.getElementById('ov-check'),
+  count: document.getElementById('ov-count'),
+  prev:  document.getElementById('ov-prev'),
+  next:  document.getElementById('ov-next'),
+};
+let ovIdx = null;   // index of the row currently shown, or null when closed
+
+const ovFields = () => overlay.root.querySelectorAll('[data-ov]');
+
+// Category dropdown mirrors the table's options
+document.querySelector('[data-ov="category"]').innerHTML = categoryOptions('');
+
+/** The table row is the single source of truth; the overlay reads from it. */
+function ovRow(idx) {
+  return dom.tbody.querySelector(`tr[data-idx="${idx}"]`);
+}
+
+function isOverlayOpen() {
+  return overlay.root.style.display === 'flex';
+}
+
+function openImagePreview(idx) {
+  const item = items[idx];
+  if (!item) return;
+  ovIdx = idx;
+  overlay.img.src        = item.thumbUrl;
+  overlay.file.textContent = item.file.name;
+  overlay.root.style.display = 'flex';
+  ovLoad();
+}
+
+/** Pull the row's current values into the overlay fields. */
+function ovLoad() {
+  if (ovIdx === null) return;
+  const item = items[ovIdx];
+  const tr   = ovRow(ovIdx);
+  if (!item || !tr) return;
+
+  overlay.badge.innerHTML  = badgeHtml(item.status);
+  overlay.err.textContent  = item.errorMsg || '';
+
+  ovFields().forEach(el => {
+    const src = tr.querySelector(`[data-field="${el.dataset.ov}"]`);
+    el.value    = src ? src.value : '';
+    el.disabled = !src || src.disabled;      // saved / still-analysing rows are read-only
+  });
+
+  const rowCheck = tr.querySelector('.row-check');
+  overlay.check.checked  = !!(rowCheck && rowCheck.checked);
+  overlay.check.disabled = !rowCheck || rowCheck.disabled;
+
+  // Navigation follows the *displayed* order, so it matches what the user sees
+  const order = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos   = order.indexOf(ovIdx);
+  overlay.count.textContent = `${pos + 1} / ${order.length}`;
+  overlay.prev.disabled = pos <= 0;
+  overlay.next.disabled = pos < 0 || pos >= order.length - 1;
+}
+
+/** Write an overlay edit straight back into the table row. */
+function ovWriteThrough(el) {
+  if (ovIdx === null) return;
+  const tr  = ovRow(ovIdx);
+  const dst = tr && tr.querySelector(`[data-field="${el.dataset.ov}"]`);
+  if (!dst || dst.disabled) return;
+  dst.value = el.value;
+}
+
+overlay.root.addEventListener('input',  e => {
+  if (e.target.dataset && e.target.dataset.ov) ovWriteThrough(e.target);
+});
+overlay.root.addEventListener('change', e => {
+  if (e.target.dataset && e.target.dataset.ov) ovWriteThrough(e.target);
+});
+
+// Mirror the approval checkbox both ways. Ticking it also means "I'm done
+// reviewing this one":
+//   - not the last receipt  -> move on to the next automatically
+//   - the last receipt      -> nothing left to review, so close the overlay
+//                              and go straight into the save flow (which
+//                              opens the cleanup checklist before writing
+//                              anything, same as the まとめて登録 button)
+// Unchecking never triggers any of this — only a deliberate "yes, include
+// this one" tick counts as "done reviewing".
+overlay.check.addEventListener('change', () => {
+  if (ovIdx === null) return;
+  const tr = ovRow(ovIdx);
+  const cb = tr && tr.querySelector('.row-check');
+  if (!cb || cb.disabled) return;
+  cb.checked = overlay.check.checked;
+  cb.dispatchEvent(new Event('change', { bubbles: true }));   // reuses the row handler
+  if (!overlay.check.checked) return;
+
+  const order  = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos    = order.indexOf(ovIdx);
+  const isLast = pos >= 0 && pos === order.length - 1;
+  if (isLast) {
+    closeImagePreview();
+    saveAll();
+  } else {
+    ovStep(1);
+  }
+});
+
+/** Move to the next/previous receipt in displayed order; a no-op past either end. */
+function ovStep(delta) {
+  const order = [...dom.tbody.querySelectorAll('tr[data-idx]')].map(t => Number(t.dataset.idx));
+  const pos   = order.indexOf(ovIdx);
+  const next  = pos + delta;
+  if (pos < 0 || next < 0 || next >= order.length) return;
+  openImagePreview(order[next]);
+}
+
+overlay.prev.addEventListener('click', () => ovStep(-1));
+overlay.next.addEventListener('click', () => ovStep(1));
+
+function closeImagePreview() {
+  overlay.root.style.display = 'none';
+  overlay.img.removeAttribute('src');   // let the decoded bitmap go
+  ovIdx = null;
+}
+document.getElementById('ov-close').addEventListener('click', closeImagePreview);
+
+// Only the backdrop closes — clicks inside the panel must not dismiss it
+overlay.root.addEventListener('click', e => {
+  if (e.target === overlay.root) closeImagePreview();
+});
+
+// Thumbnails are re-created by rebuildTable(), so delegate from the tbody.
+dom.tbody.addEventListener('click', e => {
+  const thumb = e.target.closest('.thumb');
+  if (!thumb) return;
+  const idx = Number(thumb.dataset.idx);
+  if (Number.isInteger(idx)) openImagePreview(idx);
+});
+
+document.addEventListener('keydown', e => {
+  if (!isOverlayOpen()) return;
+  if (e.key === 'Escape')     { closeImagePreview(); return; }
+  // Arrow keys navigate, unless the user is typing in a field
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '')) return;
+  if (e.key === 'ArrowLeft')  ovStep(-1);
+  if (e.key === 'ArrowRight') ovStep(1);
+});
+
+// ────────────────────────────────────────────────
+// Date sorting
+// ────────────────────────────────────────────────
+// Only the <tr> nodes are reordered — data-idx stays bound to its original
+// items[] entry, so in-flight analysis callbacks and getRowValues() keep
+// addressing the right row no matter what order things are displayed in.
+let sortDir = null;   // null (file order) | 'asc' | 'desc'
+
+/** Sort key from the row's *current* input values, so manual edits are honoured. */
+function rowSortKey(tr) {
+  const d = tr.querySelector('[data-field="date"]')?.value || '';
+  const t = tr.querySelector('[data-field="time"]')?.value || '';
+  if (!d) return '';                    // blank date -> always last
+  return `${d} ${t || '99:99'}`;        // undated time sorts to end of its day
+}
+
+function applySort() {
+  if (!sortDir) return;
+  const rows = [...dom.tbody.querySelectorAll('tr[data-idx]')];
+  rows.sort((a, b) => {
+    const ka = rowSortKey(a), kb = rowSortKey(b);
+    if (!ka && !kb) return 0;
+    if (!ka) return 1;                  // blanks stay at the bottom in both
+    if (!kb) return -1;                 // directions
+    if (ka === kb) return 0;
+    return sortDir === 'asc' ? (ka < kb ? -1 : 1) : (ka > kb ? -1 : 1);
+  });
+  const frag = document.createDocumentFragment();
+  rows.forEach(r => frag.appendChild(r));   // moving nodes preserves input state
+  dom.tbody.appendChild(frag);
+}
+
+function updateSortIndicator() {
+  const th  = document.getElementById('sort-date');
+  const ind = document.getElementById('sort-ind');
+  if (!th || !ind) return;
+  th.classList.toggle('active', !!sortDir);
+  ind.textContent = sortDir === 'asc' ? '▲' : sortDir === 'desc' ? '▼' : '⇅';
+  th.title = sortDir === 'asc' ? '日付：古い順（クリックで新しい順）'
+           : sortDir === 'desc' ? '日付：新しい順（クリックで古い順）'
+           : 'クリックで日付ソート';
+}
+
+document.getElementById('sort-date').addEventListener('click', () => {
+  sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  updateSortIndicator();
+  applySort();
+});
+
+function updateSummary() {
+  const total = items.length;
+  const done  = items.filter(it => it.status === 'done').length;
+  const proc  = items.filter(it => it.status === 'processing' || it.status === 'pending').length;
+  const err   = items.filter(it => it.status === 'error').length;
+  const saved = items.filter(it => it.status === 'saved').length;
+  const checked = getCheckedIndices().length;
+  const parts = [`全${total}件`];
+  if (proc)  parts.push(`解析中:${proc}`);
+  if (done)  parts.push(`完了:${done}`);
+  if (err)   parts.push(`エラー:${err}`);
+  if (saved) parts.push(`登録済:${saved}`);
+  parts.push(`✔選択中:${checked}`);
+  dom.summary.textContent = parts.join(' / ');
+}
+
+function updateSaveButton() {
+  const checked = getCheckedIndices().length;
+  dom.btnSave.disabled = isSaving || checked === 0;
+  dom.btnSave.textContent = checked > 0
+    ? `まとめて登録 (${checked}件)`
+    : 'まとめて登録';
+}
+
+// ────────────────────────────────────────────────
+// Read current form values from a table row
+// ────────────────────────────────────────────────
+function getRowValues(idx) {
+  const tr = dom.tbody.querySelector(`tr[data-idx="${idx}"]`);
+  if (!tr) return null;
+  return {
+    store:    (tr.querySelector('[data-field="store"]')?.value    || '').trim(),
+    date:     (tr.querySelector('[data-field="date"]')?.value     || '').trim(),
+    time:     (tr.querySelector('[data-field="time"]')?.value     || '').trim(),
+    total:    (tr.querySelector('[data-field="total"]')?.value    || '').trim(),
+    category: (tr.querySelector('[data-field="category"]')?.value || '').trim()
+  };
+}
+
+// ────────────────────────────────────────────────
+// Expense record builder – NO image upload
+// (mirrors saveExpenseRecord in meditation-cloud.js, storagePath left null)
+// ────────────────────────────────────────────────
+function makeRecord(vals) {
+  const now  = new Date().toISOString();
+  const date = vals.date || null;
+  const time = vals.time || null;
+  let occurredAt = null;
+  if (date && time) {
+    try { occurredAt = new Date(`${date}T${time}:00`).toISOString(); } catch (_) {}
+  }
+  const totalNum = (vals.total !== '' && vals.total != null && !isNaN(Number(vals.total)))
+    ? Number(vals.total) : null;
+  return {
+    id:           'exp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    kind:         'expense',
+    source:       'receipt',
+    store:        vals.store || null,
+    date,
+    time,
+    occurredAt,
+    total:        totalNum,
+    category:     CATEGORIES.includes(vals.category) ? vals.category : null,
+    items:        [],
+    storageBucket: null,   // bulk mode: no image stored in Supabase Storage
+    storagePath:   null,
+    createdAt:    now,
+    updatedAt:    now
+  };
+}
+
+// ────────────────────────────────────────────────
+// Merge a record into the payload
+// (mirrors addExpenseRecordToPayload in meditation-cloud.js)
+// ────────────────────────────────────────────────
+function addToPayload(payload, dateKey, record) {
+  const mk = dateKey.slice(0, 7);   // 'YYYY-MM'
+  payload.data        = payload.data        || {};
+  payload.data[mk]    = payload.data[mk]    || {};
+  const rec           = payload.data[mk][dateKey] || {};
+  rec.expenses        = Array.isArray(rec.expenses) ? rec.expenses : [];
+  rec.expenses.push(record);
+  payload.data[mk][dateKey] = rec;
+}
+
+// ────────────────────────────────────────────────
+// Pre-save checklist — the cleanup items must all be ticked before saving.
+// Resolves true when confirmed, false when cancelled/dismissed.
+// ────────────────────────────────────────────────
+const cf = {
+  root:   document.getElementById('confirm-overlay'),
+  ok:     document.getElementById('cf-ok'),
+  cancel: document.getElementById('cf-cancel'),
+};
+const cfBoxes = () => cf.root.querySelectorAll('[data-cf]');
+let cfResolve = null;
+
+function cfIsOpen() { return cf.root.style.display === 'flex'; }
+
+/** Enable the confirm button only once every box is ticked. */
+function cfSync() {
+  const boxes = [...cfBoxes()];
+  cf.ok.disabled = !boxes.every(b => b.checked);
+}
+
+function cfSettle(result) {
+  if (!cfIsOpen()) return;
+  cf.root.style.display = 'none';
+  const done = cfResolve;
+  cfResolve = null;
+  if (done) done(result);
+}
+
+function confirmBeforeSave(count) {
+  return new Promise(resolve => {
+    cfResolve = resolve;
+    // Always start unticked so each save is confirmed afresh
+    cfBoxes().forEach(b => { b.checked = false; });
+    cfSync();
+    cf.ok.textContent   = `${count}件を登録する`;
+    cf.root.style.display = 'flex';
+  });
+}
+
+cf.root.addEventListener('change', e => { if (e.target.dataset.cf !== undefined) cfSync(); });
+cf.ok.addEventListener('click', () => { if (!cf.ok.disabled) cfSettle(true); });
+cf.cancel.addEventListener('click', () => cfSettle(false));
+cf.root.addEventListener('click', e => { if (e.target === cf.root) cfSettle(false); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && cfIsOpen()) cfSettle(false);
+});
+
+// ────────────────────────────────────────────────
+// Save checked rows to Supabase
+// ────────────────────────────────────────────────
+async function saveAll() {
+  if (isSaving || cfIsOpen()) return;   // a second call would orphan the pending checklist
+  if (!currentUser) { setStatus('ログインしてください', 'err'); return; }
+
+  // Only rows the user has ticked get submitted
+  const checkedIndices = getCheckedIndices();
+
+  if (!checkedIndices.length) {
+    setStatus('登録する行にチェックを入れてください', 'err');
+    return;
+  }
+
+  // Cleanup checklist before committing anything
+  if (!await confirmBeforeSave(checkedIndices.length)) {
+    setStatus('登録をキャンセルしました', '');
+    return;
+  }
+
+  isSaving = true;
+  dom.btnSave.disabled = true;
+  setStatus('登録中...', 'info');
+
+  try {
+    // Reload latest payload to avoid overwriting concurrent changes
+    await loadPayload();
+
+    const today = todayDateKey();
+    for (const idx of checkedIndices) {
+      const vals    = getRowValues(idx);
+      if (!vals) continue;
+      const record  = makeRecord(vals);
+      // Use the receipt's date field; fall back to today if blank/invalid
+      const isValid = s => s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+      const dateKey = isValid(vals.date) ? vals.date : today;
+      addToPayload(userPayload, dateKey, record);
+    }
+
+    await savePayload(userPayload);
+
+    setStatus(`✅ ${checkedIndices.length}件を登録しました`, 'ok');
+    // Mark saved rows
+    checkedIndices.forEach(i => {
+      items[i].status = 'saved';
+      updateRowStatus(i);
+    });
+    updateSummary();
+  } catch (e) {
+    console.error('[bulk-receipt] saveAll error', e);
+    setStatus('登録に失敗しました: ' + (e.message || String(e)), 'err');
+  } finally {
+    isSaving = false;
+    updateSaveButton();
+  }
+}
+
+// ────────────────────────────────────────────────
+// Utilities
+// ────────────────────────────────────────────────
+function setStatus(msg, type) {
+  dom.status.textContent = msg;
+  dom.status.className   = type || '';
+}
+
+// ────────────────────────────────────────────────
+// Boot
+// ────────────────────────────────────────────────
+checkAuth();
+</script>
+
+<script>
+  // Unregister service workers so stale caches don't break this page
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
+  }
+</script>
+</body>
+</html>
