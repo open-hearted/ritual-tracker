@@ -650,14 +650,18 @@ function renderReminders(dateKey) {
   container.style.display = 'block';
   
   reminders.forEach(r => {
+    const acgMatch = `${r.label || ''} ${r.short || ''}`.match(/ACG\d*\s+(\d+-\d+)/i);
     let daysText = '';
-    if(r.diffDays === 0) daysText = 'は今日';
+    if(acgMatch) daysText = `後${r.diffDays}日`;
+    else if(r.diffDays === 0) daysText = 'は今日';
     else if(r.diffDays === 1) daysText = 'は明日';
     else daysText = `まで後${r.diffDays}日`;
     
     // カスタムフォーマット要件に合致する「エアコン下見（入室無しPM1~7）まで後3日」のような文言
     let displayText = '';
-    if(r.short && r.note) {
+    if(acgMatch) {
+      displayText = `${acgMatch[1]} ${daysText}`;
+    } else if(r.short && r.note) {
         displayText = `${r.short}（${r.note}）${daysText}`;
     } else {
         displayText = `${r.label || r.short}${daysText}`;
