@@ -2599,11 +2599,15 @@ function readExpenseFormValues(fallbackDateKey){
   const timeEl = $('expenseTime');
   const totalEl = $('expenseTotal');
   const categoryEl = $('expenseCategory');
+  const itemsEl = $('expenseItems');
   const store = storeEl ? (storeEl.value || '').trim() : '';
   const dateVal = dateEl ? (dateEl.value || '').trim() : '';
   const timeVal = timeEl ? (timeEl.value || '').trim() : '';
   const totalVal = totalEl ? (totalEl.value || '').trim() : '';
   const category = categoryEl ? (categoryEl.value || '').trim() : '';
+  const items = itemsEl
+    ? itemsEl.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean)
+    : [];
   const targetDateKey = isValidDateKey(dateVal) ? dateVal : fallbackDateKey;
 
   if(!isValidDateKey(targetDateKey)){
@@ -2625,6 +2629,7 @@ function readExpenseFormValues(fallbackDateKey){
     timeVal,
     total: totalVal !== '' ? Number(totalVal) : null,
     category,
+    items,
     targetDateKey
   };
 }
@@ -3133,6 +3138,7 @@ function resetExpenseForm(){
   const timeEl = $('expenseTime'); if(timeEl) timeEl.value = '';
   const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = '';
   const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = '';
+  const itemsEl = $('expenseItems'); if(itemsEl) itemsEl.value = '';
 }
 
 async function analyzeExpenseReceipt(){
@@ -3216,16 +3222,20 @@ async function saveExpenseRecord(){
     const timeEl = $('expenseTime');
     const totalEl = $('expenseTotal');
     const categoryEl = $('expenseCategory');
+    const itemsEl = $('expenseItems');
     const store = storeEl ? (storeEl.value || '').trim() : '';
     const dateVal = dateEl ? (dateEl.value || '').trim() : '';
     const timeVal = timeEl ? (timeEl.value || '').trim() : '';
     const totalVal = totalEl ? (totalEl.value || '').trim() : '';
     const category = categoryEl ? (categoryEl.value || '').trim() : '';
+    const items = itemsEl
+      ? itemsEl.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean)
+      : [];
 
     // レシート画像なしでも保存可能。ただし画像も入力値も無い空レコードは防ぐ
     const hasReceiptImage = !!(file || (pendingExpenseAnalysis && pendingExpenseAnalysis.dataUrl));
-    if(!hasReceiptImage && !store && totalVal === '' && !category){
-      alert('レシート画像がない場合は、店名・金額・カテゴリのいずれかを入力してください');
+    if(!hasReceiptImage && !store && totalVal === '' && !category && !items.length){
+      alert('レシート画像がない場合は、店名・金額・カテゴリ・購入品のいずれかを入力してください');
       return;
     }
     if(totalVal !== '' && !Number.isFinite(Number(totalVal))){
@@ -3267,7 +3277,7 @@ async function saveExpenseRecord(){
       occurredAt: timeVal ? parseDateKeyAndHHMMToISO(targetDateKey, timeVal) : null,
       total: totalVal !== '' && Number.isFinite(Number(totalVal)) ? Number(totalVal) : null,
       category: EXPENSE_CATEGORIES.includes(category) ? category : null,
-      items: [],
+      items,
       storageBucket: storageInfo ? storageInfo.storageBucket : null,
       storagePath: storageInfo ? storageInfo.storagePath : null,
       createdAt,
@@ -3348,6 +3358,7 @@ function beginExpenseEditAt(idx){
   const timeEl = $('expenseTime'); if(timeEl) timeEl.value = item.time || '';
   const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (item.total !== null && item.total !== undefined) ? item.total : '';
   const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(item.category) ? item.category : '';
+  const itemsEl = $('expenseItems'); if(itemsEl) itemsEl.value = Array.isArray(item.items) ? item.items.join('\n') : '';
   setExpenseEditUi(true);
   setMsg('レシートを編集中です。更新またはキャンセルしてください');
 }
@@ -3382,6 +3393,7 @@ async function saveExpenseEditRecord(){
       occurredAt: values.timeVal ? parseDateKeyAndHHMMToISO(values.targetDateKey, values.timeVal) : null,
       total: values.total,
       category: EXPENSE_CATEGORIES.includes(values.category) ? values.category : null,
+      items: values.items,
       updatedAt
     };
 
