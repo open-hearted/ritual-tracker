@@ -30,3 +30,6 @@ create policy "own rows" on public.expenses for all
 
 -- 追加 (2026-09-28): 電子マネー・交通系 IC などへのチャージかどうか (合計から除いて別に数える)
 alter table public.expenses add column is_charge boolean not null default false;
+
+-- 追加 (2026-09-28): 紙のレシートを捨てずに保管した日時と保管場所
+alter table public.expenses add column kept_at timestamptz, add column kept_place text;

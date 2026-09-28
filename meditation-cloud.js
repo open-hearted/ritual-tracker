@@ -2526,6 +2526,8 @@ function rowToExpense(row){
     storageBucket: row.storage_bucket || null,
     storagePath: row.storage_path || null,
     isCharge: !!row.is_charge,
+    keptAt: row.kept_at || null,
+    keptPlace: row.kept_place || null,
     checkedAt: row.checked_at || null,
     discardedAt: row.discarded_at || null,
     note: row.note || null,
@@ -2559,6 +2561,8 @@ function expenseToRow(item, dateKey){
     ...expenseContentColumns(item, dateKey),
     checked_at: item.checkedAt || null,
     discarded_at: item.discardedAt || null,
+    kept_at: item.keptAt || null,
+    kept_place: item.keptPlace || null,
     note: item.note || null,
     created_at: item.createdAt || nowISO()
   };
@@ -3463,6 +3467,7 @@ function formatExpenseRecordLabel(item){
   if(item.store) parts.push(item.store);
   if(item.category) parts.push(`[${item.category}]`);
   if(item.total !== null && item.total !== undefined) parts.push(`¥${Number(item.total).toLocaleString('ja-JP')}`);
+  if(item.keptAt) parts.push(`📁${item.keptPlace || 'レシート保存'}`);  // 紙のレシートの保管場所 (Python の専用ビューアで記録)
   return parts.join(' ') || 'レシート';
 }
 
