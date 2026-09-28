@@ -2526,6 +2526,7 @@ function rowToExpense(row){
     storageBucket: row.storage_bucket || null,
     storagePath: row.storage_path || null,
     isCharge: !!row.is_charge,
+    isCardRepayment: !!row.is_card_repayment,
     keptAt: row.kept_at || null,
     keptPlace: row.kept_place || null,
     checkedAt: row.checked_at || null,
@@ -3464,6 +3465,7 @@ async function deleteExpenseRecordAt(idx){
 function formatExpenseRecordLabel(item){
   const parts = [];
   if(item.isCharge) parts.push('⚡チャージ');
+  if(item.isCardRepayment) parts.push('💳カード返済');  // クレジットカードの利用代金の支払い (Python の専用ビューアで記録)
   if(item.store) parts.push(item.store);
   if(item.category) parts.push(`[${item.category}]`);
   if(item.total !== null && item.total !== undefined) parts.push(`¥${Number(item.total).toLocaleString('ja-JP')}`);
