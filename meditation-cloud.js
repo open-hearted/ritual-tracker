@@ -2525,6 +2525,7 @@ function rowToExpense(row){
     items: Array.isArray(row.items) ? row.items : [],
     storageBucket: row.storage_bucket || null,
     storagePath: row.storage_path || null,
+    isCharge: !!row.is_charge,
     checkedAt: row.checked_at || null,
     discardedAt: row.discarded_at || null,
     note: row.note || null,
@@ -2543,6 +2544,7 @@ function expenseContentColumns(item, dateKey){
     total: item.total === null || item.total === undefined ? null : Math.round(Number(item.total)),
     category: EXPENSE_CATEGORIES.includes(item.category) ? item.category : null,
     items: Array.isArray(item.items) ? item.items : [],
+    is_charge: !!item.isCharge,
     source: item.source || null,
     storage_bucket: item.storageBucket || null,
     storage_path: item.storagePath || null,
@@ -2612,11 +2614,13 @@ function readExpenseFormValues(fallbackDateKey){
   const totalEl = $('expenseTotal');
   const categoryEl = $('expenseCategory');
   const itemsEl = $('expenseItems');
+  const chargeEl = $('expenseIsCharge');
   const store = storeEl ? (storeEl.value || '').trim() : '';
   const dateVal = dateEl ? (dateEl.value || '').trim() : '';
   const timeVal = timeEl ? (timeEl.value || '').trim() : '';
   const totalVal = totalEl ? (totalEl.value || '').trim() : '';
   const category = categoryEl ? (categoryEl.value || '').trim() : '';
+  const isCharge = !!(chargeEl && chargeEl.checked);
   const items = itemsEl
     ? itemsEl.value.split(/\r?\n/).map(item => item.trim()).filter(Boolean)
     : [];
@@ -2641,6 +2645,7 @@ function readExpenseFormValues(fallbackDateKey){
     timeVal,
     total: totalVal !== '' ? Number(totalVal) : null,
     category,
+    isCharge,
     items,
     targetDateKey
   };
@@ -3150,6 +3155,7 @@ function resetExpenseForm(){
   const timeEl = $('expenseTime'); if(timeEl) timeEl.value = '';
   const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = '';
   const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = '';
+  const chargeEl = $('expenseIsCharge'); if(chargeEl) chargeEl.checked = false;
   const itemsEl = $('expenseItems'); if(itemsEl) itemsEl.value = '';
 }
 
@@ -3204,6 +3210,7 @@ async function analyzeExpenseReceipt(){
     const timeEl = $('expenseTime'); if(timeEl) timeEl.value = data.time || '';
     const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (data.total !== null && data.total !== undefined) ? data.total : '';
     const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(data.category) ? data.category : '';
+    const chargeEl = $('expenseIsCharge'); if(chargeEl) chargeEl.checked = !!data.is_charge;
     setMsg('解析結果を確認して保存してください');
     return true;
   }catch(e){
@@ -3290,6 +3297,7 @@ async function saveExpenseRecord(){
       total: totalVal !== '' && Number.isFinite(Number(totalVal)) ? Number(totalVal) : null,
       category: EXPENSE_CATEGORIES.includes(category) ? category : null,
       items,
+      isCharge: !!($('expenseIsCharge') && $('expenseIsCharge').checked),
       storageBucket: storageInfo ? storageInfo.storageBucket : null,
       storagePath: storageInfo ? storageInfo.storagePath : null,
       createdAt,
@@ -3351,6 +3359,7 @@ function beginExpenseEditAt(idx){
   const timeEl = $('expenseTime'); if(timeEl) timeEl.value = item.time || '';
   const totalEl = $('expenseTotal'); if(totalEl) totalEl.value = (item.total !== null && item.total !== undefined) ? item.total : '';
   const categoryEl = $('expenseCategory'); if(categoryEl) categoryEl.value = EXPENSE_CATEGORIES.includes(item.category) ? item.category : '';
+  const chargeEl = $('expenseIsCharge'); if(chargeEl) chargeEl.checked = !!item.isCharge;
   const itemsEl = $('expenseItems'); if(itemsEl) itemsEl.value = Array.isArray(item.items) ? item.items.join('\n') : '';
   setExpenseEditUi(true);
   setMsg('レシートを編集中です。更新またはキャンセルしてください');
@@ -3386,6 +3395,7 @@ async function saveExpenseEditRecord(){
       total: values.total,
       category: EXPENSE_CATEGORIES.includes(values.category) ? values.category : null,
       items: values.items,
+      isCharge: values.isCharge,
       updatedAt
     };
 
@@ -3449,6 +3459,7 @@ async function deleteExpenseRecordAt(idx){
 
 function formatExpenseRecordLabel(item){
   const parts = [];
+  if(item.isCharge) parts.push('⚡チャージ');
   if(item.store) parts.push(item.store);
   if(item.category) parts.push(`[${item.category}]`);
   if(item.total !== null && item.total !== undefined) parts.push(`¥${Number(item.total).toLocaleString('ja-JP')}`);

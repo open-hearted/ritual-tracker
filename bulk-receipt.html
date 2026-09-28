@@ -742,6 +742,7 @@ function recordToRow(record, dateKey) {
     total:          record.total === null ? null : Math.round(record.total),
     category:       record.category,
     items:          record.items,
+    is_charge:      record.isCharge,
     source:         record.source,
     storage_bucket: record.storageBucket,
     storage_path:   record.storagePath,
@@ -865,7 +866,8 @@ async function analyzeOne(idx) {
       date:     d.date     || '',
       time:     d.time     || '',
       total:    (d.total !== null && d.total !== undefined) ? String(d.total) : '',
-      category: CATEGORIES.includes(d.category) ? d.category : ''
+      category: CATEGORIES.includes(d.category) ? d.category : '',
+      isCharge: !!d.is_charge
     };
     item.status   = 'done';
     item.errorMsg = '';
@@ -1309,7 +1311,8 @@ function getRowValues(idx) {
     date:     (tr.querySelector('[data-field="date"]')?.value     || '').trim(),
     time:     (tr.querySelector('[data-field="time"]')?.value     || '').trim(),
     total:    (tr.querySelector('[data-field="total"]')?.value    || '').trim(),
-    category: (tr.querySelector('[data-field="category"]')?.value || '').trim()
+    category: (tr.querySelector('[data-field="category"]')?.value || '').trim(),
+    isCharge: !!(items[idx] && items[idx].result && items[idx].result.isCharge)  // AI の判定 (画面の列は無い)
   };
 }
 
@@ -1337,6 +1340,7 @@ function makeRecord(vals) {
     occurredAt,
     total:        totalNum,
     category:     CATEGORIES.includes(vals.category) ? vals.category : null,
+    isCharge:     !!vals.isCharge,
     items:        [],
     storageBucket: null,   // bulk mode: no image stored in Supabase Storage
     storagePath:   null,

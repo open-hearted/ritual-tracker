@@ -27,3 +27,6 @@ create index expenses_user_date on public.expenses (user_id, date);
 alter table public.expenses enable row level security;
 create policy "own rows" on public.expenses for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- 追加 (2026-09-28): 電子マネー・交通系 IC などへのチャージかどうか (合計から除いて別に数える)
+alter table public.expenses add column is_charge boolean not null default false;
