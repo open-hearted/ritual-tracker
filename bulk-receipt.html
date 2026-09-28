@@ -684,8 +684,6 @@ const supabaseClient = window.supabase
   : null;
 
 let currentUser   = null;
-let userPayload   = {};
-let userDataRowId = null;  // Supabase user_data.id for update vs insert
 let items         = [];    // { file, thumbUrl, status, checked, result, errorMsg }
 let isSaving      = false;
 
@@ -705,7 +703,7 @@ const dom = {
 async function checkAuth() {
   if (!supabaseClient) { showLogin(); return; }
   const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session && session.user) { currentUser = session.user; showMain(); await loadPayload(); }
+  if (session && session.user) { currentUser = session.user; showMain(); }
   else { showLogin(); }
 }
 
@@ -723,7 +721,6 @@ supabaseClient && supabaseClient.auth.onAuthStateChange(async (_, session) => {
   if (session && session.user) {
     currentUser = session.user;
     showMain();
-    await loadPayload();
   } else {
     currentUser = null;
     showLogin();
@@ -731,51 +728,26 @@ supabaseClient && supabaseClient.auth.onAuthStateChange(async (_, session) => {
 });
 
 // ────────────────────────────────────────────────
-// Supabase payload load / save
-// (mirrors syncPending in quick-log.html / med_saveAll in meditation-cloud.js)
+// Supabase: expenses テーブルに 1 件 1 行で保存する
+// (列の対応は meditation-cloud.js の expenseToRow と同じ)
 // ────────────────────────────────────────────────
-async function loadPayload() {
-  if (!currentUser) return;
-  try {
-    const { data, error } = await supabaseClient
-      .from('user_data')
-      .select('id, payload')
-      .eq('user_id', currentUser.id)
-      .maybeSingle();
-    if (error) throw error;
-    if (data) {
-      userDataRowId = data.id;
-      userPayload   = (data.payload && typeof data.payload === 'object') ? data.payload : {};
-    } else {
-      userDataRowId = null;
-      userPayload   = {};
-    }
-    userPayload.data   = userPayload.data   || {};
-    userPayload.__meta = userPayload.__meta || { version: 0, updatedAt: new Date().toISOString() };
-  } catch (e) {
-    console.warn('[bulk-receipt] loadPayload error', e);
-    setStatus('データの読み込みに失敗しました。再読み込みしてください。', 'err');
-  }
-}
-
-async function savePayload(payload) {
-  payload.__meta.version   = (payload.__meta.version || 0) + 1;
-  payload.__meta.updatedAt  = new Date().toISOString();
-  let upsertErr;
-  if (userDataRowId) {
-    const { error } = await supabaseClient
-      .from('user_data').update({ payload }).eq('id', userDataRowId);
-    upsertErr = error;
-  } else {
-    const { data, error } = await supabaseClient
-      .from('user_data')
-      .insert({ user_id: currentUser.id, payload })
-      .select('id')
-      .maybeSingle();
-    upsertErr = error;
-    if (!error && data) userDataRowId = data.id;
-  }
-  if (upsertErr) throw upsertErr;
+function recordToRow(record, dateKey) {
+  return {
+    id:             record.id,
+    user_id:        currentUser.id,
+    date:           dateKey,
+    time:           record.time,
+    occurred_at:    record.occurredAt,
+    store:          record.store,
+    total:          record.total === null ? null : Math.round(record.total),
+    category:       record.category,
+    items:          record.items,
+    source:         record.source,
+    storage_bucket: record.storageBucket,
+    storage_path:   record.storagePath,
+    created_at:     record.createdAt,
+    updated_at:     record.updatedAt
+  };
 }
 
 // ────────────────────────────────────────────────
@@ -1374,20 +1346,6 @@ function makeRecord(vals) {
 }
 
 // ────────────────────────────────────────────────
-// Merge a record into the payload
-// (mirrors addExpenseRecordToPayload in meditation-cloud.js)
-// ────────────────────────────────────────────────
-function addToPayload(payload, dateKey, record) {
-  const mk = dateKey.slice(0, 7);   // 'YYYY-MM'
-  payload.data        = payload.data        || {};
-  payload.data[mk]    = payload.data[mk]    || {};
-  const rec           = payload.data[mk][dateKey] || {};
-  rec.expenses        = Array.isArray(rec.expenses) ? rec.expenses : [];
-  rec.expenses.push(record);
-  payload.data[mk][dateKey] = rec;
-}
-
-// ────────────────────────────────────────────────
 // Pre-save checklist — the cleanup items must all be ticked before saving.
 // Resolves true when confirmed, false when cancelled/dismissed.
 // ────────────────────────────────────────────────
@@ -1460,10 +1418,8 @@ async function saveAll() {
   setStatus('登録中...', 'info');
 
   try {
-    // Reload latest payload to avoid overwriting concurrent changes
-    await loadPayload();
-
     const today = todayDateKey();
+    const rows = [];
     for (const idx of checkedIndices) {
       const vals    = getRowValues(idx);
       if (!vals) continue;
@@ -1471,10 +1427,12 @@ async function saveAll() {
       // Use the receipt's date field; fall back to today if blank/invalid
       const isValid = s => s && /^\d{4}-\d{2}-\d{2}$/.test(s);
       const dateKey = isValid(vals.date) ? vals.date : today;
-      addToPayload(userPayload, dateKey, record);
+      rows.push(recordToRow(record, dateKey));
     }
 
-    await savePayload(userPayload);
+    // 1 回の insert でまとめて登録する (途中で失敗したら 1 件も入らない)
+    const { error } = await supabaseClient.from('expenses').insert(rows);
+    if (error) throw error;
 
     setStatus(`✅ ${checkedIndices.length}件を登録しました`, 'ok');
     // Mark saved rows

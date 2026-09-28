@@ -1,7 +1,7 @@
 // meditation-cloud.js
 // Minimal, self-contained meditation page using Google ID token and server PUT/GET to store plaintext JSON.
 const $ = id => document.getElementById(id);
-const STATE = { year: new Date().getFullYear(), month: new Date().getMonth(), payload: {}, selected: null };
+const STATE = { year: new Date().getFullYear(), month: new Date().getMonth(), payload: {}, selected: null, expensesByDate: {} };
 const STORAGE_KEY = 'med_cloud_google_auth_v1';
 const TOKEN_TTL_MS = 24*60*60*1000;
 const AUTH_EXP_SKEW_MS = 30*1000;
@@ -156,8 +156,7 @@ function maybeBeginExpenseEditFromQuery(dateKey){
     sp.delete('expenseEdit');
     const qs = sp.toString();
     history.replaceState(null, '', location.pathname + (qs ? `?${qs}` : ''));
-    const rec = getDayRecordByDateKey(dateKey);
-    const arr = Array.isArray(rec?.expenses) ? rec.expenses : [];
+    const arr = getExpensesFor(dateKey);
     const idx = arr.findIndex(it => it && it.id === id);
     if(idx < 0){ setMsg('編集対象のレシートが見つかりませんでした'); return; }
     beginExpenseEditAt(idx);
@@ -527,7 +526,7 @@ function getShiftForDateKey(dateKey){
   return null;
 }
 
-function renderCalendar(){ const grid=$('calGrid'); if(!grid) return; grid.innerHTML=''; const monthLabelEl=$('monthLabel'); if(monthLabelEl) monthLabelEl.textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; const exp = Array.isArray(rec.expenses)? rec.expenses : []; if(sess.length || ex.length || exp.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=>{ if(isMonthlyPage()){ location.href = 'index.html?date=' + dk; } else { openEditorFor(dk); } }); grid.appendChild(btn); } }
+function renderCalendar(){ const grid=$('calGrid'); if(!grid) return; grid.innerHTML=''; const monthLabelEl=$('monthLabel'); if(monthLabelEl) monthLabelEl.textContent = `${STATE.year}年 ${STATE.month+1}月`; const startPad = (new Date(STATE.year, STATE.month,1).getDay()+6)%7; for(let i=0;i<startPad;i++){ const p=document.createElement('div'); p.className='cell disabled'; p.style.visibility='hidden'; grid.appendChild(p);} const days = daysInMonth(STATE.year, STATE.month); const monthData = (STATE.payload && STATE.payload.data && STATE.payload.data[getMonthKey()]) ? STATE.payload.data[getMonthKey()] : {}; const todayKey = getDateKey(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); for(let d=1; d<=days; d++){ const btn=document.createElement('button'); btn.type='button'; btn.className='cell'; const dk = getDateKey(STATE.year, STATE.month, d); btn.setAttribute('data-date', dk); const rec = monthData[dk] || {}; const sess = Array.isArray(rec.sessions)? rec.sessions : []; const ex = Array.isArray(rec.exercise?.sessions)? rec.exercise.sessions : []; const exp = getExpensesFor(dk); if(sess.length || ex.length || exp.length) btn.setAttribute('data-has','1'); if(dk===todayKey) btn.classList.add('today'); btn.innerHTML = `<div class="d">${d}</div><div style="font-size:0.85em">${sess.length? sess.reduce((a,b)=>a+b,0)+'分':''}</div>`; btn.addEventListener('click', ()=>{ if(isMonthlyPage()){ location.href = 'index.html?date=' + dk; } else { openEditorFor(dk); } }); grid.appendChild(btn); } }
 
 function openEditorFor(dateKey, opts){
   // save current editor state before switching dates
@@ -733,6 +732,16 @@ async function med_loadAll() {
       .eq('user_id', currentUser.id)
       .maybeSingle();
 
+    // 支出は expenses テーブルから (payload の中の古い expenses は使わない)
+    let doneMsg = '';
+    try{
+      await loadExpenses();
+    }catch(expErr){
+      console.warn('loadExpenses failed', expErr);
+      STATE.expensesByDate = {};
+      doneMsg = '支出の読み込みに失敗しました';
+    }
+
     if (dbData && dbData.payload) {
       const payload = dbData.payload;
       STATE.payload = payload.data ? payload : { data: payload };
@@ -748,14 +757,14 @@ async function med_loadAll() {
       }
       // ======== ここまで ========
 
-      renderCalendar(); setMsg('');
+      renderCalendar(); setMsg(doneMsg);
       return true;
     }
 
     // 万が一データがない場合は、新規スタート（AWS引越しは後日対応）
     console.log("Supabaseにデータがないため、新規（空）で開始します。");
     STATE.payload = { data: {} };
-    renderCalendar(); setMsg('');
+    renderCalendar(); setMsg(doneMsg);
     return true;
   }catch(e){
     console.error(e);
@@ -1520,7 +1529,7 @@ function renderAllRecordsTimeline(){
   });
   
   // 支出記録（レシート印字時刻があればそれを優先。撮影日とレシート日付が違う場合は時刻なし扱い）
-  const expenseArr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  const expenseArr = getExpensesFor(dk);
   expenseArr.forEach((item, i) => {
     allRecords.push({
       type: 'expenseRecord',
@@ -2497,100 +2506,103 @@ function renderExerciseViews(){
 // Expense records can target a different month than the currently displayed one
 // (the receipt's date decides where they live), so derive the month bucket from
 // the dateKey instead of STATE-based getMonthKey().
-function monthKeyFromDateKey(dateKey){ return String(dateKey).slice(0, 7); }
+// ▼ 支出は Supabase の expenses テーブルに 1 件 1 行で保存する (payload には書かない)。
+//   画面用に STATE.expensesByDate[dateKey] = [支出, ...] に持つ。支出の形は以前の payload と同じ
+//   (storagePath / occurredAt ...)。テーブルの列名との変換は rowToExpense / expenseToRow。
+const EXPENSES_TABLE = 'expenses';
 
-function getDayRecordByDateKey(dateKey){
-  const mk = monthKeyFromDateKey(dateKey);
-  STATE.payload.data = STATE.payload.data || {};
-  STATE.payload.data[mk] = STATE.payload.data[mk] || {};
-  let rec = STATE.payload.data[mk][dateKey];
-  if(!rec){
-    rec = { sessions: [], starts: [], ids: [], times: {} };
-    STATE.payload.data[mk][dateKey] = rec;
-  }
-  return normalizeDayRecord(rec);
+function rowToExpense(row){
+  return {
+    id: row.id,
+    kind: 'expense',
+    source: row.source || null,
+    store: row.store || null,
+    date: row.date || null,
+    time: row.time || null,
+    occurredAt: row.occurred_at || null,
+    total: row.total === null || row.total === undefined ? null : Number(row.total),
+    category: row.category || null,
+    items: Array.isArray(row.items) ? row.items : [],
+    storageBucket: row.storage_bucket || null,
+    storagePath: row.storage_path || null,
+    checkedAt: row.checked_at || null,
+    discardedAt: row.discarded_at || null,
+    note: row.note || null,
+    createdAt: row.created_at || null,
+    updatedAt: row.updated_at || null
+  };
 }
 
-function addExpenseRecordToPayload(dateKey, item){
-  const rec = getDayRecordByDateKey(dateKey);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
-  arr.push(item);
-  rec.expenses = arr;
-  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
+// 内容の列だけ (id / user_id / created_at を除く)。insert では expenseToRow を使う
+function expenseContentColumns(item, dateKey){
+  return {
+    date: dateKey,
+    time: item.time || null,
+    occurred_at: item.occurredAt || null,
+    store: item.store || null,
+    total: item.total === null || item.total === undefined ? null : Math.round(Number(item.total)),
+    category: EXPENSE_CATEGORIES.includes(item.category) ? item.category : null,
+    items: Array.isArray(item.items) ? item.items : [],
+    source: item.source || null,
+    storage_bucket: item.storageBucket || null,
+    storage_path: item.storagePath || null,
+    updated_at: item.updatedAt || nowISO()
+  };
 }
 
-function removeExpenseRecordById(dateKey, id){
-  const rec = getDayRecordByDateKey(dateKey);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
+function expenseToRow(item, dateKey){
+  return {
+    id: item.id,
+    user_id: currentUser.id,
+    ...expenseContentColumns(item, dateKey),
+    checked_at: item.checkedAt || null,
+    discarded_at: item.discardedAt || null,
+    note: item.note || null,
+    created_at: item.createdAt || nowISO()
+  };
+}
+
+async function loadExpenses(){
+  const { data, error } = await supabaseClient
+    .from(EXPENSES_TABLE)
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .order('date', { ascending: true });
+  if(error) throw error;
+  const byDate = {};
+  (data || []).forEach(row => {
+    const item = rowToExpense(row);
+    (byDate[row.date] = byDate[row.date] || []).push(item);
+  });
+  STATE.expensesByDate = byDate;
+}
+
+function getExpensesFor(dateKey){
+  return (STATE.expensesByDate && STATE.expensesByDate[dateKey]) || [];
+}
+
+function cacheAddExpense(dateKey, item){
+  STATE.expensesByDate = STATE.expensesByDate || {};
+  STATE.expensesByDate[dateKey] = [...getExpensesFor(dateKey), item];
+}
+
+function cacheRemoveExpense(dateKey, id){
+  const arr = getExpensesFor(dateKey);
   const idx = arr.findIndex(it => it && it.id === id);
   if(idx < 0) return null;
-  const removed = arr.splice(idx, 1)[0];
-  rec.expenses = arr;
-  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
-  return { removed, index: idx };
-}
-
-function removeExpenseRecordAt(dateKey, idx){
-  const rec = getDayRecordByDateKey(dateKey);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
-  if(!Number.isInteger(idx) || idx < 0 || idx >= arr.length) return null;
-  const removed = arr.splice(idx, 1)[0];
-  rec.expenses = arr;
-  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
-  return { removed, index: idx };
-}
-
-function restoreExpenseRecordAt(dateKey, item, idx){
-  if(!item) return;
-  const rec = getDayRecordByDateKey(dateKey);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses.slice() : [];
-  const insertAt = Math.max(0, Math.min(Number.isInteger(idx) ? idx : arr.length, arr.length));
-  arr.splice(insertAt, 0, item);
-  rec.expenses = arr;
-  STATE.payload.data[monthKeyFromDateKey(dateKey)][dateKey] = rec;
-}
-
-function clonePayloadDataSnapshot(){
-  const data = STATE.payload && STATE.payload.data ? STATE.payload.data : {};
-  try{
-    if(typeof structuredClone === 'function') return structuredClone(data);
-  }catch(e){}
-  return JSON.parse(JSON.stringify(data));
-}
-
-function restorePayloadDataSnapshot(snapshot){
-  STATE.payload.data = snapshot || {};
+  const removed = arr[idx];
+  STATE.expensesByDate[dateKey] = arr.filter((_, i) => i !== idx);
+  return removed;
 }
 
 function getExpenseEditTarget(ref){
   if(!ref || !isValidDateKey(ref.dateKey)) return null;
-  const rec = getDayRecordByDateKey(ref.dateKey);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  const arr = getExpensesFor(ref.dateKey);
   let idx = -1;
   if(ref.id) idx = arr.findIndex(it => it && it.id === ref.id);
   if(idx < 0 && Number.isInteger(ref.index) && ref.index >= 0 && ref.index < arr.length) idx = ref.index;
   if(idx < 0) return null;
-  return { rec, arr, item: arr[idx], index: idx };
-}
-
-function applyExpenseRecordEdit(ref, targetDateKey, updatedRecord){
-  const target = getExpenseEditTarget(ref);
-  if(!target || !isValidDateKey(targetDateKey) || !updatedRecord) return false;
-
-  if(ref.dateKey === targetDateKey){
-    const arr = target.arr.slice();
-    arr[target.index] = updatedRecord;
-    target.rec.expenses = arr;
-    STATE.payload.data[monthKeyFromDateKey(ref.dateKey)][ref.dateKey] = target.rec;
-    return true;
-  }
-
-  const oldArr = target.arr.slice();
-  oldArr.splice(target.index, 1);
-  target.rec.expenses = oldArr;
-  STATE.payload.data[monthKeyFromDateKey(ref.dateKey)][ref.dateKey] = target.rec;
-  addExpenseRecordToPayload(targetDateKey, updatedRecord);
-  return true;
+  return { arr, item: arr[idx], index: idx };
 }
 
 function readExpenseFormValues(fallbackDateKey){
@@ -3284,27 +3296,15 @@ async function saveExpenseRecord(){
       updatedAt: createdAt
     };
 
-    addExpenseRecordToPayload(targetDateKey, uploadedRecord);
+    setMsg('支出記録を保存中...');
+    const { error: insertErr } = await supabaseClient
+      .from(EXPENSES_TABLE)
+      .insert(expenseToRow(uploadedRecord, targetDateKey));
+    if(insertErr) throw insertErr;
+
+    cacheAddExpense(targetDateKey, uploadedRecord);
     renderAllRecordsTimeline();
-
-    const saved = await med_saveAll();
-    if(!saved){
-      removeExpenseRecordById(targetDateKey, uploadedRecord.id);
-      renderAllRecordsTimeline();
-      try{
-        await removeImageStorageObject(uploadedRecord);
-        alert('支出記録の保存に失敗したため、アップロード済み画像を削除しました');
-      }catch(cleanupErr){
-        console.warn('Expense image cleanup failed after payload save failure', {
-          storagePath: uploadedRecord.storagePath,
-          error: cleanupErr
-        });
-        alert('支出記録の保存に失敗し、Storage上の孤立画像削除にも失敗しました。storagePathをconsoleに残しました。');
-      }
-      setMsg('支出記録の保存に失敗しました');
-      return;
-    }
-
+    renderCalendar();
     resetExpenseForm();
     setMsg(targetDateKey === STATE.selected ? cfg.successMessage : `支出を ${targetDateKey} に記録しました`);
   }catch(e){
@@ -3312,29 +3312,22 @@ async function saveExpenseRecord(){
     setMsg('');
     if(uploadedRecord && uploadedRecord.storagePath){
       try{
-        removeExpenseRecordById(targetDateKey, uploadedRecord.id);
-        renderAllRecordsTimeline();
-      }catch(localErr){
-        console.warn('Expense local rollback failed after unexpected save failure', localErr);
-      }
-      try{
         await removeImageStorageObject(uploadedRecord);
       }catch(cleanupErr){
-        console.warn('Expense image cleanup failed after unexpected save failure', {
+        console.warn('Expense image cleanup failed after save failure', {
           storagePath: uploadedRecord.storagePath,
           error: cleanupErr
         });
       }
     }
-    alert('支出の保存に失敗しました。payloadは変更していません。');
+    alert('支出の保存に失敗しました。記録は追加されていません。');
   }
 }
 
 function beginExpenseEditAt(idx){
   const dk = STATE.selected;
   if(!dk) return;
-  const rec = getDayRecordByDateKey(dk);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  const arr = getExpensesFor(dk);
   const item = arr[idx];
   if(!item) return;
 
@@ -3369,7 +3362,6 @@ function cancelExpenseEdit(){
 }
 
 async function saveExpenseEditRecord(){
-  let snapshot = null;
   try{
     if(!ensureAuthOrSignOut()) return false;
     const ref = expenseEditing ? { ...expenseEditing } : null;
@@ -3397,34 +3389,26 @@ async function saveExpenseEditRecord(){
       updatedAt
     };
 
-    snapshot = clonePayloadDataSnapshot();
-    if(!applyExpenseRecordEdit(ref, values.targetDateKey, updatedRecord)){
-      alert('レシートの更新に失敗しました');
-      return false;
-    }
-
-    renderAllRecordsTimeline();
     setMsg('支出記録を保存中...');
-    const saved = await med_saveAll();
-    if(!saved){
-      restorePayloadDataSnapshot(snapshot);
-      renderAllRecordsTimeline();
-      alert('レシート更新の保存に失敗したため、変更を取り消しました');
-      setMsg('支出記録の更新に失敗しました');
-      return false;
-    }
+    const { data: updatedRows, error: updateErr } = await supabaseClient
+      .from(EXPENSES_TABLE)
+      .update(expenseContentColumns(updatedRecord, values.targetDateKey))
+      .eq('id', updatedRecord.id)
+      .select('id');
+    if(updateErr) throw updateErr;
+    if(!updatedRows || !updatedRows.length) throw new Error('expense row not found: ' + updatedRecord.id);
 
+    // 画面用の一覧も直す (日付が変わっていれば別の日へ移す)
+    cacheRemoveExpense(ref.dateKey, target.item.id);
+    cacheAddExpense(values.targetDateKey, updatedRecord);
     resetExpenseForm();
     renderAllRecordsTimeline();
+    renderCalendar();
     setMsg(values.targetDateKey === STATE.selected ? 'レシートを更新しました' : `レシートを ${values.targetDateKey} に移動して更新しました`);
     return true;
   }catch(e){
     console.warn('saveExpenseEditRecord failed', e);
-    if(snapshot){
-      restorePayloadDataSnapshot(snapshot);
-      renderAllRecordsTimeline();
-    }
-    alert('レシートの更新に失敗しました。payloadは変更していません。');
+    alert('レシートの更新に失敗しました。記録は変更されていません。');
     setMsg('支出記録の更新に失敗しました');
     return false;
   }
@@ -3433,32 +3417,29 @@ async function saveExpenseEditRecord(){
 async function deleteExpenseRecordAt(idx){
   const dk = STATE.selected;
   if(!dk) return;
-  const rec = getDayRecordByDateKey(dk);
-  const arr = Array.isArray(rec.expenses) ? rec.expenses : [];
+  const arr = getExpensesFor(dk);
   const item = arr[idx];
   if(!item) return;
 
   const label = item.store || '支出記録';
   if(!confirmDelete(`${label} を削除しますか？`)) return;
 
-  const removedInfo = removeExpenseRecordAt(dk, idx);
-  if(!removedInfo) return;
-  renderAllRecordsTimeline();
-
-  const saved = await med_saveAll();
-  if(!saved){
-    restoreExpenseRecordAt(dk, removedInfo.removed, removedInfo.index);
-    renderAllRecordsTimeline();
-    alert('記録削除の保存に失敗したため、削除を取り消しました');
+  const { error } = await supabaseClient.from(EXPENSES_TABLE).delete().eq('id', item.id);
+  if(error){
+    console.warn('Expense delete failed', error);
+    alert('記録の削除に失敗しました。記録は残っています。');
     return;
   }
+  cacheRemoveExpense(dk, item.id);
+  renderAllRecordsTimeline();
+  renderCalendar();
 
-  if(getImageStoragePath(removedInfo.removed)){
+  if(getImageStoragePath(item)){
     try{
-      await removeImageStorageObject(removedInfo.removed);
+      await removeImageStorageObject(item);
     }catch(e){
-      console.warn('Expense image storage delete failed; payload deletion was kept', {
-        storagePath: getImageStoragePath(removedInfo.removed),
+      console.warn('Expense image storage delete failed; record deletion was kept', {
+        storagePath: getImageStoragePath(item),
         error: e
       });
       alert('記録は削除しましたが、Storage上の画像削除に失敗しました。storagePathをconsoleに残しました。');
