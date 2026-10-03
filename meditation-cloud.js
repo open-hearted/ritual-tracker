@@ -733,7 +733,7 @@ async function analyzeSelectedDayWithChatGPT(){
     const response = await fetch('/api/day-analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
-      body: JSON.stringify({ dateKey })
+      body: JSON.stringify({ dateKey, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Tokyo' })
     });
     const json = await response.json().catch(()=>null);
     if(!response.ok || !json?.ok) throw new Error(json?.error || 'AI分析に失敗しました');
