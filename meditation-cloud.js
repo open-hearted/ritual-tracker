@@ -710,10 +710,48 @@ function autoSaveEditor(){
     }
     rec.dayTs = nowISO();
     STATE.payload.data[mk][dk] = rec;
-    // fire save but don't block close
-    try{ med_saveAll(); }catch(e){ console.warn('autosave failed', e); }
+    // Return the save promise so actions that depend on persisted data can wait.
+    try{ return med_saveAll(); }catch(e){ console.warn('autosave failed', e); }
   }catch(e){ console.warn('autoSaveEditor error', e); }
 }
+
+async function analyzeSelectedDayWithChatGPT(){
+  const dateKey = STATE.selected;
+  if(!dateKey) return;
+  const button = $('analyzeDayBtn');
+  const result = $('dayAnalysisResult');
+  if(button?.disabled) return;
+  if(diaryAutosaveTimer){ clearTimeout(diaryAutosaveTimer); diaryAutosaveTimer = null; }
+  if(button){ button.disabled = true; button.textContent = '分析中...'; }
+  if(result){ result.style.display = 'block'; result.textContent = 'Supabaseへ保存して分析中...'; }
+  setMsg('分析中...');
+  try{
+    const saved = await autoSaveEditor();
+    if(saved !== true) throw new Error('記録を保存できませんでした');
+    const accessToken = await getSupabaseAccessToken();
+    if(!accessToken) throw new Error('ログインし直してください');
+    const response = await fetch('/api/day-analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+      body: JSON.stringify({ dateKey })
+    });
+    const json = await response.json().catch(()=>null);
+    if(!response.ok || !json?.ok) throw new Error(json?.error || 'AI分析に失敗しました');
+    if(result) result.textContent = json.analysis;
+    setMsg('分析完了');
+  }catch(e){
+    const message = e?.message || 'AI分析に失敗しました';
+    if(result) result.textContent = message;
+    setMsg(message);
+  }finally{
+    if(button){ button.disabled = false; button.textContent = 'ChatGPTで分析'; }
+  }
+}
+
+try{ document.addEventListener('DOMContentLoaded', ()=>{
+  const analyzeButton = $('analyzeDayBtn');
+  if(analyzeButton) analyzeButton.addEventListener('click', analyzeSelectedDayWithChatGPT);
+}); }catch(e){}
 
 function closeEditor(){
   // auto-save current diary text before hiding

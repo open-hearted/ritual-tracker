@@ -227,6 +227,10 @@
       </div>
       <button id="closeEditor" type="button" aria-label="閉じる" style="display:none">閉じる</button>
     </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button id="analyzeDayBtn" type="button" title="選択日のSupabase記録をOpenAI APIへ送信して分析">ChatGPTで分析</button>
+    </div>
+    <div id="dayAnalysisResult" role="status" aria-live="polite" style="display:none;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px;padding:12px;border-left:3px solid #34d399;background:rgba(52,211,153,0.08)"></div>
     
     <!-- （重複していた下部の起床/就寝ボタンはヘッダに統合済みのため削除） -->
 
