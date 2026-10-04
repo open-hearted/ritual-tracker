@@ -39,6 +39,9 @@ button{border:1px solid rgba(255,255,255,0.12); background:#14224e; padding:10px
 button:hover{filter:brightness(1.1)}
 input, select{background:#0e183c;border:1px solid rgba(255,255,255,0.12); padding:10px 12px; border-radius:12px}
 input::placeholder{color:#9fb0ff99}
+#recordSection label{color:#000}
+#recordSection textarea{background:#fff !important;color:#000 !important}
+#recordSection textarea::placeholder{color:#666}
 
 #dailyInputCol{
 	display:flex;
