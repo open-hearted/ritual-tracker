@@ -1325,6 +1325,13 @@ function renderMedSessionList(){
 
 function formatTimeShort(iso){ if(!iso) return '--:--'; try{ const d = new Date(iso); if(isNaN(d)) return '--:--'; return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }catch{return '--:--';} }
 
+function getTimeOfDayMinutes(value){
+  if(!value) return null;
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return null;
+  return date.getHours() * 60 + date.getMinutes();
+}
+
 function renderWakeSleep(){
   const dk = STATE.selected; if(!dk) return; const rec = getExistingDayRecord(dk) || {};
   // wake/sleep are arrays of ISO timestamps for multiple records
@@ -1600,8 +1607,10 @@ function renderAllRecordsTimeline(){
 
   // 時刻順にソート（時刻なしは最後へ）
   allRecords.sort((a, b) => {
-    const ta = a && a.time ? new Date(a.time).getTime() : Number.POSITIVE_INFINITY;
-    const tb = b && b.time ? new Date(b.time).getTime() : Number.POSITIVE_INFINITY;
+    const ta = getTimeOfDayMinutes(a && a.time);
+    const tb = getTimeOfDayMinutes(b && b.time);
+    if(ta === null) return tb === null ? 0 : 1;
+    if(tb === null) return -1;
     return ta - tb;
   });
   
