@@ -539,6 +539,11 @@ function openEditorFor(dateKey, opts){
   const paint = ()=>{
     const monthObj = STATE.payload.data && STATE.payload.data[getMonthKey()] ? STATE.payload.data[getMonthKey()] : {};
     const rec = monthObj[dateKey] || {};
+    const dayAnalysisResult = $('dayAnalysisResult');
+    if(dayAnalysisResult){
+      dayAnalysisResult.textContent = rec.dayAnalysis?.text || '';
+      dayAnalysisResult.style.display = rec.dayAnalysis?.text ? 'block' : 'none';
+    }
     try{ const record = rec.record?.text || ''; const txt = $('medRecordText'); if(txt) txt.value = record; }catch(e){}
     try{ const diary = rec.diary?.text || ''; const txt = $('medDiaryText'); if(txt) txt.value = diary; }catch(e){}
     renderMedSessionList();
@@ -737,8 +742,18 @@ async function analyzeSelectedDayWithChatGPT(){
     });
     const json = await response.json().catch(()=>null);
     if(!response.ok || !json?.ok) throw new Error(json?.error || 'AI分析に失敗しました');
-    if(result) result.textContent = json.analysis;
-    setMsg('分析完了');
+    const monthKey = dateKey.slice(0, 7);
+    STATE.payload.data = STATE.payload.data || {};
+    STATE.payload.data[monthKey] = STATE.payload.data[monthKey] || {};
+    const record = STATE.payload.data[monthKey][dateKey] || {};
+    record.dayAnalysis = { text: json.analysis, updatedAt: nowISO() };
+    STATE.payload.data[monthKey][dateKey] = record;
+    const analysisSaved = await med_saveAll();
+    if(STATE.selected === dateKey && result){
+      result.textContent = json.analysis;
+      result.style.display = 'block';
+    }
+    setMsg(analysisSaved ? '分析完了' : '分析は完了しましたが、結果を保存できませんでした');
   }catch(e){
     const message = e?.message || 'AI分析に失敗しました';
     if(result) result.textContent = message;
