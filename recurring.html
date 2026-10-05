@@ -19,6 +19,9 @@
     .dashboard-card h2 { font-size:1.05rem; margin:0 0 14px; }
     .form-field { display:grid; gap:6px; margin-bottom:12px; }
     .form-field input[type="text"], .form-field input[type="time"] { width:100%; }
+    .schedule-mode { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .schedule-mode label { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--grid); border-radius:9px; cursor:pointer; }
+    .schedule-mode input { width:16px; height:16px; padding:0; accent-color:var(--accent); }
     .weekday-list { display:flex; flex-wrap:wrap; gap:6px; }
     .weekday-option { display:inline-flex; align-items:center; gap:4px; padding:6px 8px; border:1px solid var(--grid); border-radius:999px; color:var(--text); cursor:pointer; }
     .weekday-option input { width:16px; height:16px; padding:0; accent-color:var(--accent); }
@@ -70,8 +73,12 @@
               <span>記録する内容</span>
               <input id="entry-title" type="text" maxlength="80" required placeholder="例：薬を飲む、ストレッチ">
             </label>
-            <label class="form-field">
-              <span>記録する曜日</span>
+            <div class="schedule-mode" role="radiogroup" aria-label="予定の登録方法">
+              <label><input type="radio" name="schedule-mode" value="weekly" checked>曜日で繰り返す</label>
+              <label><input type="radio" name="schedule-mode" value="dates">日付を指定する</label>
+            </div>
+            <label id="weekdays-field" class="form-field">
+              <span>繰り返す曜日</span>
               <span class="weekday-list">
                 <label class="weekday-option"><input type="checkbox" name="weekday" value="1" checked>月</label>
                 <label class="weekday-option"><input type="checkbox" name="weekday" value="2" checked>火</label>
@@ -81,6 +88,11 @@
                 <label class="weekday-option"><input type="checkbox" name="weekday" value="6" checked>土</label>
                 <label class="weekday-option"><input type="checkbox" name="weekday" value="0" checked>日</label>
               </span>
+            </label>
+            <label id="dates-field" class="form-field" hidden>
+              <span>予定日（複数はカンマ区切り）</span>
+              <input id="entry-dates" type="text" autocomplete="off" placeholder="例：11/18, 12/16">
+              <small>年を省略すると今年の日付として登録します。年を含める場合は YYYY-MM-DD 形式です。</small>
             </label>
             <label class="form-field">
               <span>予定時刻（任意）</span>

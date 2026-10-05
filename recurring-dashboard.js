@@ -10,6 +10,9 @@ const ui = {
   status: document.getElementById('status'),
   form: document.getElementById('recurring-form'),
   title: document.getElementById('entry-title'),
+  dates: document.getElementById('entry-dates'),
+  weekdaysField: document.getElementById('weekdays-field'),
+  datesField: document.getElementById('dates-field'),
   time: document.getElementById('entry-time'),
   today: document.getElementById('today-list'),
   all: document.getElementById('all-list'),
@@ -115,9 +118,51 @@ function weekdaySummary(days) {
   return sorted.map(day => weekdays[day]).join('・');
 }
 
+function selectedScheduleMode() {
+  return ui.form.querySelector('input[name="schedule-mode"]:checked')?.value || 'weekly';
+}
+
+function updateScheduleFields() {
+  const useDates = selectedScheduleMode() === 'dates';
+  ui.weekdaysField.hidden = useDates;
+  ui.datesField.hidden = !useDates;
+}
+
+function parseSpecificDates(value) {
+  const currentYear = new Date().getFullYear();
+  const parts = value.split(/[,\n;]+/).map(part => part.trim()).filter(Boolean);
+  const dates = [];
+  for (const part of parts) {
+    const match = part.match(/^(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2}))$/);
+    if (!match) return null;
+    const year = Number(match[1] || currentYear);
+    const month = Number(match[2] || match[4]);
+    const day = Number(match[3] || match[5]);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    dates.push(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`);
+  }
+  return [...new Set(dates)].sort();
+}
+
+function scheduleSummary(entry) {
+  if (Array.isArray(entry.dates)) {
+    return `日付指定: ${entry.dates.map(date => {
+      const [year, month, day] = date.split('-');
+      return `${year}/${Number(month)}/${Number(day)}`;
+    }).join('、')}`;
+  }
+  return weekdaySummary(entry.weekdays);
+}
+
 function todayEntries(date) {
+  const dateKey = dateKeyFor(date);
   return payload.recurringRecords
-    .filter(entry => entry.active !== false && entry.weekdays.includes(date.getDay()))
+    .filter(entry => entry.active !== false && (
+      Array.isArray(entry.dates)
+        ? entry.dates.includes(dateKey)
+        : Array.isArray(entry.weekdays) && entry.weekdays.includes(date.getDay())
+    ))
     .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99'));
 }
 
@@ -138,7 +183,7 @@ function createEntryCard(entry, dateKey, isToday) {
   title.textContent = entry.title;
   const meta = document.createElement('div');
   meta.className = 'entry-meta';
-  meta.textContent = `${weekdaySummary(entry.weekdays)}${entry.time ? ` ・ ${entry.time}` : ''}${entry.active === false ? ' ・ 一時停止中' : ''}`;
+  meta.textContent = `${scheduleSummary(entry)}${entry.time ? ` ・ ${entry.time}` : ''}${entry.active === false ? ' ・ 一時停止中' : ''}`;
   copy.append(title, meta);
   card.append(copy);
 
@@ -258,36 +303,53 @@ ui.form.addEventListener('submit', async event => {
   event.preventDefault();
   if (isSaving) return;
   const title = ui.title.value.trim();
-  const selectedDays = [...ui.form.querySelectorAll('input[name="weekday"]:checked')]
-    .map(input => Number(input.value))
-    .filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
   if (!title) {
     setStatus('記録する内容を入力してください。', 'error');
     return;
   }
-  if (!selectedDays.length) {
-    setStatus('曜日を1つ以上選択してください。', 'error');
-    return;
-  }
-  const previousPayload = JSON.parse(JSON.stringify(payload));
-  payload.recurringRecords.push({
+  const scheduleMode = selectedScheduleMode();
+  const entry = {
     id: `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
     title,
-    weekdays: selectedDays,
     time: ui.time.value || '',
     active: true,
     createdAt: new Date().toISOString()
-  });
+  };
+  if (scheduleMode === 'dates') {
+    const dates = parseSpecificDates(ui.dates.value);
+    if (!dates?.length) {
+      setStatus('日付を 11/18 または YYYY-MM-DD 形式で入力してください。複数の日付はカンマ区切りです。', 'error');
+      return;
+    }
+    entry.dates = dates;
+  } else {
+    const selectedDays = [...ui.form.querySelectorAll('input[name="weekday"]:checked')]
+      .map(input => Number(input.value))
+      .filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
+    if (!selectedDays.length) {
+      setStatus('曜日を1つ以上選択してください。', 'error');
+      return;
+    }
+    entry.weekdays = selectedDays;
+  }
+  const previousPayload = JSON.parse(JSON.stringify(payload));
+  payload.recurringRecords.push(entry);
   try {
     await savePayload('繰り返し項目を登録しました');
     ui.form.reset();
     ui.form.querySelectorAll('input[name="weekday"]').forEach(input => { input.checked = true; });
+    updateScheduleFields();
   } catch (error) {
     payload = previousPayload;
     render();
     setStatus(`登録に失敗しました: ${error.message || error}`, 'error');
   }
 });
+
+ui.form.querySelectorAll('input[name="schedule-mode"]').forEach(input => {
+  input.addEventListener('change', updateScheduleFields);
+});
+updateScheduleFields();
 
 ui.signIn.addEventListener('click', async () => {
   if (!supabaseClient) {
