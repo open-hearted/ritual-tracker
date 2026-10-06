@@ -1154,8 +1154,18 @@ renderCalendar = function(){
       return `<span class="cal-mark" title="${time ? time + ' ' : ''}${safeText}">${label}</span>`;
     });
 
+    const recurringMarkers = (Array.isArray(STATE.payload.recurringRecords) ? STATE.payload.recurringRecords : [])
+      .filter(entry => entry && entry.active !== false && Array.isArray(entry.dates) && entry.dates.includes(dk))
+      .map(entry => {
+        const text = (entry.title || '').toString();
+        const safeText = text.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+        const shortText = text.length <= 8 ? text : `${text.slice(0, 8)}…`;
+        const safeShortText = shortText.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+        return `<span class="cal-mark recurring-mark" title="${safeText}">📌${safeShortText}</span>`;
+      });
+
     const wrap = cell.querySelector('.markers');
-    if(wrap) wrap.innerHTML = [...activityMarkers, ...scheduleMarkers, ...apptMarkers].join(' ');
+    if(wrap) wrap.innerHTML = [...activityMarkers, ...scheduleMarkers, ...apptMarkers, ...recurringMarkers].join(' ');
     if(activityMarkers.length) cell.setAttribute('data-has','1'); else cell.removeAttribute('data-has');
   });
 };
