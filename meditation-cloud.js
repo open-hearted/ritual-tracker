@@ -1154,7 +1154,7 @@ renderCalendar = function(){
       return `<span class="cal-mark" title="${time ? time + ' ' : ''}${safeText}">${label}</span>`;
     });
 
-    const recurringMarkers = (Array.isArray(STATE.payload.recurringRecords) ? STATE.payload.recurringRecords : [])
+    const recurringMarkers = getRecurringRecords()
       .filter(entry => entry && entry.active !== false && Array.isArray(entry.dates) && entry.dates.includes(dk))
       .map(entry => {
         const text = (entry.title || '').toString();
@@ -1166,7 +1166,8 @@ renderCalendar = function(){
 
     const wrap = cell.querySelector('.markers');
     if(wrap) wrap.innerHTML = [...activityMarkers, ...scheduleMarkers, ...apptMarkers, ...recurringMarkers].join(' ');
-    if(activityMarkers.length) cell.setAttribute('data-has','1'); else cell.removeAttribute('data-has');
+    if(activityMarkers.length || recurringMarkers.length) cell.setAttribute('data-has','1');
+    else cell.removeAttribute('data-has');
   });
 };
 
@@ -1176,6 +1177,13 @@ function getExistingDayRecord(dateKey){
   const data = STATE.payload && STATE.payload.data;
   const month = data && data[mk];
   return month && month[dateKey] ? month[dateKey] : null;
+}
+
+function getRecurringRecords(){
+  const payload = STATE.payload;
+  if(Array.isArray(payload && payload.recurringRecords)) return payload.recurringRecords;
+  const data = payload && payload.data;
+  return Array.isArray(data && data.recurringRecords) ? data.recurringRecords : [];
 }
 
 function normalizeDayRecord(rec){

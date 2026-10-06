@@ -48,6 +48,9 @@ function normalizePayload(raw) {
     ? raw
     : { data: raw && typeof raw === 'object' ? raw : {} };
   if (!normalized.data || typeof normalized.data !== 'object') normalized.data = {};
+  if (!Array.isArray(normalized.recurringRecords) && Array.isArray(normalized.data.recurringRecords)) {
+    normalized.recurringRecords = normalized.data.recurringRecords;
+  }
   if (!Array.isArray(normalized.recurringRecords)) normalized.recurringRecords = [];
   return normalized;
 }
