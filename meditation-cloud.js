@@ -197,6 +197,9 @@ async function initSupabaseAuth() {
     setMsg('Google認証済みです');
     try{ await loadNecessaryItems(); }catch(e){}
     try{ maybeOpenInitialDate(); }catch(e){}
+    if(isMonthlyPage()){
+      try{ await med_loadAll(); }catch(e){}
+    }
   } else {
     updateUiForAuth(false);
     renderNecessaryItemsList([]);
@@ -210,6 +213,7 @@ async function initSupabaseAuth() {
       setMsg('Google認証済みです');
       try{ loadNecessaryItems(); }catch(e){}
       try{ maybeOpenInitialDate(); }catch(e){}
+      if(isMonthlyPage()) med_loadAll();
     } else if (event === 'SIGNED_OUT') {
       renderNecessaryItemsList([]);
       forceSignOut('サインアウトしました');
