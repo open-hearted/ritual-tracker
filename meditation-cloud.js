@@ -1155,7 +1155,12 @@ renderCalendar = function(){
     });
 
     const recurringMarkers = getRecurringRecords()
-      .filter(entry => entry && entry.active !== false && Array.isArray(entry.dates) && entry.dates.includes(dk))
+      .filter(entry => {
+        if(!entry || entry.active === false) return false;
+        if(Array.isArray(entry.dates)) return entry.dates.includes(dk);
+        const [year, month, day] = dk.split('-').map(Number);
+        return Array.isArray(entry.weekdays) && entry.weekdays.includes(new Date(year, month - 1, day).getDay());
+      })
       .map(entry => {
         const text = (entry.title || '').toString();
         const safeText = text.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
