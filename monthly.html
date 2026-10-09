@@ -64,6 +64,9 @@
     #monthlyControls{ display:flex; align-items:center; gap:8px; }
     #monthlyControls #monthLabel{ font-weight:700; min-width: 8ch; text-align:center; }
     #monthlyControls button{ padding:4px 8px; }
+    body[data-page="monthly"] > .top{ gap:6px; padding:4px 8px; }
+    body[data-page="monthly"] .container.compact{ gap:0; padding:0 12px 12px; }
+    body[data-page="monthly"] .card.cal-card{ padding:4px 12px 12px; }
     /* Style for openDaily button matching index's monthly button */
     #openDaily {
       display: inline-flex;
@@ -80,23 +83,39 @@
       font-weight: 700;
     }
     #openDaily:active { filter: brightness(1.1); }
+    @media (max-width: 600px) {
+      body[data-page="monthly"] > .top{ gap:6px !important; padding:4px 8px !important; }
+      body[data-page="monthly"] #signOutBtn,
+      body[data-page="monthly"] #openDaily,
+      body[data-page="monthly"] #monthlyControls{ order:1; }
+      body[data-page="monthly"] #signOutBtn,
+      body[data-page="monthly"] #openDaily{ min-height:32px; padding:4px 8px; }
+      body[data-page="monthly"] #monthlyControls{
+        width:auto;
+        justify-content:flex-start !important;
+        gap:4px !important;
+      }
+      body[data-page="monthly"] #monthlyControls button{
+        min-height:32px;
+        padding:4px 6px !important;
+      }
+    }
   </style>
 </head>
 <body data-page="monthly" data-auth="false">
-  <div class="top" style="display:flex;align-items:center;gap:12px;padding:12px">
+  <div class="top">
     <button id="supabaseLoginBtn">Googleでログイン</button>
     <button id="signOutBtn" style="display:none">サインアウト</button>
-    <div style="flex:1"></div>
+    <a id="openDaily" href="index.html">今日</a>
     <div id="monthlyControls" aria-label="月移動">
       <button id="prevBtn" type="button">◀</button>
       <div id="monthLabel"></div>
       <button id="nextBtn" type="button">▶</button>
     </div>
-    <a id="openDaily" href="index.html">今日</a>
     <div id="msg" style="color:#6b7280"></div>
   </div>
 
-  <div class="container compact" style="padding:12px">
+  <div class="container compact">
     <div class="card cal-card">
       <div class="grid" id="dowRow"></div>
       <div class="grid" id="calGrid" aria-live="polite"></div>
